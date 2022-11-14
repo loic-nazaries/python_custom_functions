@@ -36,18 +36,22 @@ from statsmodels.multivariate.manova import MANOVA
 # INPUT/OUTPUT
 
 
-def get_mat_file_list(directory_name: str) -> list[str]:
-    """Get the list of file from a directory.
+def get_file_name_list_from_extension(
+    directory_name: str,
+    extension: str
+) -> list[str]:
+    """Get the list of file (name) from a directory.
 
     Args:
         directory_name (_type_): _description_
+        extension (_type_): _description_
 
     Returns:
         _type_: _description_
     """
-    paths = Path(directory_name=directory_name).glob("**/*.mat")
-    dictionary_name_list = [str(path) for path in paths]
-    return dictionary_name_list  # check list content type
+    paths = Path(directory_name).glob(f"**/*.{extension}")
+    file_name_list = [str(path) for path in paths]
+    return file_name_list
 
 
 # check dict content type
@@ -265,45 +269,28 @@ def convert_array_to_series(array: np.ndarray, array_name: str) -> pd.Series:
     return series
 
 
-def convert_array_to_dataframe(array: np.ndarray) -> pd.DataFrame:
-    """Convert an array to a dataframe.
-
-    Args:
-        array (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    dataframe = pd.DataFrame(data=array)
-    return dataframe
-
-
 # ----------------------------------------------------------------------------
 
 # CONVERT OBJECTS
 
 
-# check dict content type
-def convert_dictionary_to_dataframe(dictionary_file: dict) -> pd.DataFrame:
-    """Convert a dictionary into a dataframe.
-
-    First, the 'len()' function gets the number of items in the dictionary.
-    Second, 'range()' is used to set a range from 0 to length of dictionary.
-    Finally, 'list()' converts the items into NUMERICAL index values.
+def convert_data_to_dataframe(
+    data: [dict[int | str, float] | np.ndarray]
+) -> pd.DataFrame:
+    """Convert an array or dictionary to a dataframe.
 
     Args:
-        dictionary_file (_type_): _description_
+        data (_type_): _description_
+        Note: include list ?
 
     Returns:
         _type_: _description_
     """
-    dataframe = pd.DataFrame(
-        data=dictionary_file,
-        index=[list(range(len(dictionary_file)))]
-    )
+    dataframe = pd.DataFrame(data=data)
     return dataframe
 
 
+# Merge with above ?
 def convert_list_to_dataframe(
     items_list: list[str],
     # column_names: list[str]
@@ -329,8 +316,15 @@ def convert_list_to_dataframe(
 
 # DATA MANIPULATION
 
-def concatenate_processed_dataframes(dataframe_list):
+
+def concatenate_dataframes(
+    dataframe_list: list[str],
+    axis: [str | int],
+) -> pd.DataFrame:
     """Concatenate the dataframes from the various processing steps.
+
+    Use either 'axis="horizontal"' or 'axis=1' for an analysis column-wise
+    or 'axis="vertical"' or 'axis=0' for an analysis row-wise.
 
     Args:
         dataframe_list (_type_): _description_
@@ -338,11 +332,15 @@ def concatenate_processed_dataframes(dataframe_list):
     Returns:
         _type_: _description_
     """
-    data_concatenation = pd.concat(objs=dataframe_list, axis=1)
-    return data_concatenation
+    concatenated_dataframe = pd.concat(objs=dataframe_list, axis=axis)
+    return concatenated_dataframe
 
 
-def remove_column_list(column, column_list, column_to_remove):
+def remove_column_based_on_list(
+    # column,  # delete ?
+    column_list: list[str],
+    column_to_remove: list[str],
+) -> list[str]:  # to be checked; not dataframe ?
     """_summary_.
 
     Args:
@@ -360,7 +358,10 @@ def remove_column_list(column, column_list, column_to_remove):
     return column_list_reduced
 
 
-def drop_column(dataframe, column_list):
+def drop_column(
+    dataframe: pd.DataFrame,
+    column_list: list[str]
+) -> pd.DataFrame:
     """Drop columns from the dataframe.
 
     Args:
@@ -377,7 +378,11 @@ def drop_column(dataframe, column_list):
     return dataframe_reduced
 
 
-def drop_row_by_value(dataframe, column_name, value_name):
+def drop_row_by_value(
+        dataframe: pd.DataFrame,
+        column_name: str,
+        value_name: [str | int | float],
+) -> pd.DataFrame:
     """Drop rows from a column in the dataframe.
 
     A list a 'value_name' can be passed with a for-loop.
@@ -393,7 +398,10 @@ def drop_row_by_value(dataframe, column_name, value_name):
     return dataframe_reduced
 
 
-def get_list_of_unique_values(dataframe, column_name):
+def get_list_of_unique_values(
+        dataframe: pd.DataFrame,
+        column_name: str
+) -> list[str | int | float]:  # to be checked
     """Get a list of unique values from a dataframe.
 
     Since an array is produced, the output is converted to a list.
@@ -409,7 +417,9 @@ def get_list_of_unique_values(dataframe, column_name):
     return unique_names
 
 
-def get_numerical_features(dataframe):
+def get_numerical_features(
+    dataframe: pd.DataFrame
+) -> tuple[pd.DataFrame, list[str]]:
     """get_numerical_features _summary_.
 
     Args:
@@ -426,7 +436,9 @@ def get_numerical_features(dataframe):
     return numerical_features, numerical_features_list
 
 
-def get_categorical_features(dataframe):
+def get_categorical_features(
+    dataframe: pd.DataFrame
+) -> tuple[pd.DataFrame, list[str]]:
     """get_categorical_features _summary_.
 
     Args:
@@ -737,9 +749,6 @@ def get_iqr_outliers(dataframe, column):
             (dataframe[column] < lower_limit)
         ]
     )
-    # outlier_dataframe = dataframe.query(
-    #     "column > upper_limit | column < lower_limit"
-    # )
     print(
         f"""
         \nTable of outliers for {column} based on IQR value:\n
@@ -756,7 +765,7 @@ def standardise_features(features):
     BEFORE applying PCA.
 
     NOTE: since the 'StandardScaler()' function from scikit-learn library
-    produces a Numpy array, the 'convert_array_to_dataframe()' custom function
+    produces a Numpy array, the 'convert_data_to_dataframe()' custom function
     is applied to convert the array to a Pandas dataframe.
     As a consequence, the column names must also be renamed using the selected
     feature names.
@@ -768,7 +777,7 @@ def standardise_features(features):
         _type_: _description_
 
     TODO Why is '.set_output(transform="pandas")' not working ?!
-        Once fixed, 'features_scaled = convert_array_to_dataframe
+        Once fixed, 'features_scaled = convert_data_to_dataframe
         (features_scaled)' can be deleted.
     """
     # Standardise the features
@@ -778,7 +787,7 @@ def standardise_features(features):
     # print(f"Data Type for scaler: {type(scaler).__name__}")
     features_scaled = scaler.fit_transform(features)
     # Delete next function call when .set_output(transform="pandas") is fixed
-    features_scaled = convert_array_to_dataframe(features_scaled)
+    features_scaled = convert_data_to_dataframe(features_scaled)
     features_scaled.columns = features.columns.to_list()
     # print(f"Data Type for features_scaled: {type(features_scaled).__name__}")
     return features_scaled
@@ -1067,7 +1076,7 @@ def perform_multicomparison_correction(p_values, method="bonferroni"):
 # DATA VISUALISATION
 
 
-def draw_scree_plot(x_axis, y_axis):
+def draw_lineplot(x_axis, y_axis):
     """Draw scree plot following a PCA.
 
     Args:
@@ -1077,7 +1086,7 @@ def draw_scree_plot(x_axis, y_axis):
     Returns:
         _type_: _description_
     """
-    scree_plot = sns.lineplot(
+    lineplot = sns.lineplot(
         x=x_axis,
         y=y_axis,
         color='black',
@@ -1086,7 +1095,7 @@ def draw_scree_plot(x_axis, y_axis):
         marker='o',
         markersize=8,
     )
-    return scree_plot
+    return lineplot
 
 
 def draw_scatterplot(
