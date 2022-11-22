@@ -281,6 +281,7 @@ def describe_dataframe_properties(dataframe):
         _type_: _description_
     """
     dataframe.info()
+    print("\n")  # Add un space between the two tables
     dataframe_description = dataframe.describe().T
     # Kurtosis
     kurt_df = dataframe.kurtosis().rename("kurt")
@@ -298,6 +299,7 @@ def describe_dataframe_properties(dataframe):
         ],
         axis=1
     )
+    print("\n")
     return stats_dataframe
 
 

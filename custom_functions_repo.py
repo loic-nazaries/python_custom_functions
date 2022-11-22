@@ -381,7 +381,7 @@ def drop_column(
 def drop_row_by_value(
         dataframe: pd.DataFrame,
         column_name: str,
-        value_name: [str | int | float],
+        value_name: [str | int | float],  # to be checked
 ) -> pd.DataFrame:
     """Drop rows from a column in the dataframe.
 
@@ -395,6 +395,16 @@ def drop_row_by_value(
     """
     dataframe_reduced = dataframe[dataframe[column_name] != value_name]
 
+    return dataframe_reduced
+
+
+def select_row_by_query(
+    dataframe: pd.DataFrame,
+    query_content: str,
+) -> pd.DataFrame:
+    """select_row_by_value _summary_.
+    """
+    dataframe_reduced = dataframe.query(query_content)
     return dataframe_reduced
 
 
@@ -968,9 +978,6 @@ def check_equal_variance_assumption(
     The parameter 'data' can take a 1D-array (e.g. model output) or a
     dataframe and one of its column (e.g. dataframes[column]).
 
-    BUG This is NOT working with the 'data' argument.
-        However, it works with 'dataframe' and 'dv'.
-
     Args:
         model (_type_): _description_
 
@@ -979,7 +986,6 @@ def check_equal_variance_assumption(
     """
     bartlett = pg.homoscedasticity(
         data=data,
-        dv=dependent_variable,
         group=group,
         method="bartlett",
         alpha=alpha
