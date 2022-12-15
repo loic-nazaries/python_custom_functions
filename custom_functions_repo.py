@@ -25,6 +25,7 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
+from statsmodels.stats.multicomp import MultiComparison
 # Uncomment next import when '.set_output(transform="pandas")' is fixed
 # from sklearn import set_config
 
@@ -312,6 +313,79 @@ def convert_list_to_dataframe(
     return dataframe
 
 
+def convert_to_datetime_type(
+    dataframe: pd.DataFrame,
+    datetime_variable_list: list[str]
+) -> pd.DataFrame:
+    """date_time_variables _summary_.
+
+    Args:
+        dataframe (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # Convert data to their proper type
+    dataframe[datetime_variable_list] = (
+        dataframe[datetime_variable_list].astype("datetime64[ns]")
+    )
+    return dataframe
+
+
+def convert_to_category_type(
+    dataframe: pd.DataFrame,
+    category_variable_list: list[str]
+) -> pd.DataFrame:
+    """category_variables _summary_.
+
+    Args:
+        processed_data (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    dataframe[category_variable_list] = (
+        dataframe[category_variable_list].astype("category")
+    )
+    return dataframe
+
+
+def convert_to_integer_type(
+    dataframe: pd.DataFrame,
+    integer_variable_list: list[str]
+) -> pd.DataFrame:
+    """integer_variables _summary_.
+
+    Args:
+        processed_data (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    dataframe[integer_variable_list] = (
+        dataframe[integer_variable_list].astype("int")
+    )
+    return dataframe
+
+
+def convert_to_string_type(
+    dataframe: pd.DataFrame,
+    string_variable_list: list[str]
+) -> pd.DataFrame:
+    """string_variables _summary_.
+
+    Args:
+        processed_data (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    dataframe[string_variable_list] = (
+        dataframe[string_variable_list].astype("string")
+    )
+    return dataframe
+
+
 # -----------------------------------------------------------------------------
 
 # DATA MANIPULATION
@@ -470,7 +544,7 @@ def get_categorical_features(
 # EXPLORATORY DATA ANALYSIS
 
 
-def run_exploratory_data_analysis(dataframe):
+def run_exploratory_data_analysis(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Print out the summary descriptive statistics from the dataset.
 
     Also includes a missing table summary.
@@ -537,7 +611,9 @@ def run_exploratory_data_analysis(dataframe):
 
 
 # Trying to generate numerical and categorical subsets
-def run_exploratory_data_analysis_nums_cats(dataframe):
+def run_exploratory_data_analysis_nums_cats(
+    dataframe: pd.DataFrame
+) -> pd.DataFrame:
     """Print out the summary descriptive statistics from the dataset.
 
     Also includes a missing table summary.
@@ -560,7 +636,8 @@ def run_exploratory_data_analysis_nums_cats(dataframe):
     # Select "all" value in 'include' parameter to include non numerical data
     # in the EDA
     summary_stats_nums = dataframe.select_dtypes(
-        include="number").describe(include="all").T
+        include="number"
+    ).describe(include="all").T
 
     # # Mode
     # mode = dataframe.mode(axis=0).T
@@ -651,6 +728,34 @@ def pivot_to_aggregate(
         aggfunc=aggfunc_list
     )
     return pivot_table
+
+
+def group_by_columns_mean_std(dataframe, by_column_list, column_list):
+    """Aggregate column values based on an aggregate function.
+
+    Args:
+        dataframe (_type_): _description_
+        by_column_list (_type_): _description_
+        column_list (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    dataframe_groups = dataframe.groupby(
+        by=by_column_list,
+        axis=0,
+        as_index=True,
+        sort=True,
+    ).agg(
+        mean=pd.NamedAgg(column=column_list, aggfunc="mean"),
+        std=pd.NamedAgg(column=column_list, aggfunc="std"),
+        # mad_intensity=("intensity", "mad"),  # NOT working
+    ).dropna(
+        axis=0,
+        how="any",
+        # inplace=True,
+    )  # Drop rows with NA values to focus on columns with defects
+    return dataframe_groups
 
 
 def calculate_mahalanobis_distance(var, data, cov=None):
@@ -896,6 +1001,30 @@ def apply_manova(dataframe, formula):
     )
     manova_test = model.mv_test()
     return manova_test
+
+
+def perform_multicomparison(
+    dataframe: pd.DataFrame,
+    groups: list[str],
+    alpha: float = 0.05
+):
+    """perform_multicomparison _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        groups (list[str]): _description_
+        alpha (float, optional): _description_. Defaults to 0.05.
+
+    Returns:
+        _type_: _description_
+    """
+    multicomparison = MultiComparison(
+        data=dataframe,
+        groups=groups
+    )
+    tukey_result = multicomparison.tukeyhsd(alpha=alpha)
+    print(f"\nMulticomparaison between groups:\n{tukey_result}\n")
+    print(f"Unique groups: {multicomparison.groupsunique}\n")
 
 
 def check_normality_assumption(data, alpha=0.05):
