@@ -432,6 +432,21 @@ def remove_column_based_on_list(
     return column_list_reduced
 
 
+def remove_duplicated_rows(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Remove duplicated values row-wide and reset index.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    dataframe = (
+        dataframe.drop_duplicates().reset_index(drop=True)
+    )
+    return dataframe
+
+
 def drop_column(
     dataframe: pd.DataFrame,
     column_list: list[str]
@@ -532,7 +547,7 @@ def get_categorical_features(
         _type_: _description_
     """
     # Select categorical variables ONLY and make a list
-    categorical_features = dataframe.select_dtypes(exclude=(np.number))
+    categorical_features = dataframe.select_dtypes(include="category")
     categorical_features_list = categorical_features.columns.to_list()
     print(f"\nList of Categorical Features: \n{categorical_features_list}\n")
     print(categorical_features.describe())
@@ -1003,30 +1018,6 @@ def apply_manova(dataframe, formula):
     return manova_test
 
 
-def perform_multicomparison(
-    dataframe: pd.DataFrame,
-    groups: list[str],
-    alpha: float = 0.05
-):
-    """perform_multicomparison _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        groups (list[str]): _description_
-        alpha (float, optional): _description_. Defaults to 0.05.
-
-    Returns:
-        _type_: _description_
-    """
-    multicomparison = MultiComparison(
-        data=dataframe,
-        groups=groups
-    )
-    tukey_result = multicomparison.tukeyhsd(alpha=alpha)
-    print(f"\nMulticomparaison between groups:\n{tukey_result}\n")
-    print(f"Unique groups: {multicomparison.groupsunique}\n")
-
-
 def check_normality_assumption(data, alpha=0.05):
     """Check assumptions for normality of data.
 
@@ -1157,6 +1148,30 @@ def check_equal_variance_assumption(
     # elif levene["equal_var"] is True:
     #     print("The data have equal variance between groups")
     return equal_variance_tests
+
+
+def perform_multicomparison(
+    dataframe: pd.DataFrame,
+    groups: [array | pd.Series | pd.DataFrame],
+    alpha: float = 0.05
+):
+    """perform_multicomparison _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        groups (list[str]): _description_
+        alpha (float, optional): _description_. Defaults to 0.05.
+
+    Returns:
+        _type_: _description_
+    """
+    multicomparison = MultiComparison(
+        data=dataframe,
+        groups=groups
+    )
+    tukey_result = multicomparison.tukeyhsd(alpha=alpha)
+    print(f"\nMulticomparaison between groups:\n{tukey_result}\n")
+    print(f"Unique groups: {multicomparison.groupsunique}\n")
 
 
 def run_tukey_post_hoc_test(dataframe, dependent_variable, group_list):
