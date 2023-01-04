@@ -6,9 +6,9 @@ Definition of the functions customised for the Rockwool analyses.
 """
 # Call the libraries required
 # import glob
-from typing import Any
 import re
 from pathlib import Path
+from typing import Any, List, Tuple, Dict
 import matplotlib.pyplot as plt
 import numpy as np
 # import openpyxl
@@ -40,7 +40,7 @@ from statsmodels.stats.multicomp import MultiComparison
 def get_file_name_list_from_extension(
     directory_name: str,
     extension: str
-) -> list[str]:
+) -> List[str]:
     """Get the list of file (name) from a directory.
 
     Args:
@@ -56,7 +56,7 @@ def get_file_name_list_from_extension(
 
 
 # check dict content type
-def load_mat_file(mat_file_name: str) -> dict[str, float]:
+def load_mat_file(mat_file_name: str) -> Dict[str, float]:
     """Load data from '.mat' file as a dictionary and print it.
 
     Args:
@@ -170,7 +170,7 @@ def remove_key_from_dictionary(
     return dictionary  # check dict content type
 
 
-def extract_pattern_from_file_name(file_name: str) -> list[str]:
+def extract_pattern_from_file_name(file_name: str) -> List[str]:
     r"""Use regular expressions to extract a pattern from a list of file names.
 
     Specifically, it splits the string (here, file name) each time an
@@ -276,7 +276,7 @@ def convert_array_to_series(array: np.ndarray, array_name: str) -> pd.Series:
 
 
 def convert_data_to_dataframe(
-    data: [dict[int | str, float] | np.ndarray]
+    data: [Dict[int | str, float] | np.ndarray]
 ) -> pd.DataFrame:
     """Convert an array or dictionary to a dataframe.
 
@@ -293,8 +293,8 @@ def convert_data_to_dataframe(
 
 # Merge with above ?
 def convert_list_to_dataframe(
-    items_list: list[str],
-    # column_names: list[str]
+    items_list: List[str],
+    # column_names: List[str]
 ) -> pd.DataFrame:
     """Convert a nested list into a dataframe.
 
@@ -315,7 +315,7 @@ def convert_list_to_dataframe(
 
 def convert_to_datetime_type(
     dataframe: pd.DataFrame,
-    datetime_variable_list: list[str]
+    datetime_variable_list: List[str]
 ) -> pd.DataFrame:
     """date_time_variables _summary_.
 
@@ -334,7 +334,7 @@ def convert_to_datetime_type(
 
 def convert_to_category_type(
     dataframe: pd.DataFrame,
-    category_variable_list: list[str]
+    category_variable_list: List[str]
 ) -> pd.DataFrame:
     """category_variables _summary_.
 
@@ -352,7 +352,7 @@ def convert_to_category_type(
 
 def convert_to_integer_type(
     dataframe: pd.DataFrame,
-    integer_variable_list: list[str]
+    integer_variable_list: List[str]
 ) -> pd.DataFrame:
     """integer_variables _summary_.
 
@@ -370,7 +370,7 @@ def convert_to_integer_type(
 
 def convert_to_string_type(
     dataframe: pd.DataFrame,
-    string_variable_list: list[str]
+    string_variable_list: List[str]
 ) -> pd.DataFrame:
     """string_variables _summary_.
 
@@ -392,7 +392,7 @@ def convert_to_string_type(
 
 
 def concatenate_dataframes(
-    dataframe_list: list[str],
+    dataframe_list: List[str],
     axis: [str | int],
 ) -> pd.DataFrame:
     """Concatenate the dataframes from the various processing steps.
@@ -406,15 +406,15 @@ def concatenate_dataframes(
     Returns:
         _type_: _description_
     """
-    concatenated_dataframe = pd.concat(objs=dataframe_list, axis=axis)
-    return concatenated_dataframe
+    concatenated_dataframes = pd.concat(objs=dataframe_list, axis=axis)
+    return concatenated_dataframes
 
 
 def remove_column_based_on_list(
     # column,  # delete ?
-    column_list: list[str],
-    column_to_remove: list[str],
-) -> list[str]:  # to be checked; not dataframe ?
+    column_list: List[str],
+    column_to_remove: List[str],
+) -> List[str]:  # to be checked; not dataframe ?
     """_summary_.
 
     Args:
@@ -449,7 +449,7 @@ def remove_duplicated_rows(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def drop_column(
     dataframe: pd.DataFrame,
-    column_list: list[str]
+    column_list: List[str]
 ) -> pd.DataFrame:
     """Drop columns from the dataframe.
 
@@ -491,8 +491,7 @@ def select_row_by_query(
     dataframe: pd.DataFrame,
     query_content: str,
 ) -> pd.DataFrame:
-    """select_row_by_value _summary_.
-    """
+    """select_row_by_value _summary_."""
     dataframe_reduced = dataframe.query(query_content)
     return dataframe_reduced
 
@@ -500,7 +499,7 @@ def select_row_by_query(
 def get_list_of_unique_values(
         dataframe: pd.DataFrame,
         column_name: str
-) -> list[str | int | float]:  # to be checked
+) -> List[str | int | float]:  # to be checked
     """Get a list of unique values from a dataframe.
 
     Since an array is produced, the output is converted to a list.
@@ -518,7 +517,7 @@ def get_list_of_unique_values(
 
 def get_numerical_features(
     dataframe: pd.DataFrame
-) -> tuple[pd.DataFrame, list[str]]:
+) -> Tuple[pd.DataFrame, List[str]]:
     """get_numerical_features _summary_.
 
     Args:
@@ -537,7 +536,7 @@ def get_numerical_features(
 
 def get_categorical_features(
     dataframe: pd.DataFrame
-) -> tuple[pd.DataFrame, list[str]]:
+) -> Tuple[pd.DataFrame, List[str]]:
     """get_categorical_features _summary_.
 
     Args:
@@ -552,6 +551,27 @@ def get_categorical_features(
     print(f"\nList of Categorical Features: \n{categorical_features_list}\n")
     print(categorical_features.describe())
     return categorical_features, categorical_features_list
+
+
+def get_dictionary_key(
+    dictionary: Dict[int, str],
+    target_string: str
+) -> int:
+    """Get the key (as an integer) from the dictionary based on its values.
+
+    Args:
+        dictionary (_type_): _description_
+        target_string (str): _description_
+
+    Returns:
+        int: _description_
+    """
+    key_list = list(dictionary.keys())
+    value_list = list(dictionary.values())
+    # print key based on its value
+    target_key = value_list.index(target_string)
+    print(f"\nTarget key: {key_list[target_key]}\n")
+    return target_key
 
 
 # -----------------------------------------------------------------------------
@@ -773,7 +793,11 @@ def group_by_columns_mean_std(dataframe, by_column_list, column_list):
     return dataframe_groups
 
 
-def calculate_mahalanobis_distance(var, data, cov=None):
+def calculate_mahalanobis_distance(
+    var: np.ndarray,
+    data: np.ndarray,
+    cov=None
+):
     """Compute the Mahalanobis Distance between each row of x and the data.
 
     Args:
@@ -1152,18 +1176,15 @@ def check_equal_variance_assumption(
 
 def perform_multicomparison(
     dataframe: pd.DataFrame,
-    groups: [array | pd.Series | pd.DataFrame],
+    groups: [np.ndarray | pd.Series | pd.DataFrame],
     alpha: float = 0.05
 ):
     """perform_multicomparison _summary_.
 
     Args:
         dataframe (pd.DataFrame): _description_
-        groups (list[str]): _description_
+        groups (np.ndarray  |  pd.Series  |  pd.DataFrame]): _description_
         alpha (float, optional): _description_. Defaults to 0.05.
-
-    Returns:
-        _type_: _description_
     """
     multicomparison = MultiComparison(
         data=dataframe,
