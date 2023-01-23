@@ -22,6 +22,7 @@ import statsmodels.stats.multicomp as mc
 from scipy.io import loadmat
 from scipy.stats import chi2
 from sklearn.decomposition import PCA
+from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import StandardScaler
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
@@ -110,7 +111,7 @@ def save_csv_file(
         encoding="utf-8",
         index=True,
     )
-    return
+    # return
 
 
 def save_excel_file(
@@ -126,7 +127,7 @@ def save_excel_file(
     dataframe.to_excel(
         excel_writer=f"./output/{file_name}.xlsx"
     )
-    return
+    # return
 
 
 def save_figure(figure_name: str, dpi: int = 300) -> None:
@@ -147,7 +148,7 @@ def save_figure(figure_name: str, dpi: int = 300) -> None:
             bbox_inches="tight",
             dpi=dpi
         )
-    return
+    # return
 
 
 # ----------------------------------------------------------------------------
@@ -515,10 +516,10 @@ def get_list_of_unique_values(
     return unique_names
 
 
-def get_numerical_features(
+def get_numeric_features(
     dataframe: pd.DataFrame
 ) -> Tuple[pd.DataFrame, List[str]]:
-    """get_numerical_features _summary_.
+    """get_numeric_features _summary_.
 
     Args:
         dataframe (_type_): _description_
@@ -555,7 +556,7 @@ def get_categorical_features(
 
 def get_dictionary_key(
     dictionary: Dict[int, str],
-    target_string: str
+    target_key_string: str
 ) -> int:
     """Get the key (as an integer) from the dictionary based on its values.
 
@@ -569,8 +570,8 @@ def get_dictionary_key(
     key_list = list(dictionary.keys())
     value_list = list(dictionary.values())
     # print key based on its value
-    target_key = value_list.index(target_string)
-    print(f"\nTarget key: {key_list[target_key]}\n")
+    target_key = value_list.index(target_key_string)
+    print(f"\nTarget key: {key_list[target_key_string]}\n")
     return target_key
 
 
@@ -945,6 +946,65 @@ def standardise_features(features):
     features_scaled.columns = features.columns.to_list()
     # print(f"Data Type for features_scaled: {type(features_scaled).__name__}")
     return features_scaled
+
+
+def remove_low_variance_features(
+    features: pd.DataFrame,
+    threshold: float,
+) -> pd.DataFrame:
+    """Remove variables with low variance.
+
+    Args:
+        features (pd.DataFrame): _description_
+        threshold (float, optional): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    var_thres = VarianceThreshold(threshold=threshold)
+    _ = var_thres.fit(features)
+    # Get a boolean mask
+    mask = var_thres.get_support()
+    # Subset the data
+    features_reduced = features.loc[:, mask]
+    print("\nThe following features were retained:")
+    print(f"{features_reduced.columns}")
+    return features_reduced
+
+
+def identify_highly_correlated_features(
+    dataframe: pd.DataFrame,
+    correlation_threshold: float = 0.80,
+) -> List[str]:
+    """Identify highly correlated features.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        correlation_threshold (float, optional): _description_.
+        Defaults to 0.80.
+
+    Returns:
+        List[str]: _description_
+    """
+    # Compute correlation matrix with absolute values
+    correlation_matrix = dataframe.corr(method="pearson").abs()
+
+    # Create a boolean mask
+    mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+
+    # Subset the matrix
+    reduced_correlation_matrix = correlation_matrix.mask(cond=mask)
+
+    # Find cols that meet the threshold
+    features_to_drop = [
+        feature for feature in reduced_correlation_matrix.columns
+        if any(reduced_correlation_matrix[feature] > correlation_threshold)
+    ]
+    print(
+        f"\nThere are {len(features_to_drop)} features to drop due to high \
+            correlation:\n{features_to_drop}\n"
+    )
+    return features_to_drop
 
 
 # -----------------------------------------------------------------------------
@@ -1696,11 +1756,13 @@ def draw_anova_quality_checks(
         fontsize=14,
         loc="center"
     )
+    # plt.grid(visible=False)
+    # plt.axis("off")
+    # plt.show()
     # Save figure
     save_figure(
         figure_name=f"qqplot_anova_{independent_variable}_{dependent_variable}"
     )
-    # plt.show()
 
     # -------------------------------------------------------------------------
 
@@ -1723,10 +1785,12 @@ def draw_anova_quality_checks(
         """,
         fontsize=14
     )
+    # plt.grid(visible=False)
+    # plt.axis("off")
+    # plt.show()
     save_figure(
         figure_name=f"tukey_anova_{independent_variable}_{dependent_variable}"
     )
-    # plt.show()
 
     tukey_post_hoc_test = run_tukey_post_hoc_test(
         dataframe=dataframe,
@@ -1746,3 +1810,35 @@ def draw_anova_quality_checks(
     print(corrected_tukey_post_hoc_test)
     print("\n==============================================================\n")
     return corrected_tukey_post_hoc_test
+
+
+def display_save_image(image: np.ndarray, image_title: str):
+    """display_image _summary_.
+
+    Args:
+        image (np.ndarray): _description_
+        image_title (str): _description_
+    """
+    image = plt.imshow(
+        X=image,
+        cmap="Greens", vmin=0, vmax=1,
+        # cmap='prism', vmin=0, vmax=255,
+    )
+    # # Testing the 'matshow()' function
+    # plt.matshow(image)
+
+    # # Using 'seaborn' library
+    # cmap = ListedColormap(sns.color_palette("Spectral", 256))
+    # image_plot2 = sns.heatmap(image, cmap=cmap)
+
+    plt.title(label=f"{image_title}\n", fontsize=16)
+    plt.grid(visible=False)
+    # plt.axis("off")
+    # plt.show()
+    save_figure(figure_name=image_title)
+    return image
+
+
+# -----------------------------------------------------------------------------
+
+# DATA MODELLING (MACHINE LEARNING)
