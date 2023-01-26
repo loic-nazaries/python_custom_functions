@@ -51,7 +51,7 @@ def get_file_name_list_from_extension(
     Returns:
         _type_: _description_
     """
-    paths = Path(directory_name).glob(f"**/*.{extension}")
+    paths = Path(directory_name).glob(pattern=f"**/*.{extension}")
     file_name_list = [str(path) for path in paths]
     return file_name_list
 
@@ -96,7 +96,7 @@ def load_excel_file(
 
 def save_csv_file(
     dataframe: pd.DataFrame,
-    file_name: str
+    csv_file_name: str
 ) -> None:
     """Save a dataframe as a '.csv()' file.
 
@@ -106,7 +106,7 @@ def save_csv_file(
     """
     # Save the EDA ANOVA output for EACH defect category
     dataframe.to_csv(
-        path_or_buf=f"./output/{file_name}.csv",
+        path_or_buf=f"./output/{csv_file_name}.csv",
         sep=",",
         encoding="utf-8",
         index=True,
@@ -116,7 +116,7 @@ def save_csv_file(
 
 def save_excel_file(
     dataframe: pd.DataFrame,
-    file_name: str
+    excel_file_name: str
 ) -> None:
     """Save the dataframe to an MS Excel '.xlsx' file.
 
@@ -125,7 +125,7 @@ def save_excel_file(
         file_name (_type_): _description_
     """
     dataframe.to_excel(
-        excel_writer=f"./output/{file_name}.xlsx"
+        excel_writer=f"./output/{excel_file_name}.xlsx"
     )
     # return
 
@@ -149,6 +149,52 @@ def save_figure(figure_name: str, dpi: int = 300) -> None:
             dpi=dpi
         )
     # return
+
+
+def save_image_show(
+    image: np.ndarray,
+    image_title: str,
+    save_image_name: str,
+):
+    """Image _summary_.
+
+    Args:
+        image (np.ndarray): _description_
+        image_title (str): _description_
+    """
+    image = plt.imshow(
+        X=image,
+        cmap="Greens", vmin=0, vmax=1,
+        # cmap='prism', vmin=0, vmax=255,
+    )
+    # # Testing the 'matshow()' function
+    # plt.matshow(image)
+
+    # # Using 'seaborn' library
+    # cmap = ListedColormap(sns.color_palette("Spectral", 256))
+    # image_plot2 = sns.heatmap(image, cmap=cmap)
+
+    plt.title(label=f"{image_title}\n", fontsize=14)
+    plt.grid(visible=False)
+    # plt.axis("off")
+    # plt.show()
+    save_figure(figure_name=save_image_name)
+    return image
+
+
+def save_npz(
+    file_name: np.ndarray,
+    data_array: str,
+):
+    """save_npz _summary_.
+
+    Args:
+        file_name (np.ndarray): _description_
+        data_array (str): _description_
+        save_image_name (str): _description_
+    """
+    np.savez(file=file_name, data=data_array)
+    return
 
 
 # ----------------------------------------------------------------------------
@@ -640,7 +686,7 @@ def run_exploratory_data_analysis(dataframe: pd.DataFrame) -> pd.DataFrame:
     # Save statistics summary to .csv file
     save_csv_file(
         dataframe=summary_stats_table,
-        file_name="eda_output"
+        csv_file_name="eda_output"
     )
     print(f"\nExploratory Data Analysis:\n{summary_stats_table}\n")
     return summary_stats_table
@@ -711,7 +757,7 @@ def run_exploratory_data_analysis_nums_cats(
     # Save statistics summary to .csv file
     save_csv_file(
         dataframe=summary_stats_nums_table,
-        file_name="eda_output"
+        csv_file_name="eda_output"
     )
     print(f"\nExploratory Data Analysis:\n{summary_stats_nums_table}\n")
     return summary_stats_nums_table
@@ -1810,33 +1856,6 @@ def draw_anova_quality_checks(
     print(corrected_tukey_post_hoc_test)
     print("\n==============================================================\n")
     return corrected_tukey_post_hoc_test
-
-
-def display_save_image(image: np.ndarray, image_title: str):
-    """display_image _summary_.
-
-    Args:
-        image (np.ndarray): _description_
-        image_title (str): _description_
-    """
-    image = plt.imshow(
-        X=image,
-        cmap="Greens", vmin=0, vmax=1,
-        # cmap='prism', vmin=0, vmax=255,
-    )
-    # # Testing the 'matshow()' function
-    # plt.matshow(image)
-
-    # # Using 'seaborn' library
-    # cmap = ListedColormap(sns.color_palette("Spectral", 256))
-    # image_plot2 = sns.heatmap(image, cmap=cmap)
-
-    plt.title(label=f"{image_title}\n", fontsize=16)
-    plt.grid(visible=False)
-    # plt.axis("off")
-    # plt.show()
-    save_figure(figure_name=image_title)
-    return image
 
 
 # -----------------------------------------------------------------------------
