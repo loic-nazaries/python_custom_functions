@@ -96,7 +96,7 @@ def load_excel_file(
 
 def save_csv_file(
     dataframe: pd.DataFrame,
-    csv_file_name: str
+    csv_path_name: str
 ) -> None:
     """Save a dataframe as a '.csv()' file.
 
@@ -106,7 +106,7 @@ def save_csv_file(
     """
     # Save the EDA ANOVA output for EACH defect category
     dataframe.to_csv(
-        path_or_buf=f"./output/{csv_file_name}.csv",
+        path_or_buf=csv_path_name,
         sep=",",
         encoding="utf-8",
         index=True,
@@ -573,10 +573,10 @@ def get_numeric_features(
     Returns:
         _type_: _description_
     """
-    # Select numerical variables ONLY and make a list
+    # Select numeric variables ONLY and make a list
     numerical_features = dataframe.select_dtypes(include=np.number)
     numerical_features_list = numerical_features.columns.to_list()
-    print(f"\nList of Numerical Features: \n{numerical_features_list}\n")
+    print(f"\nList of Numeric Features: \n{numerical_features_list}\n")
     print(numerical_features.describe())
     return numerical_features, numerical_features_list
 
@@ -646,7 +646,7 @@ def run_exploratory_data_analysis(dataframe: pd.DataFrame) -> pd.DataFrame:
         # f"\nData Preview:\n{dataframe.sample(n=10)}\n",
         f"\nList of DataFrame Columns:\n{dataframe.columns.to_list()}\n",
     )
-    # Select "all" value in 'include' parameter to include non numerical data
+    # Select "all" value in 'include' parameter to include non numeric data
     # in the EDA
     summary_stats = dataframe.describe(include="all").T
 
@@ -686,13 +686,13 @@ def run_exploratory_data_analysis(dataframe: pd.DataFrame) -> pd.DataFrame:
     # Save statistics summary to .csv file
     save_csv_file(
         dataframe=summary_stats_table,
-        csv_file_name="eda_output"
+        csv_path_name="eda_output"
     )
     print(f"\nExploratory Data Analysis:\n{summary_stats_table}\n")
     return summary_stats_table
 
 
-# Trying to generate numerical and categorical subsets
+# Trying to generate numeric and categorical subsets
 def run_exploratory_data_analysis_nums_cats(
     dataframe: pd.DataFrame
 ) -> pd.DataFrame:
@@ -715,7 +715,7 @@ def run_exploratory_data_analysis_nums_cats(
         # f"\nData Preview:\n{dataframe.sample(n=10)}\n",
         f"\nList of DataFrame Columns:\n{dataframe.columns.to_list()}\n",
     )
-    # Select "all" value in 'include' parameter to include non numerical data
+    # Select "all" value in 'include' parameter to include non numeric data
     # in the EDA
     summary_stats_nums = dataframe.select_dtypes(
         include="number"
@@ -757,7 +757,7 @@ def run_exploratory_data_analysis_nums_cats(
     # Save statistics summary to .csv file
     save_csv_file(
         dataframe=summary_stats_nums_table,
-        csv_file_name="eda_output"
+        csv_path_name="eda_output_numerical"
     )
     print(f"\nExploratory Data Analysis:\n{summary_stats_nums_table}\n")
     return summary_stats_nums_table
