@@ -6,6 +6,7 @@ Definition of the functions customised for the Rockwool analyses.
 """
 # Call the libraries required
 # import glob
+import sys
 import re
 from pathlib import Path
 from typing import Any, List, Tuple, Dict
@@ -182,7 +183,7 @@ def save_image_show(
     return image
 
 
-def save_npz(
+def save_npz_file(
     file_name: np.ndarray,
     data_array: str,
 ):
@@ -195,6 +196,38 @@ def save_npz(
     """
     np.savez(file=file_name, data=data_array)
     return
+
+
+def save_pickle_file(dataframe: pd.DataFrame, file_path_name: str):
+    """Save the dataframe as a pickle object.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        file_path_name (str): _description_
+    """
+    dataframe.to_pickle(path=file_path_name, protocol=-1)
+    return
+
+
+def save_console_output(file_name: str):
+    """Save the console output."""
+    # Save the original stdout
+    original_stdout = sys.stdout
+    # Open a file for writing
+    with open(file=file_name, mode="x", encoding="utf-8") as output_file:
+        # Redirect stdout to the file
+        sys.stdout = output_file
+        yield
+        # Reset stdout back to the original
+        sys.stdout = original_stdout
+
+
+# # Use the function
+# with save_console_output('console_output.txt'):
+#     print('This text will be saved to the file.')
+#     print('This text will also be saved to the file.')
+
+# print('This text will be printed to the console.')
 
 
 # ----------------------------------------------------------------------------
