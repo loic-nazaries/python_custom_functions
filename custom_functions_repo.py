@@ -1088,7 +1088,7 @@ def get_iqr_outliers(dataframe, column):
     print(f"Lower Limit of IQR = {lower_limit :.2f}")
 
     # Find outliers
-    outlier_dataframe = (
+    iqr_outlier_dataframe = (
         dataframe[
             (dataframe[column] > upper_limit) |
             (dataframe[column] < lower_limit)
@@ -1097,10 +1097,45 @@ def get_iqr_outliers(dataframe, column):
     print(
         f"""
         \nTable of outliers for {column} based on IQR value:\n
-        {outlier_dataframe}\n
+        {iqr_outlier_dataframe}\n
         """
     )
-    return outlier_dataframe
+    return iqr_outlier_dataframe
+
+
+def get_zscore_outliers(
+    dataframe: pd.DataFrame,
+    column: str,
+    zscore_threshold: int = 3
+):
+    """Build a dataframe containing outliers details based on their Z-score.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        column (str): _description_
+        zscore_threshold (int, optional): _description_. Defaults to 3.
+
+    Returns:
+        _type_: _description_
+    """
+    # Calculate Z-score
+    z_score = np.abs(zscore(a=dataframe[column]))
+
+    print(f"\nFor {column}:")
+    # Find outliers based on Z-score threshold value
+    zscore_outlier_dataframe = (
+        dataframe[
+            (dataframe[column].z_score > zscore_threshold) |
+            (dataframe[column].z_score < zscore_threshold)
+        ]
+    )
+    print(
+        f"""
+        \nTable of outliers for {column} based on Z-score value:\n
+        {zscore_outlier_dataframe}\n
+        """
+    )
+    return zscore_outlier_dataframe
 
 
 def standardise_features(features):
