@@ -3,13 +3,23 @@
 CUSTOM FUNCTIONS
 
 Definition of the functions customised for the Rockwool analyses.
+
+Content Sections:
+    - INPUT/OUTPUT
+    - ARRAYS
+    - CONVERT OBJECTS
+    - DATA MANIPULATION
+    - EXPLORATORY DATA ANALYSIS
+    - STATISTICAL ANALYSIS
+    - DATA VISUALISATION
+    - DATA MODELLING (MACHINE LEARNING)
 """
 # Call the libraries required
 # import glob
 import sys
 import re
 from pathlib import Path
-from typing import Any, List, Tuple, Dict
+from typing import Any, Dict, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 # import openpyxl
@@ -22,12 +32,67 @@ import statsmodels.api as sm
 import statsmodels.stats.multicomp as mc
 from scipy.io import loadmat
 from scipy.stats import chi2
-from sklearn.decomposition import PCA
-from sklearn.feature_selection import VarianceThreshold
-from sklearn.preprocessing import StandardScaler
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
 from statsmodels.stats.multicomp import MultiComparison
+
+# Handle constant/duplicates and missing features/columns
+from feature_engine.selection import (
+    DropFeatures,
+    DropConstantFeatures,
+    DropDuplicateFeatures,
+)
+
+# Assemble pipeline(s)
+from sklearn import set_config, tree
+from sklearn.compose import (
+    ColumnTransformer,
+    make_column_selector as selector
+)
+from sklearn.decomposition import PCA
+from sklearn.feature_selection import VarianceThreshold, RFECV
+from sklearn.impute import SimpleImputer
+
+from sklearn.model_selection import (
+    # cross_validate,
+    cross_val_score,
+    GridSearchCV,
+    RandomizedSearchCV,
+    RepeatedStratifiedKFold,
+    StratifiedShuffleSplit,
+    train_test_split,
+)
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import (
+    LabelEncoder,
+    OneHotEncoder,
+    OrdinalEncoder,
+    RobustScaler,
+    StandardScaler,
+    MinMaxScaler,
+)
+from sklearn.tree import plot_tree, DecisionTreeClassifier
+
+# Sampling
+from fast_ml.model_development import train_valid_test_split
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+
+# Models
+from xgboost import XGBClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    multilabel_confusion_matrix,
+    f1_score,
+    roc_curve,
+    roc_auc_score,
+)
+from sklearn.inspection import permutation_importance
+
 # Uncomment next import when '.set_output(transform="pandas")' is fixed
 # from sklearn import set_config
 
@@ -39,8 +104,25 @@ from statsmodels.stats.multicomp import MultiComparison
 # INPUT/OUTPUT
 
 
+def get_folder_name_list_from_directory(
+    directory_name: str | Path
+) -> List[str]:
+    """Get the list of file (name) from a directory.
+
+    Args:
+        directory_name (_type_): _description_
+        extension (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    paths = Path(directory_name).glob(pattern="*")
+    folder_name_list = [str(path) for path in paths if path.is_dir()]
+    return folder_name_list
+
+
 def get_file_name_list_from_extension(
-    directory_name: str,
+    directory_name: str | Path,
     extension: str
 ) -> List[str]:
     """Get the list of file (name) from a directory.
@@ -57,7 +139,21 @@ def get_file_name_list_from_extension(
     return file_name_list
 
 
-# check dict content type
+def load_pickle_file(file_path_name: str | Path) -> pd.DataFrame:
+    """Load the pickle file into a dataframe.
+
+    Args:
+        file_path_name (str  |  Path]): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    dataframe = pd.read_pickle(filepath_or_buffer=file_path_name)
+    print("\nDataset details:\n")
+    print(dataframe.info())
+    return dataframe
+
+
 def load_mat_file(mat_file_name: str) -> Dict[str, float]:
     """Load data from '.mat' file as a dictionary and print it.
 
@@ -74,7 +170,7 @@ def load_mat_file(mat_file_name: str) -> Dict[str, float]:
 def load_excel_file(
     file_path_name: str,
     sheet_name: Any = 0,
-    nrows: int = None,
+    nrows: int = 0,
 ) -> pd.DataFrame:
     """Load an Excel file.
 
@@ -178,14 +274,15 @@ def save_image_show(
     plt.title(label=f"{image_title}\n", fontsize=14)
     plt.grid(visible=False)
     # plt.axis("off")
-    # plt.show()
+    plt.tight_layout()
+    plt.show()
     save_figure(figure_name=save_image_name)
     return image
 
 
 def save_npz_file(
-    file_name: np.ndarray,
-    data_array: str,
+    file_name: str | Path,
+    data_array: np.ndarray,
 ):
     """save_npz _summary_.
 
@@ -356,7 +453,7 @@ def convert_array_to_series(array: np.ndarray, array_name: str) -> pd.Series:
 
 
 def convert_data_to_dataframe(
-    data: [Dict[int | str, float] | np.ndarray]
+    data: Dict[int | str, float] | np.ndarray
 ) -> pd.DataFrame:
     """Convert an array or dictionary to a dataframe.
 
@@ -473,7 +570,7 @@ def convert_to_string_type(
 
 def concatenate_dataframes(
     dataframe_list: List[str],
-    axis: [str | int],
+    axis: str | int,
 ) -> pd.DataFrame:
     """Concatenate the dataframes from the various processing steps.
 
@@ -550,7 +647,7 @@ def drop_column(
 def drop_row_by_value(
         dataframe: pd.DataFrame,
         column_name: str,
-        value_name: [str | int | float],  # to be checked
+        value_name: str | int | float,  # to be checked
 ) -> pd.DataFrame:
     """Drop rows from a column in the dataframe.
 
@@ -652,6 +749,20 @@ def get_dictionary_key(
     target_key = value_list.index(target_key_string)
     print(f"\nTarget key: {key_list[target_key_string]}\n")
     return target_key
+
+
+def get_missing_columns(dataframe: pd.DataFrame) -> pd.DataFrame | pd.Series:
+    """Get_missing_columns _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+
+    Returns:
+        [pd.DataFrame | pd.Series]: _description_
+    """
+    missing_columns = dataframe.columns[dataframe.isna().any()].values[0]
+    print(f"\nThe following columns have missing values: {missing_columns}\n")
+    return missing_columns
 
 
 # -----------------------------------------------------------------------------
@@ -875,7 +986,7 @@ def group_by_columns_mean_std(dataframe, by_column_list, column_list):
 
 def calculate_mahalanobis_distance(
     var: np.ndarray,
-    data: np.ndarray,
+    data: pd.DataFrame,
     cov=None
 ):
     """Compute the Mahalanobis Distance between each row of x and the data.
@@ -1315,7 +1426,7 @@ def check_equal_variance_assumption(
 
 def perform_multicomparison(
     dataframe: pd.DataFrame,
-    groups: [np.ndarray | pd.Series | pd.DataFrame],
+    groups: np.ndarray | pd.Series | pd.DataFrame,
     alpha: float = 0.05
 ):
     """perform_multicomparison _summary_.
@@ -1594,14 +1705,14 @@ def draw_kdeplot_subplots(
             title=item.upper()
         ),
 
-        # # chart formatting
-        # axis.set_title(item.upper())
-        # axis.set_xticklabels(
-        #     labels=kdeplot_subplots.get_xticklabels(),
-        #     size=10,
-        #     rotation=45,
-        #     ha="right"
-        # )
+        # chart formatting (check it is working ?)
+        axis.set_title(item.upper())
+        axis.set_xticklabels(
+            labels=kdeplot_subplots.get_xticklabels(),
+            size=10,
+            rotation=45,
+            ha="right"
+        )
         axis.set_xlabel("")
     return kdeplot_subplots
 
@@ -1837,8 +1948,8 @@ def draw_anova_quality_checks(
     )
     # plt.grid(visible=False)
     # plt.axis("off")
-    # plt.show()
-    # Save figure
+    plt.tight_layout()
+    plt.show()
     save_figure(
         figure_name=f"qqplot_anova_{independent_variable}_{dependent_variable}"
     )
@@ -1866,7 +1977,8 @@ def draw_anova_quality_checks(
     )
     # plt.grid(visible=False)
     # plt.axis("off")
-    # plt.show()
+    plt.tight_layout()
+    plt.show()
     save_figure(
         figure_name=f"tukey_anova_{independent_variable}_{dependent_variable}"
     )
@@ -1894,3 +2006,342 @@ def draw_anova_quality_checks(
 # -----------------------------------------------------------------------------
 
 # DATA MODELLING (MACHINE LEARNING)
+
+
+def target_label_encoder(
+    target_selection: List[str | int] | pd.Series
+) -> Tuple[np.ndarray, List[str]]:
+    """Encode the target labels (usually strings) into integers.
+
+    Args:
+        target (List[str  |  int] | pd.Series): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
+    label_encoder = LabelEncoder()
+    target_encoded = label_encoder.fit_transform(target_selection)
+    # Convert the encoded labels from a np.ndarray to a list
+    target_encoded_list = label_encoder.classes_.tolist()
+    print(f"\nList of the target encoded classes:\n{target_encoded_list}\n")
+    return target_encoded, target_encoded_list
+
+
+def train_test_split_pipeline(
+    feature_selection: pd.DataFrame,
+    target_selection: List[str | int] | pd.Series,
+    train_size: float = 0.6
+) -> Pipeline:
+    """Train_test_split_pipeline _summary_.
+
+    Args:
+        feature_selection (pd.DataFrame): _description_
+        target_selection (List[str  |  int]  |  pd.Series]): _description_
+        test_size (float, optional): _description_. Defaults to 0.6.
+
+    Returns:
+        Pipeline: _description_
+    """
+    train_test_split_pipe = Pipeline(
+        steps=[
+            ("train_test_split", train_test_split(
+                feature_selection,
+                target_selection,
+                train_size=train_size,
+                random_state=42,
+                shuffle=True,
+                stratify=target_selection,
+            )),
+        ],
+    )
+    return train_test_split_pipe
+
+
+def train_valid_test_split_fast(
+    dataframe: pd.DataFrame,
+    target: pd.Series,
+    train_size: float = 0.6,
+    valid_size: float = 0.2,
+    test_size: float = 0.2,
+    random_state=42,
+):
+    """Split a dataframe into three sets for training, validation and testing.
+
+    The difference of this function with the 'train_test_split' function from
+    the 'scikit-learn' library is that a second split is operated for
+    validation purposes, whereas 'train_test_split' needs to be applied twice
+    in order to create a validation set.
+    The function 'train_valid_test_split' is imported from the 'fast_ml'
+    library.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        target (pd.Series): _description_
+        train_size (float, optional): _description_. Defaults to 0.6.
+        valid_size (float, optional): _description_. Defaults to 0.2.
+        test_size (float, optional): _description_. Defaults to 0.2.
+        random_state (int, optional): _description_. Defaults to 42.
+
+    Returns:
+        _type_: _description_
+    """
+    (
+        features_train,
+        target_train,
+        features_valid,
+        target_valid,
+        features_test,
+        target_test
+    ) = train_valid_test_split(
+        df=dataframe,
+        target=target,
+        train_size=train_size,
+        valid_size=valid_size,
+        test_size=test_size,
+        method="random",
+        random_state=random_state,
+    )
+    return (
+        features_train,
+        target_train,
+        features_valid,
+        target_valid,
+        features_test,
+        target_test
+    )
+
+
+def drop_feature_pipeline(
+    feature_selection: pd.DataFrame,
+    features_to_keep: List[str]
+) -> Pipeline:
+    """Drop_feature_pipeline _summary_.
+
+    Args:
+        feature_selection (pd.DataFrame): _description_
+        features_to_keep (List[str]): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    drop_feature_pipe = Pipeline(
+        steps=[
+            ("drop_columns", DropFeatures(
+                features_to_drop=[
+                    feature for feature in feature_selection
+                    if feature not in features_to_keep
+                ]
+            )),
+            ("drop_constant_values", DropConstantFeatures(
+                tol=1,
+                missing_values="ignore"
+            )),
+            ("drop_duplicates", DropDuplicateFeatures(
+                missing_values="ignore"
+            )),
+            # ("drop_low_variance", VarianceThreshold(threshold=0.03)),
+        ],
+    )
+    print(f"\nPipeline structure:\n{drop_feature_pipe}\n")
+    return drop_feature_pipe
+
+
+def select_numeric_feature_pipeline() -> Pipeline:
+    """Create the preprocessing pipeline for numeric data."""
+    numeric_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                missing_values=np.nan,
+                strategy="median",
+            )),
+            # ("scaler", StandardScaler()),
+            # ("scaler", MinMaxScaler()),
+            ("scaler", RobustScaler()),
+        ],
+        verbose=True,
+    )
+    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
+    return numeric_feature_pipeline
+
+
+def select_categorical_feature_pipeline() -> Pipeline:
+    """Create the preprocessing pipeline for categorical data."""
+    categorical_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                strategy="most_frequent",
+                fill_value="missing",
+            )),
+            ("encoder", OneHotEncoder(handle_unknown="ignore")),
+            # ("encoder", OrdinalEncoder(handle_unknown="ignore")),
+        ],
+        verbose=True,
+    )
+    print("\nCategorical Data Pipeline Structure:")
+    print(categorical_feature_pipeline)
+    return categorical_feature_pipeline
+
+
+def calculate_model_scores(
+    pipeline: Pipeline,
+    model_name: str,
+    features_train: pd.DataFrame,
+    target_train: pd.Series,
+    features_test: pd.DataFrame,
+    target_test: pd.Series,
+    target_pred: pd.Series,
+    target_label_list: List[str],
+    # ) -> None:
+):
+    """Calculate_model_scores _summary_.
+
+    Args:
+        pipeline (Pipeline): _description_
+        model_name (str): _description_
+        features_train (pd.DataFrame): _description_
+        target_train (pd.Series): _description_
+        features_test (pd.DataFrame): _description_
+        target_test (pd.Series): _description_
+    """
+    # Calculate the pipeline train and test scores
+    train_score = pipeline.score(X=features_train, y=target_train)
+    test_score = pipeline.score(X=features_test, y=target_test)
+
+    # Compute model scores
+    accuracy_score_ = accuracy_score(
+        y_true=target_test,
+        y_pred=target_pred,
+    )
+    f1_score_ = f1_score(
+        y_true=target_test,
+        y_pred=target_pred,
+        average="weighted"
+    )
+
+    # Build a dictionary containing the model scores and convert to a dataframe
+    model_score_dictionary = {
+        "Model Name": model_name,
+        "Train Score": train_score,
+        "Test Score": test_score,
+        "Model Accuracy Score": accuracy_score_,
+        "Model F1-score": f1_score_,
+    }
+    # Convert the dictionary to a dataframe and drop duplicated rows
+    model_score_dataframe = convert_dictionary_to_dataframe(
+        model_score_dictionary
+    ).set_index("Model Name").drop_duplicates()
+    # Format scores as percentages and rotate the df for better viewing
+    model_score_dataframe = model_score_dataframe.applymap(
+        lambda float_: f"{float_:.1%}"
+    ).T
+    print(f"\nModel Score Output:\n{model_score_dataframe}\n")
+
+    # Produce a classification report
+    classification_report_ = classification_report(
+        y_true=target_test,
+        y_pred=target_pred,
+        target_names=target_label_list,
+        # output_dict=True,  # not working inside the function...
+    )
+    print(f"\nClassification Report:\n{classification_report_}\n")
+    return (
+        train_score,
+        test_score,
+        accuracy_score_,
+        f1_score_,
+        classification_report_,
+    )
+
+
+def draw_confusion_matrix_heatmap(
+    target_test: pd.Series,
+    target_pred: pd.Series,
+    target_label_list: List[str],
+    figure_path_name: str,
+) -> None:
+    """Draw_confusion_matrix_heatmap _summary_.
+
+    Args:
+        target_test (pd.Series): _description_
+        target_pred (pd.Series): _description_
+        target_label_list (List[str]): _description_
+        figure_path_name (str): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # Compute model scores
+    accuracy_score_ = accuracy_score(
+        y_true=target_test,
+        y_pred=target_pred,
+    )
+    f1_score_ = f1_score(
+        y_true=target_test,
+        y_pred=target_pred,
+        average="weighted"
+    )
+
+    # Compute the confusion matrix
+    confusion_matrix_ = confusion_matrix(
+        y_true=target_test,
+        y_pred=target_pred,
+        labels=target_label_list,
+    )
+    print(f"\nConfusion Matrix (Test Set):\n{confusion_matrix_}\n")
+
+    # Show the confusion matrix as a heatmap
+    plt.figure()
+    sns.heatmap(
+        data=confusion_matrix_,
+        # Get % of predictions
+        # data=confusion_matrix_/np.sum(confusion_matrix_),
+        annot=True,
+        # fmt=".1%",
+        cmap="Greens",
+        cbar=False,
+        xticklabels=target_label_list,
+        yticklabels=target_label_list,
+    )
+    plt.ylabel("True label")
+    plt.xlabel("Predicted label")
+    plt.title(
+        label=(
+            f"Confusion matrix of predictions\n \
+    Model Accuracy = {accuracy_score_:.1%} - F1-score = {f1_score_:.1%}"),
+        fontsize=16
+    )
+    plt.tight_layout()
+    plt.show()
+    save_figure(figure_name=figure_path_name)
+    # print(confusion_matrix_heatmap)
+    return None
+
+
+# # ????????????
+# multilabel_confusion_matrix_ = multilabel_confusion_matrix(
+#     y_true=target_test,
+#     y_pred=target_pred,
+#     labels=target_label_list,
+# )
+# print(f"\nMulti-Label Confusion Matrix:\n{multilabel_confusion_matrix_}\n")
+
+
+def perform_roc_auc_analysis(
+    target_test: pd.Series,
+    target_pred: pd.Series,
+) -> float:
+    """Compute the ROC curve and AUC score.
+
+    This is NOT suitable for multi-class classification.
+
+    Args:
+        target_test (pd.Series): _description_
+        target_pred (pd.Series): _description_
+
+    Returns:
+        float: _description_
+    """
+    fpr, tpr, thresholds = roc_curve(y_true=target_test, y_score=target_pred)
+    roc_auc_score_ = roc_auc_score(y_true=target_test, y_score=target_pred)
+    print(f"\nArea Under the Curve Score:\n{roc_auc_score_}\n")
+    return roc_auc_score_
