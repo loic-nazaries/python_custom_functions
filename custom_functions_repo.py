@@ -527,6 +527,24 @@ def convert_to_category_type(
     return dataframe
 
 
+def convert_to_number_type(
+    dataframe: pd.DataFrame,
+    numeric_variable_list: List[str]
+) -> pd.DataFrame:
+    """category_variables _summary_.
+
+    Args:
+        processed_data (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    dataframe[numeric_variable_list] = (
+        dataframe[numeric_variable_list].astype("number")
+    )
+    return dataframe
+
+
 def convert_to_integer_type(
     dataframe: pd.DataFrame,
     integer_variable_list: List[str]
@@ -541,6 +559,24 @@ def convert_to_integer_type(
     """
     dataframe[integer_variable_list] = (
         dataframe[integer_variable_list].astype("int")
+    )
+    return dataframe
+
+
+def convert_to_float_type(
+    dataframe: pd.DataFrame,
+    float_variable_list: List[str]
+) -> pd.DataFrame:
+    """integer_variables _summary_.
+
+    Args:
+        processed_data (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    dataframe[float_variable_list] = (
+        dataframe[float_variable_list].astype("float")
     )
     return dataframe
 
@@ -562,6 +598,65 @@ def convert_to_string_type(
     )
     return dataframe
 
+
+def convert_to_proper_types(
+    dataframe: pd.DataFrame,
+    datetime_variable_list: List[str] = None,
+    category_variable_list: List[str] = None,
+    numeric_variable_list: List[str] = None,
+    integer_variable_list: List[str] = None,
+    string_variable_list: List[str] = None,
+) -> Tuple[pd.DataFrame]:
+    """convert_to_proper_types _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        datetime_variable_list (List[str], optional): _description_.
+        Defaults to None.
+        category_variable_list (List[str], optional): _description_.
+        Defaults to None.
+        numeric_variable_list (List[str], optional): _description_.
+        Defaults to None.
+        integer_variable_list (List[str], optional): _description_.
+        Defaults to None.
+        string_variable_list (List[str], optional): _description_.
+        Defaults to None.
+
+    Returns:
+        Tuple[pd.DataFrame]: _description_
+    """
+    # Convert variables to proper type
+    datetime_features = convert_to_datetime_type(
+        dataframe=dataframe,
+        datetime_variable_list=datetime_variable_list
+    )
+
+    categorical_features = convert_to_category_type(
+        dataframe=dataframe,
+        category_variable_list=category_variable_list
+    )
+
+    numeric_features = convert_to_number_type(
+        dataframe=dataframe,
+        numeric_variable_list=numeric_variable_list
+    )
+
+    integer_features = convert_to_integer_type(
+        dataframe=dataframe,
+        integer_variable_list=integer_variable_list
+    )
+
+    string_features = convert_to_string_type(
+        dataframe=dataframe,
+        string_variable_list=string_variable_list
+    )
+    return (
+        datetime_features,
+        categorical_features,
+        numeric_features,
+        integer_features,
+        string_features,
+    )
 
 # -----------------------------------------------------------------------------
 
@@ -607,6 +702,22 @@ def remove_column_based_on_list(
         if column not in column_to_remove
     ]
     return column_list_reduced
+
+
+def remove_duplicated_columns(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """remove_duplicated_columns _summary_.
+
+    The function 'duplicated()' is applied to the dataframe columns and only
+    the 'first' appearance is kept.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    dataframe = dataframe.loc[:, ~dataframe.columns.duplicated(keep="first")]
+    return dataframe
 
 
 def remove_duplicated_rows(dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -897,12 +1008,6 @@ def run_exploratory_data_analysis_nums_cats(
         sort=False,
         axis=1
     )
-
-    # Save statistics summary to .csv file
-    save_csv_file(
-        dataframe=summary_stats_nums_table,
-        csv_path_name="eda_output_numerical"
-    )
     print(f"\nExploratory Data Analysis:\n{summary_stats_nums_table}\n")
     return summary_stats_nums_table
 
@@ -1119,15 +1224,23 @@ def get_zscore_outliers(
         _type_: _description_
     """
     # Calculate Z-score
-    z_score = np.abs(zscore(a=dataframe[column]))
+    dataframe[f"{column}_zscore"] = np.abs(zscore(a=dataframe[column]))
+    # OR
+    z_score = np.abs(zscore(a=dataframe[column]))  # or without abs ?
 
     print(f"\nFor {column}:")
     # Find outliers based on Z-score threshold value
     zscore_outlier_dataframe = (
         dataframe[
-            (dataframe[column].z_score > zscore_threshold) |
-            (dataframe[column].z_score < zscore_threshold)
+            # (dataframe[column].z_score > zscore_threshold) |
+            # (dataframe[column].z_score < -zscore_threshold)
+            # OR
+            (z_score > zscore_threshold) |
+            (z_score < zscore_threshold)
         ]
+        # OR
+        (z_score > zscore_threshold) |
+        (z_score < zscore_threshold)
     )
     print(
         f"""
@@ -1327,8 +1440,8 @@ def apply_manova(dataframe, formula):
     return manova_test
 
 
-def check_normality_assumption(data, alpha=0.05):
-    """Check assumptions for normality of data.
+def check_normality_assumption_residuals(data, alpha=0.05):
+    """Check assumptions for normality of model residual data.
 
     Use the following 'normality' tests:
         - Shapiro_Wilk
@@ -1390,13 +1503,13 @@ def check_normality_assumption(data, alpha=0.05):
     return normality_tests
 
 
-def check_equal_variance_assumption(
-    data,
-    dependent_variable,
-    group,
+def check_equal_variance_assumption_residuals(
+    dataframe,
+    model,
+    group_variable,
     alpha=0.05
 ):
-    """Check assumption of equal variance between groups.
+    """Check assumption of equal variance between groups of a model residuals.
 
     Use the following 'equality of variance' tests:
         - Bartlett
@@ -1404,18 +1517,27 @@ def check_equal_variance_assumption(
 
     Then, concatenate the test outputs into a dataframe.
 
-    The parameter 'data' can take a 1D-array (e.g. model output) or a
+    The parameter 'dataframe' can take a 1D-array (e.g. model output) or a
     dataframe and one of its column (e.g. dataframes[column]).
 
     Args:
+        dataframe (_type_): _description_
         model (_type_): _description_
+        group_variable (_type_): _description_
+        alpha (float, optional): _description_. Defaults to 0.05.
 
     Returns:
         _type_: _description_
     """
+    # Prepare a dataframe of the ANOVA model residuals
+    model_residuals_dataframe = pd.concat(
+        [dataframe[group_variable], model.resid], axis=1
+    ).rename(columns={0: "residuals"})
+
     bartlett = pg.homoscedasticity(
-        data=data,
-        group=group,
+        data=model_residuals_dataframe,
+        dv="residuals",
+        group=group_variable,
         method="bartlett",
         alpha=alpha
     )
@@ -1426,9 +1548,9 @@ def check_equal_variance_assumption(
     )
 
     levene = pg.homoscedasticity(
-        data=data,
-        dv=dependent_variable,
-        group=group,
+        data=model_residuals_dataframe,
+        dv="residuals",
+        group=group_variable,
         method="levene",
         alpha=alpha
     )
@@ -1445,17 +1567,19 @@ def check_equal_variance_assumption(
     )
     print(
         f"""
-        \nEquality of Variance Tests Results for {dependent_variable} - {group}
+        \nEquality of Variance Tests Results - {group_variable}
         \n{equal_variance_tests}\n
         """
     )
-
-    # # BUG Below NOT working
-    # print("Equal Variance of Data Between Groups:")
-    # if levene["equal_var"] is False:
-    #     print("The data do NOT have equal variance between groups.")
-    # elif levene["equal_var"] is True:
-    #     print("The data have equal variance between groups")
+    # BUG
+    print(levene.iloc[0]["equal_var"])
+    print("Equal Variance of Data Between Groups:")
+    if levene.iloc[0]["equal_var"] is False:
+        print(
+            f"Data do NOT have equal variance between {group_variable} groups."
+        )
+    else:
+        print(f"Data have equal variance between {group_variable} groups.\n")
     return equal_variance_tests
 
 
@@ -2264,7 +2388,7 @@ def calculate_model_scores(
     # Convert the dictionary to a dataframe and drop duplicated rows
     model_score_dataframe = convert_dictionary_to_dataframe(
         model_score_dictionary
-    ).set_index("Model Name").drop_duplicates()
+    ).set_index(keys="Model Name").drop_duplicates()
     # Format scores as percentages and rotate the df for better viewing
     model_score_dataframe = model_score_dataframe.applymap(
         lambda float_: f"{float_:.1%}"
