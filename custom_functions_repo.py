@@ -18,6 +18,8 @@ Content Sections:
 # import glob
 import sys
 import re
+from datetime import datetime
+import dtale
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import matplotlib.pyplot as plt
@@ -25,16 +27,18 @@ import numpy as np
 # import openpyxl
 import pandas as pd
 import pingouin as pg
+from pyod.models.mad import MAD
 import scipy as sp
 import seaborn as sns
 import sidetable as stb
 import statsmodels.api as sm
 import statsmodels.stats.multicomp as mc
 from scipy.io import loadmat
-from scipy.stats import chi2
+from scipy.stats import chi2, zscore
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
 from statsmodels.stats.multicomp import MultiComparison
+import sweetviz as sv
 
 # Handle constant/duplicates and missing features/columns
 from feature_engine.selection import (
@@ -201,7 +205,6 @@ def save_csv_file(
         dataframe (_type_): _description_
         file_name (_type_): _description_
     """
-    # Save the EDA ANOVA output for EACH defect category
     dataframe.to_csv(
         path_or_buf=csv_path_name,
         sep=",",
@@ -492,7 +495,7 @@ def convert_list_to_dataframe(
 
 def convert_to_datetime_type(
     dataframe: pd.DataFrame,
-    datetime_variable_list: List[str]
+    datetime_variable_list: List[str | datetime]
 ) -> pd.DataFrame:
     """date_time_variables _summary_.
 
@@ -601,11 +604,11 @@ def convert_to_string_type(
 
 def convert_to_proper_types(
     dataframe: pd.DataFrame,
-    datetime_variable_list: List[str] = None,
-    category_variable_list: List[str] = None,
-    numeric_variable_list: List[str] = None,
-    integer_variable_list: List[str] = None,
-    string_variable_list: List[str] = None,
+    datetime_variable_list: List[str | datetime],
+    category_variable_list: List[str],
+    numeric_variable_list: List[str],
+    integer_variable_list: List[str],
+    string_variable_list: List[str],
 ) -> Tuple[pd.DataFrame]:
     """convert_to_proper_types _summary_.
 
@@ -758,7 +761,7 @@ def drop_column(
 def drop_row_by_value(
         dataframe: pd.DataFrame,
         column_name: str,
-        value_name: str | int | float,  # to be checked
+        value: str | int | float,  # to be checked
 ) -> pd.DataFrame:
     """Drop rows from a column in the dataframe.
 
@@ -770,7 +773,7 @@ def drop_row_by_value(
     Returns:
         _type_: _description_
     """
-    dataframe_reduced = dataframe[dataframe[column_name] != value_name]
+    dataframe_reduced = dataframe[dataframe[column_name] != value]
 
     return dataframe_reduced
 
@@ -1012,6 +1015,41 @@ def run_exploratory_data_analysis_nums_cats(
     return summary_stats_nums_table
 
 
+def produce_sweetviz_eda_report(
+    dataframe: pd.DataFrame,
+    eda_report_name: str,
+    output_directory: Path
+) -> None:
+    """Exploratory Data Analysis using the Sweetviz library.
+
+    Produce an '.html' file of the main steps of the EDA
+    """
+    print("\nPreparing SweetViz Report:\n")
+    sweetviz_eda_report = sv.analyze(
+        source=dataframe,
+        pairwise_analysis="auto"
+    )
+    sweetviz_eda_report.show_html(
+        # filepath=output_directory/"sweetviz_eda_report.html",
+        filepath=output_directory.joinpath(eda_report_name + ".html"),
+        open_browser=True,
+        layout="widescreen"
+    )
+    return
+
+
+def produce_dtale_eda_report(dataframe: pd.DataFrame) -> None:
+    """Exploratory Data Analysis using the Dtale library.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+    """
+    # Create a D-Tale instance
+    dtale_eda_report = dtale.show(data=dataframe)
+    # Launch the report in a web browser
+    dtale_eda_report.open_browser()
+
+
 def get_missing_values_table(dataframe):
     """Use 'Sidetable' library to produce a table of metrics on missing values.
 
@@ -1116,8 +1154,11 @@ def calculate_mahalanobis_distance(
     return mahalanobis.diagonal()
 
 
-def apply_mahalanobis_test(dataframe, alpha=0.01):
-    """_summary_.
+def apply_mahalanobis_test(
+    dataframe: pd.DataFrame,
+    alpha: float = 0.01
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Run the Mahalanobis test.
 
     Args:
         dataframe (_type_): _description_
@@ -1126,65 +1167,95 @@ def apply_mahalanobis_test(dataframe, alpha=0.01):
     Returns:
         _type_: _description_
     """
-    # Run the Mahalanobis test
-    # outliers_detection = dataframe.copy()
-    dataframe["mahalanobis"] = (
+    # Create a copy to enable row dropping within the loop instead of
+    # overwriting the 'original' (here, reduced) dataframe
+    mahalanobis_dataframe = dataframe.copy()
+    mahalanobis_dataframe["mahalanobis_score"] = (
         calculate_mahalanobis_distance(
-            var=dataframe,
-            data=dataframe
+            var=mahalanobis_dataframe,
+            data=mahalanobis_dataframe
         )
     )
 
     # Get the critical value for the test
     mahalanobis_test_critical_value = chi2.ppf(
         (1-alpha),
-        df=len(dataframe.columns) - 1
+        df=len(mahalanobis_dataframe.columns) - 1
     )
     print(
-        f"""
-        \nMahalanobis Test Critical Value for alpha < {alpha} : \
-{mahalanobis_test_critical_value:.2f}\n
-        """
+        f"\n\nMahalanobis Test Critical Value for alpha < {alpha}: \
+{mahalanobis_test_critical_value:.2f}"
     )
 
     # Get p-values from chi2 distribution
-    dataframe["mahalanobis_p_value"] = (
+    mahalanobis_dataframe["mahalanobis_p_value"] = (
         1 - chi2.cdf(
-            dataframe["mahalanobis"],
-            df=len(dataframe.columns) - 1)
+            mahalanobis_dataframe["mahalanobis_score"],
+            df=len(mahalanobis_dataframe.columns) - 1)
     )
-    outliers_dataframe = dataframe[
-        dataframe.mahalanobis_p_value < alpha
+    # Select the rows below the alpha threshold
+    mahalanobis_outlier_dataframe = mahalanobis_dataframe[
+        mahalanobis_dataframe.mahalanobis_p_value < alpha
     ]
-    print(
-        f"""
-        \nTable of outliers based on Mahalanobis distance:\n
-        {outliers_dataframe}\n
-        """
+    print("\nTable of outliers based on Mahalanobis distance:")
+    print(mahalanobis_outlier_dataframe)
+    return mahalanobis_dataframe, mahalanobis_outlier_dataframe
+
+
+def remove_mahalanobis_outliers(
+    mahalanobis_dataframe: pd.DataFrame,
+    mahalanobis_outlier_dataframe: pd.DataFrame
+) -> pd.DataFrame:
+    """Drop the outliers from the 'mahalanobis_dataframe'.
+
+    Args:
+        mahalanobis_dataframe (pd.DataFrame): _description_
+        mahalanobis_outlier_dataframe (pd.DataFrame): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    # Make a list of outliers
+    mahalanobis_outlier_list = mahalanobis_outlier_dataframe.index.to_list()
+
+    # Select rows of outliers using 'isin' based on 'mahalanobis_outlier_list'
+    # Then, take opposite rows (as it would be 'notin') using '~' on the df
+    no_outlier_dataframe = (
+        mahalanobis_dataframe[
+            ~ mahalanobis_dataframe.index.isin(mahalanobis_outlier_list)
+        ]
     )
 
-    # Get the index values to create a list of outlier IDs
-    outlier_list = outliers_dataframe.index.values.tolist()
-    print(f"\nOutlier List:\n{outlier_list}\n")
-    return outliers_dataframe, outlier_list
+    # Drop the mahalanobis column as not needed any more
+    no_outlier_dataframe.drop(
+        labels=["mahalanobis_score", "mahalanobis_p_value"],
+        axis=1,
+        inplace=True,
+    )
+    print(f"\nData without outliers:\n{no_outlier_dataframe}\n")
+    return no_outlier_dataframe
 
 
-def get_iqr_outliers(dataframe, column):
+def get_iqr_outliers(
+    dataframe: pd.DataFrame,
+    column_name: str
+) -> pd.DataFrame:
     """Build a dataframe containing outliers details.
 
     Args:
         dataframe (_type_): _description_
-        column (_type_): _description_
+        column_name (_type_): _description_
 
     Returns:
         _type_: _description_
     """
+    print(f"\nFor {column_name}:")
     # Calculate Q1, Q3
     q_1, q_3 = np.percentile(
-        a=dataframe[column],
+        a=dataframe[column_name],
         q=[25, 75]
     )
-    print(f"\nFor {column}:")
+
     # Calculate IQR, upper limit and lower limit
     iqr = q_3 - q_1
     upper_limit = q_3 + 1.5 * iqr
@@ -1192,66 +1263,92 @@ def get_iqr_outliers(dataframe, column):
     lower_limit = q_1 - 1.5 * iqr
     print(f"Lower Limit of IQR = {lower_limit :.2f}")
 
-    # Find outliers
+    # Find outliers based on upper and lower limit values
     iqr_outlier_dataframe = (
         dataframe[
-            (dataframe[column] > upper_limit) |
-            (dataframe[column] < lower_limit)
+            (dataframe[column_name] > upper_limit) |
+            (dataframe[column_name] < lower_limit)
         ]
     )
-    print(
-        f"""
-        \nTable of outliers for {column} based on IQR value:\n
-        {iqr_outlier_dataframe}\n
-        """
-    )
+
+    # Isolate the target column from the rest of the dataframe
+    iqr_outlier_dataframe = iqr_outlier_dataframe[column_name]
+    iqr_outlier_ratio = len(iqr_outlier_dataframe) / len(dataframe)
+    print(f"\nThere are {iqr_outlier_ratio:.1%} of IQR outliers.")
+    print(f"Table of outliers for {column_name} based on IQR value:")
+    print(iqr_outlier_dataframe)
     return iqr_outlier_dataframe
 
 
 def get_zscore_outliers(
     dataframe: pd.DataFrame,
-    column: str,
+    column_name: str,
     zscore_threshold: int = 3
-):
+) -> pd.DataFrame:
     """Build a dataframe containing outliers details based on their Z-score.
 
     Args:
         dataframe (pd.DataFrame): _description_
-        column (str): _description_
+        column_name (str): _description_
         zscore_threshold (int, optional): _description_. Defaults to 3.
 
     Returns:
         _type_: _description_
     """
+    print(f"\nFor {column_name}:")
     # Calculate Z-score
-    dataframe[f"{column}_zscore"] = np.abs(zscore(a=dataframe[column]))
-    # OR
-    z_score = np.abs(zscore(a=dataframe[column]))  # or without abs ?
+    z_score = np.abs(zscore(a=dataframe[column_name]))
 
-    print(f"\nFor {column}:")
     # Find outliers based on Z-score threshold value
-    zscore_outlier_dataframe = (
-        dataframe[
-            # (dataframe[column].z_score > zscore_threshold) |
-            # (dataframe[column].z_score < -zscore_threshold)
-            # OR
-            (z_score > zscore_threshold) |
-            (z_score < zscore_threshold)
-        ]
-        # OR
-        (z_score > zscore_threshold) |
-        (z_score < zscore_threshold)
-    )
-    print(
-        f"""
-        \nTable of outliers for {column} based on Z-score value:\n
-        {zscore_outlier_dataframe}\n
-        """
-    )
+    zscore_outlier_dataframe = dataframe[z_score > zscore_threshold]
+
+    # Isolate the target column from the rest of the dataframe
+    zscore_outlier_dataframe = zscore_outlier_dataframe[column_name]
+    zscore_outlier_ratio = len(zscore_outlier_dataframe) / len(dataframe)
+    print(f"There are {zscore_outlier_ratio:.1%} of Z-score outliers.")
+    print(f"Table of outliers for {column_name} based on Z-score value:")
+    print(zscore_outlier_dataframe)
     return zscore_outlier_dataframe
 
 
-def standardise_features(features):
+def get_mad_outliers(
+    dataframe: pd.DataFrame,
+    column_name: str,
+) -> pd.DataFrame:
+    """get_mad_outliers _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        column_name (str): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    print(f"\nFor {column_name}:")
+    # Reshape the target column to make it 2D
+    column_2D = dataframe[column_name].values.reshape(-1, 1)
+    # Fit to the target column
+    mad = MAD().fit(column_2D)
+
+    # Extract the inlier/outlier labels
+    labels = mad.labels_
+    # print(f"\nMean Absolute Deviation Labels:\n{labels}\n")
+
+    # Extract the outliers
+    # use '== 0' to get inliers
+    mad_outliers = dataframe[column_name][labels == 1]
+
+    # Isolate the target column from the rest of the dataframe
+    mad_outlier_dataframe = dataframe[column_name]
+    mad_outlier_dataframe["mad_score"] = mad_outliers
+    mad_outlier_ratio = len(mad_outliers) / len(dataframe)
+    print(f"There are {mad_outlier_ratio:.1%} of MAD outliers.")
+    print(f"Table of outliers for {column_name} based on MAD value:")
+    print(mad_outlier_dataframe)
+    return mad_outliers
+
+
+def standardise_features(features: List[str]) -> pd.DataFrame | np.ndarray:
     """Standardise the features to get them on the same scale.
 
     When used for Principal Component Analysis (PCA), this MUST be performed
@@ -1275,21 +1372,17 @@ def standardise_features(features):
     """
     # Standardise the features
     scaler = StandardScaler()
-    # BUGcBelow NOT working
-    # scaler = StandardScaler().set_output(transform="pandas")  # NOT working
-    # print(f"Data Type for scaler: {type(scaler).__name__}")
     features_scaled = scaler.fit_transform(features)
+
     # Delete next function call when .set_output(transform="pandas") is fixed
     features_scaled = convert_data_to_dataframe(features_scaled)
-    features_scaled.columns = features.columns.to_list()
-    # print(f"Data Type for features_scaled: {type(features_scaled).__name__}")
     return features_scaled
 
 
 def remove_low_variance_features(
     features: pd.DataFrame,
     threshold: float,
-) -> pd.DataFrame:
+) -> pd.DataFrame | np.ndarray:
     """Remove variables with low variance.
 
     Args:
@@ -1350,7 +1443,10 @@ def identify_highly_correlated_features(
 # STATISTICAL ANALYSIS
 
 
-def apply_pca(n_components, features_scaled):
+def apply_pca(
+    n_components: int,
+    features_scaled: pd.DataFrame | np.ndarray
+) -> Tuple[PCA, np.ndarray]:
     """Run a Principal Component Analysis (PCA) on scaled data.
 
     The output is of type array.
@@ -1367,7 +1463,10 @@ def apply_pca(n_components, features_scaled):
     return pca_model, pca_array
 
 
-def explain_pca_variance(pca_model, pca_components):
+def explain_pca_variance(
+    pca_model: PCA,
+    pca_components: int
+) -> Tuple[pd.DataFrame, float]:
     """Build a dataframe of variance explained.
 
     The variable dataframe 'variance_explained_df' is created and its index is
@@ -1391,7 +1490,11 @@ def explain_pca_variance(pca_model, pca_components):
     return variance_explained_df, variance_explained_cumulated
 
 
-def apply_anova(dataframe, dependent_variable, independent_variable):
+def apply_anova(
+    dataframe: pd.DataFrame,
+    dependent_variable: str,
+    independent_variable: str
+) -> Tuple[ols, pd.DataFrame]:
     """Perform Analysis of Variance using Ordinary Least Squares (OLS) model.
 
     Args:
@@ -1419,7 +1522,7 @@ def apply_anova(dataframe, dependent_variable, independent_variable):
     return model, anova_table
 
 
-def apply_manova(dataframe, formula):
+def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
     """Perform Multiple Analysis of Variance using OLS model.
 
     In this instance, it is better to give the formula of the model.
@@ -1437,10 +1540,14 @@ def apply_manova(dataframe, formula):
         data=dataframe
     )
     manova_test = model.mv_test()
+    print(type(manova_test))
     return manova_test
 
 
-def check_normality_assumption_residuals(data, alpha=0.05):
+def check_normality_assumption_residuals(
+    dataframe: pd.DataFrame,
+    alpha: float = 0.05
+) -> pd.DataFrame:
     """Check assumptions for normality of model residual data.
 
     Use the following 'normality' tests:
@@ -1461,21 +1568,21 @@ def check_normality_assumption_residuals(data, alpha=0.05):
         _type_: _description_
     """
     shapiro_wilk = pg.normality(
-        data=data,
+        data=dataframe,
         method="shapiro",
         alpha=alpha
     )
     shapiro_wilk.rename(index={0: "shapiro_wilk"}, inplace=True)
 
     normality = pg.normality(
-        data=data,
+        data=dataframe,
         method="normaltest",
         alpha=alpha
     )
     normality.rename(index={0: "normality"}, inplace=True)
 
     jarque_bera = pg.normality(
-        data=data,
+        data=dataframe,
         method="jarque_bera",
         alpha=alpha
     )
@@ -1504,11 +1611,11 @@ def check_normality_assumption_residuals(data, alpha=0.05):
 
 
 def check_equal_variance_assumption_residuals(
-    dataframe,
+    dataframe: pd.DataFrame,
     model,
-    group_variable,
-    alpha=0.05
-):
+    group_variable: str,
+    alpha: float = 0.05
+) -> pd.DataFrame:
     """Check assumption of equal variance between groups of a model residuals.
 
     Use the following 'equality of variance' tests:
@@ -1587,7 +1694,7 @@ def perform_multicomparison(
     dataframe: pd.DataFrame,
     groups: np.ndarray | pd.Series | pd.DataFrame,
     alpha: float = 0.05
-):
+) -> None:
     """perform_multicomparison _summary_.
 
     Args:
@@ -2066,9 +2173,9 @@ def draw_correlation_heatmap(dataframe, method="pearson"):
 
 
 def draw_qqplot(
-    data,
-    confidence=0.95
-):
+    dataframe: pd.DataFrame,
+    confidence: float = 0.95
+) -> None:
     """Draw the Q-Q plot using the residuals of fitted model, for example.
 
     The parameter 'data' can take a 1D-array (e.g. model output) or a
@@ -2081,20 +2188,21 @@ def draw_qqplot(
     Returns:
         _type_: _description_
     """
-    qqplot = pg.qqplot(x=data, dist="norm", confidence=confidence)
-    return qqplot
+    plt.figure()
+    pg.qqplot(x=dataframe, dist="norm", confidence=confidence)
 
 
 def draw_anova_quality_checks(
-    dataframe,
-    dependent_variable,
-    independent_variable,
-    model
+    dataframe: pd.DataFrame,
+    dependent_variable: str,
+    independent_variable: str,
+    model,
+    output_directory: str | Path
 ):
     """Draw Q-Q plots and run post-hoc tests on selected variables."""
     # Q-Q plot of the dependent variable residuals
     draw_qqplot(
-        data=model.resid,
+        dataframe=model.resid,
         confidence=0.95
     )
     plt.title(
@@ -2110,7 +2218,10 @@ def draw_anova_quality_checks(
     plt.tight_layout()
     plt.show()
     save_figure(
-        figure_name=f"qqplot_anova_{independent_variable}_{dependent_variable}"
+        figure_name=(
+            output_directory /
+            f"qqplot_anova_{independent_variable}_{dependent_variable}.png"
+        )
     )
 
     # -------------------------------------------------------------------------
@@ -2351,7 +2462,7 @@ def calculate_model_scores(
     target_pred: pd.Series,
     target_label_list: List[str],
     # ) -> None:
-):
+) -> Dict[int | str, float] | ndarray[Any, Any]:
     """Calculate_model_scores _summary_.
 
     Args:
@@ -2386,7 +2497,7 @@ def calculate_model_scores(
         "Model F1-score": f1_score_,
     }
     # Convert the dictionary to a dataframe and drop duplicated rows
-    model_score_dataframe = convert_dictionary_to_dataframe(
+    model_score_dataframe = convert_data_to_dataframe(
         model_score_dictionary
     ).set_index(keys="Model Name").drop_duplicates()
     # Format scores as percentages and rotate the df for better viewing
