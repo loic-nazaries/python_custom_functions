@@ -1860,22 +1860,23 @@ def draw_heatmap(data, xticklabels, yticklabels):
 
 
 def draw_kdeplot(
-    dataframe,
-    x_axis,
-    xlabel,
-    ylabel=None,
-    hue=None,
-    palette=None,
+    dataframe: pd.DataFrame,
+    x_axis: List[float],
+    x_label: str,
+    y_label: str,
+    hue: List[str] = None,
+    palette: str | List[str] | Dict[str, str] = None,
 ):
     """Draw a density curve of data distribution.
 
     Args:
-        dataframe (_type_): _description_
-        x (_type_): _description_
-        xlabel (_type_): _description_
-        ylabel (_type_): _description_
-        hue (_type_, optional): _description_. Defaults to None.
-        palette (_type_, optional): _description_. Defaults to None.
+        dataframe (pd.DataFrame): _description_
+        x_axis (List[float]): _description_
+        x_label (str): _description_
+        y_label (str): _description_
+        hue (List[str], optional): _description_. Defaults to None.
+        palette (str | List[str] | Dict[str, str], optional): _description_.
+        Defaults to None.
 
     Returns:
         _type_: _description_
@@ -1888,21 +1889,21 @@ def draw_kdeplot(
         legend=True,
     )
     kdeplot.set(
-        xlabel=xlabel,
-        ylabel=ylabel,
+        xlabel=x_label,
+        ylabel=y_label,
     )
     return kdeplot
 
 
 def draw_kdeplot_subplots(
-    dataframe,
-    x_axis,
-    item_list,
-    nb_columns,
-    xlabel,
-    ylabel=None,
-    hue=None,
-    palette=None
+    dataframe: pd.DataFrame,
+    x_axis: List[float],
+    x_label: str,
+    y_label: str,
+    item_list: List[str],
+    nb_columns: int,
+    hue: List[str] = None,
+    palette: str | List[str] | Dict[str, str] = None,
 ):
     """Draw several bar plots on the same image using an iterable.
 
@@ -1927,17 +1928,20 @@ def draw_kdeplot_subplots(
     earlier.
 
     Args:
-        dataframe (_type_): _description_
-        x_axis (_type_): _description_
-        item_list (_type_): _description_
-        nb_columns (_type_): _description_
-        errorbar (str, optional): _description_. Defaults to "ci".
-        palette (_type_, optional): _description_. Defaults to None.
+        dataframe (pd.DataFrame): _description_
+        x_axis (List[float]): _description_
+        x_label (str): _description_
+        y_label (str): _description_
+        item_list (List[str]): _description_
+        nb_columns (int): _description_
+        hue (List[str], optional): _description_. Defaults to None.
+        palette (str | List[str] | Dict[str, str], optional): _description_.
+        Defaults to None.
 
     Returns:
         _type_: _description_
     """
-    plt.subplots_adjust(wspace=0.3, hspace=0.4)
+    plt.subplots_adjust(wspace=0.3, hspace=0.5)
 
     # set number of columns
     ncols = nb_columns
@@ -1961,43 +1965,43 @@ def draw_kdeplot_subplots(
         kdeplot_subplots = draw_kdeplot(
             dataframe=dataframe,
             x_axis=x_axis,
-            xlabel=xlabel,
+            x_label=x_label,
+            y_label="Density",
             hue=hue,
             palette=palette
         )
-        kdeplot_subplots.set(
-            xlabel=xlabel,
-            ylabel=ylabel,
-            title=item.upper()
-        ),
-
-        # chart formatting (check it is working ?)
-        axis.set_title(item.upper())
+        axis.set_title(label=item.upper(), fontsize=20),
         axis.set_xticklabels(
             labels=kdeplot_subplots.get_xticklabels(),
-            size=10,
-            rotation=45,
-            ha="right"
+            size=14,
+        ),
+        axis.set_xlabel(
+            xlabel=x_label,
+            fontsize=18
         )
-        axis.set_xlabel("")
+        axis.set_ylabel(
+            ylabel=y_label,
+            fontsize=18
+        )
     return kdeplot_subplots
 
 
 def draw_boxplot(
-    dataframe,
-    x_axis,
-    y_axis,
-    hue=None,
-    palette=None
+    dataframe: pd.DataFrame,
+    x_axis: List[float],
+    y_axis: List[float],
+    hue: List[str] = None,
+    palette: str | List[str] | Dict[str, str] = None,
 ):
     """Draw a boxplot of data distribution.
 
     Args:
-        dataframe (_type_): _description_
-        x (_type_): _description_
-        y (_type_): _description_
-        hue (_type_, optional): _description_. Defaults to None.
-        palette (_type_, optional): _description_. Defaults to None.
+        dataframe (pd.DataFrame): _description_
+        x_axis (List[float]): _description_
+        y_axis (List[float]): _description_
+        hue (List[str], optional): _description_. Defaults to None.
+        palette (str | List[str] | Dict[str, str], optional): _description_.
+        Defaults to None.
 
     Returns:
         _type_: _description_
@@ -2015,23 +2019,24 @@ def draw_boxplot(
 
 def draw_barplot(
     dataframe,
-    x_axis,
-    y_axis,
-    errorbar="ci",
-    palette=None
+    x_axis: List[float],
+    y_axis: List[float],
+    errorbar: str = "ci",
+    orient: str = "vertical",
+    hue: List[str] = None,
+    palette: str | List[str] | Dict[str, str] = None,
 ):
     """Draw a barplot which can include colour bars for treatment options.
 
-    The default error bar is set to 'ci' for 'confidence interval'.
-    'sd' or 'se' can be used in place for, respectively, 'standard deviation'
-    and 'standard error'.
-
     Args:
         dataframe (_type_): _description_
-        x (_type_): _description_
-        y (_type_): _description_
+        x_axis (List[float]): _description_
+        y_axis (List[float]): _description_
         errorbar (str, optional): _description_. Defaults to "ci".
-        palette (_type_, optional): _description_. Defaults to None.
+        orient (str, optional): _description_. Defaults to "vertical".
+        hue (List[str], optional): _description_. Defaults to None.
+        palette (str | List[str] | Dict[str, str], optional): _description_.
+        Defaults to None.
 
     Returns:
         _type_: _description_
@@ -2040,7 +2045,9 @@ def draw_barplot(
         data=dataframe,
         x=x_axis,
         y=y_axis,
+        hue=hue,
         errorbar=errorbar,
+        orient=orient,
         palette=palette
     )
     return barplot
@@ -2048,11 +2055,13 @@ def draw_barplot(
 
 def draw_barplot_subplots(
     dataframe,
-    x_axis,
-    item_list,
-    nb_columns,
-    errorbar="ci",
-    palette=None
+    x_axis: List[float],
+    y_label: str,
+    item_list: List[str],
+    nb_columns: int,
+    errorbar: str = "ci",
+    hue: List[str] = None,
+    palette: str | List[str] | Dict[str, str] = None,
 ):
     """Draw several bar plots on the same image using an iterable.
 
@@ -2078,16 +2087,19 @@ def draw_barplot_subplots(
 
     Args:
         dataframe (_type_): _description_
-        x (_type_): _description_
-        item_list (_type_): _description_
-        nb_columns (_type_): _description_
+        x_axis (List[float]): _description_
+        y_label (str): _description_
+        item_list (List[str]): _description_
+        nb_columns (int): _description_
         errorbar (str, optional): _description_. Defaults to "ci".
-        palette (_type_, optional): _description_. Defaults to None.
+        hue (List[str], optional): _description_. Defaults to None.
+        palette (str | List[str] | Dict[str, str], optional): _description_.
+        Defaults to None.
 
     Returns:
         _type_: _description_
     """
-    plt.subplots_adjust(wspace=0.3, hspace=0.4)
+    plt.subplots_adjust(wspace=0.3, hspace=0.5)
 
     # set number of columns
     ncols = nb_columns
@@ -2112,21 +2124,22 @@ def draw_barplot_subplots(
             dataframe=dataframe,
             x_axis=x_axis,
             y_axis=item,
+            hue=hue,
             errorbar=errorbar,
             palette=palette
         )
-        barplot_subplots.set(
-            xlabel="",
-            ylabel="Transmissivité \u03C4 (-)",
-            title=item.upper()
-        ),
+        axis.set_title(label=item.upper(), fontsize=20),
         axis.set_xticklabels(
             labels=barplot_subplots.get_xticklabels(),
-            size=10,
+            size=14,
             rotation=45,
             ha="right"
+        ),
+        axis.set_xlabel(""),
+        axis.set_ylabel(
+            ylabel=y_label,
+            fontsize=18
         )
-        # axis.set_xlabel("")
     return barplot_subplots
 
 
