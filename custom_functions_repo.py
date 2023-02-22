@@ -309,12 +309,25 @@ def save_pickle_file(dataframe: pd.DataFrame, file_path_name: str):
     return
 
 
-def save_console_output(file_name: str):
-    """Save the console output."""
+def save_console_output(
+    file_name: str,
+    output_directory: Path
+):
+    """Save the console output as a test file.
+
+    BUG NOT working as a function...
+
+    Args:
+        file_path_name (str): _description_
+    """
     # Save the original stdout
     original_stdout = sys.stdout
     # Open a file for writing
-    with open(file=file_name, mode="x", encoding="utf-8") as output_file:
+    with open(
+        file=output_directory.joinpath(file_path_name + "txt"),
+        mode="x",
+        encoding="utf-8"
+    ) as output_file:
         # Redirect stdout to the file
         sys.stdout = output_file
         yield
@@ -322,12 +335,39 @@ def save_console_output(file_name: str):
         sys.stdout = original_stdout
 
 
-# # Use the function
+# # Use the function as shown below:
 # with save_console_output('console_output.txt'):
 #     print('This text will be saved to the file.')
 #     print('This text will also be saved to the file.')
 
 # print('This text will be printed to the console.')
+
+
+def convert_text_file_to_docx(
+    file_name: str,
+    output_directory: Path
+) -> None:
+    """convert_text_to_docx _summary_.
+
+    Args:
+        file_path_name (str): _description_
+        output_directory (Path): _description_
+    """
+    # Open the text file and read its contents
+    with open(
+            file=output_directory.joinpath(file_name + ".txt"),
+            mode="r",
+            encoding="utf-8"
+    ) as output_file:
+        output_text = output_file.read()
+
+    # Create a new Word document
+    word_doc = docx.Document()
+    # Add the text to the document
+    word_doc.add_paragraph(output_text)
+    # Save the document as a Word file
+    word_doc.save(file_name)
+    print("The console output was converted to a MS Word document file.")
 
 
 # ----------------------------------------------------------------------------
@@ -1490,11 +1530,62 @@ def explain_pca_variance(
     return variance_explained_df, variance_explained_cumulated
 
 
+def run_anova_check_assumption(
+    dataframe: pd.DataFrame,
+    dependent_variable: pd.Series,
+    independent_variable: pd.Series | str,
+    group_variable: List[str],
+    output_directory: str | Path,
+) -> ols:
+    """run_anova_check_assumption _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        dependent_variable (pd.Series): _description_
+        independent_variable (pd.Series): _description_
+        group_variable (List[str]): _description_
+        output_directory (str | Path): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    anova_model = apply_anova(
+        dataframe=dataframe,
+        dependent_variable=dependent_variable,
+        independent_variable=independent_variable,
+    )
+
+    # ---------------------------------------------------------------
+
+    # Check assumptions of the model residuals are met
+    check_normality_assumption_residuals(
+        dataframe=anova_model.resid
+    )
+
+    check_equal_variance_assumption_residuals(
+        dataframe=dataframe,
+        model=anova_model,
+        group_variable=group_variable,
+    )
+
+    # ---------------------------------------------------------------
+
+    # BUG Crash when the 'healthy' feature is dropped from analysis
+    draw_anova_quality_checks(
+        dataframe=dataframe,
+        dependent_variable=dependent_variable,
+        independent_variable=independent_variable,
+        model=anova_model,
+        output_directory=output_directory
+    )
+    return anova_model
+
+
 def apply_anova(
     dataframe: pd.DataFrame,
     dependent_variable: str,
     independent_variable: str
-) -> Tuple[ols, pd.DataFrame]:
+) -> ols:
     """Perform Analysis of Variance using Ordinary Least Squares (OLS) model.
 
     Args:
@@ -1519,7 +1610,7 @@ def apply_anova(
         {anova_table}\n
         """
     )
-    return model, anova_table
+    return model
 
 
 def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
@@ -1615,7 +1706,7 @@ def check_equal_variance_assumption_residuals(
     model,
     group_variable: str,
     alpha: float = 0.05
-) -> pd.DataFrame:
+) -> None:
     """Check assumption of equal variance between groups of a model residuals.
 
     Use the following 'equality of variance' tests:
@@ -1687,7 +1778,6 @@ def check_equal_variance_assumption_residuals(
         )
     else:
         print(f"Data have equal variance between {group_variable} groups.\n")
-    return equal_variance_tests
 
 
 def perform_multicomparison(
@@ -1719,7 +1809,7 @@ def run_tukey_post_hoc_test(dataframe, dependent_variable, group_list):
     Args:
         dataframe (_type_): _description_
         dependent_variable (_type_): _description_
-        group (_type_): _description_
+        group_list (_type_): _description_
 
     Returns:
         _type_: _description_
@@ -1732,8 +1822,14 @@ def run_tukey_post_hoc_test(dataframe, dependent_variable, group_list):
     return tukey
 
 
-def perform_multicomparison_correction(p_values, method="bonferroni"):
+def perform_multicomparison_correction(
+    p_values,
+    method: str = "bonferroni"
+) -> pd.DataFrame:
     """Apply the Bonferroni correction method to the p-values.
+
+    This version of 'multicomparison_correction' uses the Pingouin library.
+    An equivalent version is also available from the 'statsmodels' library.
 
     Args:
         p_values (_type_): _description_
