@@ -309,38 +309,30 @@ def save_pickle_file(dataframe: pd.DataFrame, file_path_name: str):
     return
 
 
-def save_console_output(
-    file_name: str,
-    output_directory: Path
-):
-    """Save the console output as a test file.
+def save_console_output(file_name: str) -> None:
+    """Save the console output.
 
     BUG NOT working as a function...
 
+    # Use the function as shown below:
+    with save_console_output(file_name="console_output.txt"):
+        print("This text will be saved to the file.")
+        print("This text will also be saved to the file.")
+    print("This text will be printed to the console.")
+
     Args:
-        file_path_name (str): _description_
+        file_name (str): _description_
     """
     # Save the original stdout
     original_stdout = sys.stdout
     # Open a file for writing
-    with open(
-        file=output_directory.joinpath(file_path_name + "txt"),
-        mode="x",
-        encoding="utf-8"
-    ) as output_file:
+    with open(file=file_name, mode="x", encoding="utf-8") as output_file:
         # Redirect stdout to the file
         sys.stdout = output_file
         yield
         # Reset stdout back to the original
         sys.stdout = original_stdout
-
-
-# # Use the function as shown below:
-# with save_console_output('console_output.txt'):
-#     print('This text will be saved to the file.')
-#     print('This text will also be saved to the file.')
-
-# print('This text will be printed to the console.')
+    print("The console output was saved.")
 
 
 def convert_text_file_to_docx(
@@ -366,7 +358,7 @@ def convert_text_file_to_docx(
     # Add the text to the document
     word_doc.add_paragraph(output_text)
     # Save the document as a Word file
-    word_doc.save(file_name)
+    word_doc.save(output_directory.joinpath(file_name + ".docx"))
     print("The console output was converted to a MS Word document file.")
 
 
@@ -1536,6 +1528,7 @@ def run_anova_check_assumption(
     independent_variable: pd.Series | str,
     group_variable: List[str],
     output_directory: str | Path,
+    confidence_interval: float = 0.95,
 ) -> ols:
     """run_anova_check_assumption _summary_.
 
@@ -1549,10 +1542,13 @@ def run_anova_check_assumption(
     Returns:
         _type_: _description_
     """
-    anova_model = apply_anova(
+    anova_model = run_anova_test(
         dataframe=dataframe,
         dependent_variable=dependent_variable,
         independent_variable=independent_variable,
+        group_variable=group_variable,
+        output_directory=output_directory,
+        confidence_interval=confidence_interval,
     )
 
     # ---------------------------------------------------------------
@@ -1570,47 +1566,103 @@ def run_anova_check_assumption(
 
     # ---------------------------------------------------------------
 
-    # BUG Crash when the 'healthy' feature is dropped from analysis
     draw_anova_quality_checks(
         dataframe=dataframe,
         dependent_variable=dependent_variable,
         independent_variable=independent_variable,
         model=anova_model,
-        output_directory=output_directory
+        output_directory=output_directory,
+        confidence_interval=confidence_interval,
+    )
+
+    # ---------------------------------------------------------------
+
+    draw_tukeys_hsd_plot(
+        dataframe=dataframe,
+        dependent_variable=dependent_variable,
+        independent_variable=independent_variable,
+        output_directory=output_directory,
+        confidence_interval=confidence_interval,
     )
     return anova_model
 
 
-def apply_anova(
+def run_anova_test(
     dataframe: pd.DataFrame,
-    dependent_variable: str,
-    independent_variable: str
-) -> ols:
-    """Perform Analysis of Variance using Ordinary Least Squares (OLS) model.
+    dependent_variable: pd.Series,
+    independent_variable: str,
+    group_variable: str,
+    output_directory: str | Path,
+    confidence_interval: float = 0.95,
+) -> None:
+    """ANOVA test on numeric variables and calculate group confidence interval.
 
     Args:
-        dataframe (_type_): _description_
-        dependent_variable (_type_): _description_
-        independent_variable (_type_): _description_
-
-    Returns:
-        _type_: _description_
+        dataframe (pd.DataFrame): _description_
+        dependent_variable (pd.Series): _description_
+        group_variable (str): _description_
+        confidence_interval (float, optional): _description_.
+        Defaults to 0.95.
     """
-    # Fit the model
-    model = ols(
+    print(f"\n{dependent_variable.upper()}:")
+
+    # Fit the OLS model
+    ols_model = ols(
         formula=f"{dependent_variable} ~ C({independent_variable})",
         data=dataframe
     ).fit()
 
     # Display ANOVA table
-    anova_table = sm.stats.anova_lm(model, typ=1)
-    print(
-        f"""
-        \n\nANOVA Test Table for {dependent_variable} - {independent_variable}:
-        {anova_table}\n
-        """
+    anova_table = sm.stats.anova_lm(ols_model, typ=1)
+    print(f"\nANOVA Test Output Table:\n{anova_table}")
+
+    # Build confidence interval
+    ci_table_defect_type = rp.summary_cont(
+        group1=dataframe[dependent_variable].groupby(
+            dataframe[group_variable]
+        ),
+        conf=confidence_interval
     )
-    return model
+    print("One-way ANOVA and confidence intervals:")
+    print(ci_table_defect_type)
+    save_csv_file(
+        dataframe=ci_table_defect_type,
+        csv_path_name=output_directory /
+        f"ci_table_defect_type_{dependent_variable}.csv"
+    )
+
+    # Find group differences
+    perform_multicomparison(
+        dataframe=dataframe[dependent_variable],
+        groups=dataframe[group_variable],
+        confidence_interval=confidence_interval
+    )
+    return ols_model
+
+
+def perform_multicomparison(
+    dataframe: pd.DataFrame,
+    groups: List[str],
+    confidence_interval: float = 0.95,
+) -> pd.DataFrame:
+    """perform_multicomparison _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        groups (List[str]): _description_
+        confidence_interval (float, optional): _description_. Defaults to 0.95.
+
+    Returns:
+        _type_: _description_
+    """
+    multicomparison = MultiComparison(
+        data=dataframe,
+        groups=groups
+    )
+    tukey_result = multicomparison.tukeyhsd(alpha=(1 - confidence_interval))
+    print(f"\nTukey's Multicomparison Test between groups:\n{tukey_result}\n")
+    # print(f"Unique groups: {multicomparison.groupsunique}\n")
+    return tukey_result
 
 
 def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
@@ -1631,13 +1683,12 @@ def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
         data=dataframe
     )
     manova_test = model.mv_test()
-    print(type(manova_test))
     return manova_test
 
 
 def check_normality_assumption_residuals(
     dataframe: pd.DataFrame,
-    alpha: float = 0.05
+    confidence_interval: float = 0.95,
 ) -> pd.DataFrame:
     """Check assumptions for normality of model residual data.
 
@@ -1653,7 +1704,7 @@ def check_normality_assumption_residuals(
 
     Args:
         data (_type_): _description_
-        alpha (float, optional): _description_. Defaults to 0.05.
+        confidence_interval (float, optional): _description_. Defaults to 0.95.
 
     Returns:
         _type_: _description_
@@ -1661,21 +1712,21 @@ def check_normality_assumption_residuals(
     shapiro_wilk = pg.normality(
         data=dataframe,
         method="shapiro",
-        alpha=alpha
+        alpha=(1 - confidence_interval)
     )
     shapiro_wilk.rename(index={0: "shapiro_wilk"}, inplace=True)
 
     normality = pg.normality(
         data=dataframe,
         method="normaltest",
-        alpha=alpha
+        alpha=(1 - confidence_interval)
     )
     normality.rename(index={0: "normality"}, inplace=True)
 
     jarque_bera = pg.normality(
         data=dataframe,
         method="jarque_bera",
-        alpha=alpha
+        alpha=(1 - confidence_interval)
     )
     jarque_bera.rename(index={0: "jarque_bera"}, inplace=True)
 
@@ -1702,11 +1753,11 @@ def check_normality_assumption_residuals(
 
 
 def check_equal_variance_assumption_residuals(
-    dataframe: pd.DataFrame,
+    dataframe,
     model,
-    group_variable: str,
-    alpha: float = 0.05
-) -> None:
+    group_variable,
+    confidence_interval: float = 0.95,
+):
     """Check assumption of equal variance between groups of a model residuals.
 
     Use the following 'equality of variance' tests:
@@ -1722,7 +1773,7 @@ def check_equal_variance_assumption_residuals(
         dataframe (_type_): _description_
         model (_type_): _description_
         group_variable (_type_): _description_
-        alpha (float, optional): _description_. Defaults to 0.05.
+        confidence_interval (float, optional): _description_. Defaults to 0.95.
 
     Returns:
         _type_: _description_
@@ -1737,7 +1788,7 @@ def check_equal_variance_assumption_residuals(
         dv="residuals",
         group=group_variable,
         method="bartlett",
-        alpha=alpha
+        alpha=(1 - confidence_interval)
     )
     bartlett.rename(
         index={"mean_intensities": "bartlett"},
@@ -1750,7 +1801,7 @@ def check_equal_variance_assumption_residuals(
         dv="residuals",
         group=group_variable,
         method="levene",
-        alpha=alpha
+        alpha=(1 - confidence_interval)
     )
     levene.rename(
         index={"mean_intensities": "levene"},
@@ -1765,12 +1816,11 @@ def check_equal_variance_assumption_residuals(
     )
     print(
         f"""
-        \nEquality of Variance Tests Results - {group_variable}
+        \nEquality of Variance Tests Results - '{group_variable}' as group
         \n{equal_variance_tests}\n
         """
     )
-    # BUG
-    print(levene.iloc[0]["equal_var"])
+    # BUG It does not the difference between 'if' and 'else' output
     print("Equal Variance of Data Between Groups:")
     if levene.iloc[0]["equal_var"] is False:
         print(
@@ -1778,27 +1828,7 @@ def check_equal_variance_assumption_residuals(
         )
     else:
         print(f"Data have equal variance between {group_variable} groups.\n")
-
-
-def perform_multicomparison(
-    dataframe: pd.DataFrame,
-    groups: np.ndarray | pd.Series | pd.DataFrame,
-    alpha: float = 0.05
-) -> None:
-    """perform_multicomparison _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        groups (np.ndarray  |  pd.Series  |  pd.DataFrame]): _description_
-        alpha (float, optional): _description_. Defaults to 0.05.
-    """
-    multicomparison = MultiComparison(
-        data=dataframe,
-        groups=groups
-    )
-    tukey_result = multicomparison.tukeyhsd(alpha=alpha)
-    print(f"\nMulticomparaison between groups:\n{tukey_result}\n")
-    print(f"Unique groups: {multicomparison.groupsunique}\n")
+    return equal_variance_tests
 
 
 def run_tukey_post_hoc_test(dataframe, dependent_variable, group_list):
@@ -1885,8 +1915,9 @@ def draw_scatterplot(
     dataframe,
     x_axis,
     y_axis,
-    size=None,
     hue=None,
+    style=None,
+    size=None,
     palette=None,
 ):
     """Draw a scatter plot of TWO variables.
@@ -1899,6 +1930,7 @@ def draw_scatterplot(
         x (_type_): _description_
         y (_type_): _description_
         hue (_type_): _description_
+        style (_type_): _description_
         size (_type_): _description_
         palette (_type_): _description_
 
@@ -1910,6 +1942,7 @@ def draw_scatterplot(
         x=x_axis,
         y=y_axis,
         hue=hue,
+        style=style,
         palette=palette,
         size=size,
         sizes=(20, 200),
@@ -2283,7 +2316,7 @@ def draw_correlation_heatmap(dataframe, method="pearson"):
 
 def draw_qqplot(
     dataframe: pd.DataFrame,
-    confidence: float = 0.95
+    confidence_interval: float = 0.95
 ) -> None:
     """Draw the Q-Q plot using the residuals of fitted model, for example.
 
@@ -2298,7 +2331,12 @@ def draw_qqplot(
         _type_: _description_
     """
     plt.figure()
-    pg.qqplot(x=dataframe, dist="norm", confidence=confidence)
+    qqplot = pg.qqplot(
+        x=dataframe,
+        dist="norm",
+        confidence=confidence_interval
+    )
+    return qqplot
 
 
 def draw_anova_quality_checks(
@@ -2306,26 +2344,35 @@ def draw_anova_quality_checks(
     dependent_variable: str,
     independent_variable: str,
     model,
-    output_directory: str | Path
-):
-    """Draw Q-Q plots and run post-hoc tests on selected variables."""
-    # Q-Q plot of the dependent variable residuals
+    output_directory: str | Path,
+    confidence_interval: float = 0.95,
+) -> None:
+    """Draw Q-Q plots of the model dependent variable residuals.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        dependent_variable (str): _description_
+        independent_variable (str): _description_
+        model (_type_): _description_
+        output_directory (str | Path): _description_
+        confidence_interval (float, optional): _description_. Defaults to 0.95.
+    """
     draw_qqplot(
         dataframe=model.resid,
-        confidence=0.95
+        confidence_interval=confidence_interval
     )
     plt.title(
         label=f"""
-        Q-Q Plot of Model Residuals ({dependent_variable} - \
+        Q-Q Plot of Model Residuals ({dependent_variable} vs. \
 {independent_variable})
         """,
         fontsize=14,
         loc="center"
     )
-    # plt.grid(visible=False)
+    plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    plt.show()
+    # plt.show()
     save_figure(
         figure_name=(
             output_directory /
@@ -2333,17 +2380,33 @@ def draw_anova_quality_checks(
         )
     )
 
-    # -------------------------------------------------------------------------
 
+def draw_tukeys_hsd_plot(
+    dataframe: pd.DataFrame,
+    dependent_variable: str,
+    independent_variable: str,
+    output_directory: str | Path,
+    confidence_interval: float = 0.95,
+) -> None:
+    """draw_tukeys_hsd_plot _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        dependent_variable (str): _description_
+        independent_variable (str): _description_
+        output_directory (str | Path): _description_
+        confidence_interval (float, optional): _description_. Defaults to 0.95.
+    """
+    print("\nStats for Tukey's HSD Plots")
     # Run post-hoc test
-    comparison = mc.MultiComparison(
-        dataframe[dependent_variable],
-        dataframe[independent_variable],
+    tukey_result = perform_multicomparison(
+        dataframe=dataframe[dependent_variable],
+        groups=dataframe[independent_variable],
+        alpha=(1 - confidence_interval)
     )
-    tukey = comparison.tukeyhsd(alpha=0.01)
-    print(f"\nTukey's Test Output:\n{tukey.summary()}\n")
 
-    tukey.plot_simultaneous(
+    # Plot graphic output from Tukey's test
+    tukey_result.plot_simultaneous(
         ylabel="Defects",
         xlabel="Score Difference"
     )
@@ -2354,32 +2417,41 @@ def draw_anova_quality_checks(
         """,
         fontsize=14
     )
-    # plt.grid(visible=False)
+    plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    plt.show()
+    # plt.show()
     save_figure(
-        figure_name=f"tukey_anova_{independent_variable}_{dependent_variable}"
-    )
-
-    tukey_post_hoc_test = run_tukey_post_hoc_test(
-        dataframe=dataframe,
-        dependent_variable=dependent_variable,
-        group_list=independent_variable
-    )
-    # Apply p-values correction
-    corrected_tukey_dataframe = (
-        perform_multicomparison_correction(
-            p_values=tukey_post_hoc_test["p-tukey"],
+        figure_name=(
+            output_directory /
+            f"tukey_anova_{independent_variable}_{dependent_variable}.png"
         )
     )
-    # Add output to 'tukey_post_hoc_test' dataframe
-    corrected_tukey_post_hoc_test = pd.concat(
-        objs=[tukey_post_hoc_test, corrected_tukey_dataframe], axis=1
-    )
-    print(corrected_tukey_post_hoc_test)
-    print("\n==============================================================\n")
-    return corrected_tukey_post_hoc_test
+
+    # -------------------------------------------------------------------------
+
+    # # Draw a different version of Tukey's table using Pingouin library
+    # print("Draw a different version of Tukey's table using Pingouin library")
+
+    # tukey_post_hoc_test = run_tukey_post_hoc_test(
+    #     dataframe=dataframe,
+    #     dependent_variable=dependent_variable,
+    #     group_list=independent_variable
+    # )
+    # # Apply p-values correction
+    # corrected_tukey_dataframe = (
+    #     perform_multicomparison_correction(
+    #         p_values=tukey_post_hoc_test["p-tukey"],
+    #     )
+    # )
+    # # Add output to 'tukey_post_hoc_test' dataframe
+    # corrected_tukey_post_hoc_test = pd.concat(
+    #     objs=[tukey_post_hoc_test, corrected_tukey_dataframe], axis=1
+    # )
+    # print(
+    #     f"\nTukey's Multicomparison Test Version 2:\n \
+    #         {corrected_tukey_post_hoc_test}\n"
+    # )
 
 
 # -----------------------------------------------------------------------------
