@@ -383,7 +383,7 @@ def remove_key_from_dictionary(
 
 
 def extract_pattern_from_file_name(file_name: str) -> List[str]:
-    r"""Use regular expressions to extract a pattern from a list of file names.
+    """Use regular expressions to extract a pattern from a list of file names.
 
     Specifically, it splits the string (here, file name) each time an
     underscore '_' is encountered using the pattern '_+'. A list of strings is
@@ -407,7 +407,7 @@ def extract_pattern_from_file_name(file_name: str) -> List[str]:
 
 
 def extract_pattern_from_file_name_2(file_name):
-    r"""Use regular expressions to extract a pattern from a list of file names.
+    """Use regular expressions to extract a pattern from a list of file names.
 
     Specifically, it splits the string each time an underscore '_' is
     encountered using the pattern '_+'. A list of strings is returned.
@@ -529,15 +529,15 @@ def convert_to_datetime_type(
     dataframe: pd.DataFrame,
     datetime_variable_list: List[str | datetime]
 ) -> pd.DataFrame:
-    """date_time_variables _summary_.
+    """convert_to_datetime_type _summary_.
 
     Args:
-        dataframe (_type_): _description_
+        dataframe (pd.DataFrame): _description_
+        datetime_variable_list (List[str  |  datetime]): _description_
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: _description_
     """
-    # Convert data to their proper type
     dataframe[datetime_variable_list] = (
         dataframe[datetime_variable_list].astype("datetime64[ns]")
     )
@@ -548,13 +548,14 @@ def convert_to_category_type(
     dataframe: pd.DataFrame,
     category_variable_list: List[str]
 ) -> pd.DataFrame:
-    """category_variables _summary_.
+    """convert_to_category_type _summary_.
 
     Args:
-        processed_data (_type_): _description_
+        dataframe (pd.DataFrame): _description_
+        category_variable_list (List[str]): _description_
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: _description_
     """
     dataframe[category_variable_list] = (
         dataframe[category_variable_list].astype("category")
@@ -566,13 +567,14 @@ def convert_to_number_type(
     dataframe: pd.DataFrame,
     numeric_variable_list: List[str]
 ) -> pd.DataFrame:
-    """category_variables _summary_.
+    """convert_to_number_type _summary_.
 
     Args:
-        processed_data (_type_): _description_
+        dataframe (pd.DataFrame): _description_
+        numeric_variable_list (List[str]): _description_
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: _description_
     """
     dataframe[numeric_variable_list] = (
         dataframe[numeric_variable_list].astype("number")
@@ -584,13 +586,14 @@ def convert_to_integer_type(
     dataframe: pd.DataFrame,
     integer_variable_list: List[str]
 ) -> pd.DataFrame:
-    """integer_variables _summary_.
+    """convert_to_integer_type _summary_.
 
     Args:
-        processed_data (_type_): _description_
+        dataframe (pd.DataFrame): _description_
+        integer_variable_list (List[str]): _description_
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: _description_
     """
     dataframe[integer_variable_list] = (
         dataframe[integer_variable_list].astype("int")
@@ -602,13 +605,14 @@ def convert_to_float_type(
     dataframe: pd.DataFrame,
     float_variable_list: List[str]
 ) -> pd.DataFrame:
-    """integer_variables _summary_.
+    """convert_to_float_type _summary_.
 
     Args:
-        processed_data (_type_): _description_
+        dataframe (pd.DataFrame): _description_
+        float_variable_list (List[str]): _description_
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: _description_
     """
     dataframe[float_variable_list] = (
         dataframe[float_variable_list].astype("float")
@@ -620,13 +624,14 @@ def convert_to_string_type(
     dataframe: pd.DataFrame,
     string_variable_list: List[str]
 ) -> pd.DataFrame:
-    """string_variables _summary_.
+    """convert_to_string_type _summary_.
 
     Args:
-        processed_data (_type_): _description_
+        dataframe (pd.DataFrame): _description_
+        string_variable_list (List[str]): _description_
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: _description_
     """
     dataframe[string_variable_list] = (
         dataframe[string_variable_list].astype("string")
@@ -634,15 +639,18 @@ def convert_to_string_type(
     return dataframe
 
 
-def convert_to_proper_types(
+def convert_variables_to_proper_type(
     dataframe: pd.DataFrame,
-    datetime_variable_list: List[str | datetime],
-    category_variable_list: List[str],
-    numeric_variable_list: List[str],
-    integer_variable_list: List[str],
-    string_variable_list: List[str],
-) -> Tuple[pd.DataFrame]:
-    """convert_to_proper_types _summary_.
+    datetime_variable_list: List[str | datetime] = None,
+    category_variable_list: List[str] = None,
+    numeric_variable_list: List[str] = None,
+    integer_variable_list: List[str] = None,
+    float_variable_list: List[str] = None,
+    string_variable_list: List[str] = None,
+) -> pd.DataFrame:
+    """convert_variables_to_proper_type _summary_.
+
+    Apply the '.pipe()' method to the defined functions.
 
     Args:
         dataframe (pd.DataFrame): _description_
@@ -654,44 +662,31 @@ def convert_to_proper_types(
         Defaults to None.
         integer_variable_list (List[str], optional): _description_.
         Defaults to None.
+        float_variable_list (List[str], optional): _description_.
+        Defaults to None.
         string_variable_list (List[str], optional): _description_.
         Defaults to None.
 
     Returns:
-        Tuple[pd.DataFrame]: _description_
+        pd.DataFrame: _description_
     """
-    # Convert variables to proper type
-    datetime_features = convert_to_datetime_type(
-        dataframe=dataframe,
-        datetime_variable_list=datetime_variable_list
+    processed_dataframe_pipe = dataframe.pipe(
+        convert_to_datetime_type, datetime_variable_list=datetime_variable_list
+    ).pipe(
+        convert_to_category_type, category_variable_list=category_variable_list
+    ).pipe(
+        convert_to_number_type, numeric_variable_list=numeric_variable_list
+    ).pipe(
+        convert_to_integer_type, integer_variable_list=integer_variable_list
+    ).pipe(
+        convert_to_float_type, float_variable_list=float_variable_list
+    ).pipe(
+        convert_to_string_type, string_variable_list=string_variable_list
     )
+    print("\nSummary of Data Types:")
+    print(f"\n{processed_dataframe_pipe.info()}\n")
+    return processed_dataframe_pipe
 
-    categorical_features = convert_to_category_type(
-        dataframe=dataframe,
-        category_variable_list=category_variable_list
-    )
-
-    numeric_features = convert_to_number_type(
-        dataframe=dataframe,
-        numeric_variable_list=numeric_variable_list
-    )
-
-    integer_features = convert_to_integer_type(
-        dataframe=dataframe,
-        integer_variable_list=integer_variable_list
-    )
-
-    string_features = convert_to_string_type(
-        dataframe=dataframe,
-        string_variable_list=string_variable_list
-    )
-    return (
-        datetime_features,
-        categorical_features,
-        numeric_features,
-        integer_features,
-        string_features,
-    )
 
 # -----------------------------------------------------------------------------
 
@@ -1268,6 +1263,53 @@ def remove_mahalanobis_outliers(
     return no_outlier_dataframe
 
 
+def detect_multivariate_outliers(
+    dataframe: pd.DataFrame,
+    target_category_list: List[str],
+    output_directory: str | Path
+) -> pd.DataFrame:
+    """detect_multivariate_outliers _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        target_category_list (List[str]): _description_
+        output_directory (str | Path): _description_
+
+    Returns:
+        Tuple[pd.DataFrame]: _description_
+    """
+    # MAHALANOBIS TEST
+    # Perform Mahalanobis test and get outlier list
+    mahalanobis_dataframe, mahalanobis_outliers = apply_mahalanobis_test(
+        dataframe.select_dtypes(include=np.number),
+        alpha=0.01
+    )
+
+    # Concatenate the outliers with their corresponding target categories
+    mahalanobis_outlier_dataframe = pd.merge(
+        left=dataframe.loc[:, target_category_list],
+        right=mahalanobis_outliers,
+        on="file_name",
+        how="right"
+    )
+    print("\nTable of outliers based on Mahalanobis distance:")
+    print(mahalanobis_outlier_dataframe)
+
+    # Save output as a '.csv()' file
+    save_csv_file(
+        dataframe=mahalanobis_outlier_dataframe,
+        csv_path_name=output_directory/"mahalanobis_outliers.csv"
+    )
+
+    # Compile final outlier-free dataframe
+    no_outlier_dataframe = remove_mahalanobis_outliers(
+        mahalanobis_dataframe=mahalanobis_dataframe,
+        mahalanobis_outlier_dataframe=mahalanobis_outlier_dataframe,
+    )
+    # print(f"\nData without outliers:\n{no_outlier_dataframe}\n")
+    return no_outlier_dataframe
+
+
 def get_iqr_outliers(
     dataframe: pd.DataFrame,
     column_name: str
@@ -1378,6 +1420,50 @@ def get_mad_outliers(
     print(f"Table of outliers for {column_name} based on MAD value:")
     print(mad_outlier_dataframe)
     return mad_outliers
+
+
+def detect_univariate_outliers(
+    dataframe: pd.DataFrame,
+    target_category_list: List[str],
+    output_directory: str | Path
+) -> pd.DataFrame:
+    """detect_univariate_outliers _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        output_directory (str | Path): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    # Create a list of methods as tuples containing the method name and the
+    # 'getter' to the function definition
+    methods = [
+        ("iqr", get_iqr_outliers),
+        ("zscore", get_zscore_outliers),
+        ("mad", get_mad_outliers)
+    ]
+
+    # Get list of numeric features
+    selected_numeric_feature_list = (
+        dataframe.select_dtypes(include=np.number).columns.to_list()
+    )
+    # Run 'concatenate_outliers_with_target_category_dataframe' function on all
+    # methods
+    for method_name, method in methods:  # tuple unpacking
+        for feature in selected_numeric_feature_list:
+            outliers = method(dataframe=dataframe, column_name=feature)
+            concatenate_outliers_with_target_category_dataframe(
+                dataframe=dataframe,
+                target_category_list=target_category_list,
+                data_outliers=outliers,
+                feature=feature,
+                outlier_method=method_name,
+                output_directory=output_directory
+            )
+
+    # TODO Merge ALL outlier dataframes using only common file names (inner ?)
+    # return merged_outliers
 
 
 def standardise_features(features: List[str]) -> pd.DataFrame | np.ndarray:
@@ -1492,6 +1578,12 @@ def apply_pca(
     """
     pca_model = PCA(n_components, random_state=42)
     pca_array = pca_model.fit_transform(features_scaled)
+
+    eigen_values = pca_model.explained_variance_
+    print(f"\nPCA Eigenvalues:\n{eigen_values}")
+
+    eigen_vectors = pca_model.components_
+    print(f"PCA Eigenvectors:\n{eigen_vectors}\n")
     return pca_model, pca_array
 
 
@@ -1520,6 +1612,108 @@ def explain_pca_variance(
     ).rename(index={0: "percent_variance_explained", 1: "cumulated_percent"})
     print(f"\nVariance explained by the PCA:\n{variance_explained_df}")
     return variance_explained_df, variance_explained_cumulated
+
+
+def run_pc_analysis(
+    features: pd.DataFrame,
+    output_directory: str | Path
+) -> Tuple[pd.DataFrame]:
+    """summary.
+
+    Args:
+        features_1 (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # Select only the numeric input variables, i.e. not mahalanobis variables
+    selected_features_list = (
+        features.select_dtypes(include="number").columns.to_list()
+    )
+    print(f"\nSelected Features for PCA:\n{selected_features_list}\n")
+
+    # Scale features data
+    features_scaled = standardise_features(features=features)
+
+    # Run the PC analysis
+    pca_model, pca_array = apply_pca(
+        n_components=len(features_scaled.columns),
+        features_scaled=features_scaled
+    )
+    # Convert PCA array to a dataframe
+    pca_df = convert_list_to_dataframe(items_list=pca_array)
+    pca_df.reset_index()
+
+    # Get PC axis labels and insert into the dataframe
+    pca_components = [
+        "pc" + str(col+1) for col in pca_df.columns.to_list()
+    ]
+    pca_df.columns = pca_components
+
+    # Calculate variance explained by PCA
+    variance_explained_df, variance_explained_cumulated = (
+        explain_pca_variance(
+            pca_model=pca_model,
+            pca_components=pca_components,
+        )
+    )
+    # Set index as of the 'no_outlier' dataframe
+    pca_df = pca_df.set_index(keys=features.index)
+
+    print(f"\nPCA Dataframe:\n{pca_df}\n")
+
+    # -------------------------------------------------------------------------
+
+    # Draw a scree plot of the variance explained
+    plt.figure(figsize=(15, 10))
+    scree_plot = draw_scree_plot(
+        x_axis=pca_components,
+        y_axis=variance_explained_cumulated,
+    )
+    scree_plot.grid(False)  # remove the grid from the plot
+    plt.axhline(
+        y=95,
+        color="blue",
+        linestyle="--",
+    )
+    plt.text(
+        x=0.05,
+        y=96,
+        s="95% Cut-off Threshold",
+        color="blue",
+        fontsize=12
+    )
+    plt.title(
+        label="Scree Plot PCA",
+        fontsize=16,
+        loc="center"
+    )
+    plt.ylabel("Percentage of Variance Explained")
+    save_figure(figure_name=output_directory/"pca_scree_plot.png")
+
+    # -------------------------------------------------------------------------
+
+    # Prepare loadings/weights heatmap
+    # Feature Weight from PCA
+    plt.figure(figsize=(15, 10))
+    draw_heatmap(
+        data=pca_model.components_**2,
+        xticklabels=selected_features_list,
+        yticklabels=pca_components,
+    )
+    plt.title(
+        label="Table des effets des paramètres sur la détection des défauts",
+        fontsize=16,
+        loc="center"
+    )
+    save_figure(figure_name=output_directory/"pca_loading_table.png")
+
+    return (
+        pca_model,
+        pca_df,
+        pca_components,
+        variance_explained_df,
+    )
 
 
 def run_anova_check_assumption(
@@ -1950,6 +2144,90 @@ def draw_scatterplot(
         s=100,  # size of the markers
     )
     return scatterplot
+
+
+def draw_pca_scatterplot(
+    dataframe: pd.DataFrame,
+    variance_explained_df: pd.DataFrame,
+    pca_components: List[str],
+    target_category: str,
+    sub_category: str,
+    output_directory: str | Path
+) -> None:
+    """Draw the scatter plots for all selected PC axes.
+
+    The axes can be all those existing or a selection of them. The selection
+    can be the axes that represent at least 95% of the explained variance.
+    TODO Implement the selection of n-% variance explained.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        variance_explained_df (pd.DataFrame): _description_
+        pca_components (List[str]): _description_
+        target_category (str): _description_
+        sub_category (str): _description_
+        output_directory (str | Path): _description_
+
+    TODO Change the symbol shapes for the 'product' sub-category
+    """
+    # Generate all possible pairs of elements from the pc component list
+    # while keeping unique pairs of elements
+    # BUT keep the first four PC components only
+    # OR PC axes that are AT LEAST equal to 0.95
+    pca_pair_combinations = itertools.combinations(pca_components[:4], 2)
+    pca_pair_combination_list = list(pca_pair_combinations)
+    print(f"\nPairs of PC axes selected:\n{pca_pair_combination_list}\n")
+
+    # Create a scatter plot for each pair in the 'pca_pair_combinations' object
+    # for pair in pca_pair_combination_list:
+    for pair_tuple in pca_pair_combination_list:
+        # Convert the tuple of PC pairs to a list for subsequent slicing
+        pair_list = list(pair_tuple)
+        # Unpack each pc axis
+        pc_x, pc_y = pair_list
+        # Select the PC axes from the main explained variance dataframe
+        # BUT select the individual variances, not the cumulated ones
+        variance_dataframe = variance_explained_df.iloc[0]
+        # Select the PC axes from the main explained variance dataframe
+        variance_dataframe = variance_dataframe.loc[pair_list]
+        # Extract the variance values
+        variance_list = [
+            variance for pc, variance in variance_dataframe.iteritems()
+        ]
+
+        plt.figure(figsize=(15, 10))
+        pca_scatter_plot = draw_scatterplot(
+            dataframe=dataframe,
+            x_axis=dataframe[pc_x],
+            y_axis=dataframe[pc_y],
+            hue=target_category,
+            style=sub_category,
+        )
+        pca_scatter_plot.set(
+            xlabel=f"{pc_x.upper()} ({variance_list[0]:.1f} %)",
+            ylabel=f"{pc_y.upper()} ({variance_list[1]:.1f} %)"
+        )
+        plt.legend(
+            title="Legend",
+            bbox_to_anchor=(1, 1),
+            loc="upper left",
+            fontsize="10",
+            frameon=False,
+            markerscale=2
+        )
+        plt.title(
+            label=f"""
+            Représentation des effets des paramètres de détection des défauts \
+            {pc_x.upper()} vs. {pc_y.upper()}
+            """,
+            fontsize=16,
+            loc="center"
+        )
+        # plt.show()
+        save_figure(
+            figure_name=output_directory /
+            f"scatterplot_pca_{target_category}_{pc_x}_vs_{pc_y}.png"
+        )
 
 
 def draw_heatmap(data, xticklabels, yticklabels):
