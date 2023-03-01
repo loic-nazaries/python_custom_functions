@@ -1077,17 +1077,17 @@ def produce_dtale_eda_report(dataframe: pd.DataFrame) -> None:
     dtale_eda_report.open_browser()
 
 
-def get_missing_values_table(dataframe):
+def get_missing_values_table(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Use 'Sidetable' library to produce a table of metrics on missing values.
 
     Exclude columns that have 0 missing values using 'clip_0=True' parameter.
     Use parameter 'style=True' to style the display in the output table.
 
     Args:
-        dataframe (_type_): _description_
+        dataframe (pd.DataFrame): _description_
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: _description_
     """
     nan_table = dataframe.stb.missing(
         clip_0=True,
@@ -1109,8 +1109,10 @@ def pivot_to_aggregate(
 
     Args:
         dataframe (_type_): _description_
-        index (_type_): _description_
-        aggfunc_list (_type_): _description_
+        values (_type_, optional): _description_. Defaults to None.
+        index_list (_type_, optional): _description_. Defaults to None.
+        column_list (_type_, optional): _description_. Defaults to None.
+        aggfunc_list (_type_, optional): _description_. Defaults to None.
 
     Returns:
         _type_: _description_
@@ -1224,7 +1226,7 @@ def apply_mahalanobis_test(
     mahalanobis_outlier_dataframe = mahalanobis_dataframe[
         mahalanobis_dataframe.mahalanobis_p_value < alpha
     ]
-    print("\nTable of outliers based on Mahalanobis distance:")
+    print("\nTable of Outliers based on Mahalanobis Distance:")
     print(mahalanobis_outlier_dataframe)
     return mahalanobis_dataframe, mahalanobis_outlier_dataframe
 
@@ -1561,20 +1563,47 @@ def identify_highly_correlated_features(
 # STATISTICAL ANALYSIS
 
 
+def get_pca_eigen_values_vectors(
+    n_components: int,
+    features_scaled: np.ndarray
+) -> Tuple[np.ndarray]:
+    """Get eigenvalues and eigenvectors from a Principal Component Analysis.
+
+    This MUST be done on scaled data to account for differences in scale
+    between variables/features.
+    It is more appropriate to use the '.fit()' method instead of the
+    'fit_transform()' method to keep the original properties of the data.
+
+    Args:
+        n_components (int): _description_
+        features_scaled (np.ndarray): _description_
+
+    Returns:
+        Tuple[np.ndarray]: _description_
+    """
+    pca_model = PCA(n_components, random_state=42)
+    pca_model.fit(features_scaled)
+
+    pca_eigen_values = pca_model.explained_variance_
+    print(f"\nPCA Eigenvalues:\n{pca_eigen_values}")
+
+    pca_eigen_vectors = pca_model.components_
+    print(f"\nPCA Eigenvectors:\n{pca_eigen_vectors}\n")
+    return pca_eigen_values, pca_eigen_vectors
+
+
 def apply_pca(
     n_components: int,
     features_scaled: pd.DataFrame | np.ndarray
 ) -> Tuple[PCA, np.ndarray]:
     """Run a Principal Component Analysis (PCA) on scaled data.
 
-    The output is of type array.
-
     Args:
-        n_components (_type_): _description_
-        features_scaled (_type_): _description_
+        n_components (int): _description_
+        features_scaled (pd.DataFrame | np.ndarray): _description_
 
     Returns:
-        _type_: _description_
+        Tuple[PCA, np.ndarray]: _description_
     """
     pca_model = PCA(n_components, random_state=42)
     pca_array = pca_model.fit_transform(features_scaled)
@@ -1588,43 +1617,53 @@ def apply_pca(
 
 
 def explain_pca_variance(
+    pca_eigen_values: np.ndarray,
     pca_model: PCA,
-    pca_components: int
-) -> Tuple[pd.DataFrame, float]:
-    """Build a dataframe of variance explained.
-
-    The variable dataframe 'variance_explained_df' is created and its index is
-    renamed for better comprehension of the output
+    pca_components: List[str]
+) -> Tuple[pd.DataFrame]:
+    """explain_pca_variance _summary_.
 
     Args:
-        pca_model (_type_): _description_
-        pca_components (_type_): _description_
+        pca_eigen_values (np.ndarray): _description_
+        pca_model (PCA): _description_
+        pca_components (List[str]): _description_
 
     Returns:
-        _type_: _description_
+        Tuple[pd.DataFrame]: _description_
     """
     variance_explained = pca_model.explained_variance_ratio_ * 100
     variance_explained_cumulated = np.cumsum(
         pca_model.explained_variance_ratio_) * 100
     variance_explained_df = pd.DataFrame(
-        data=[variance_explained, variance_explained_cumulated],
+        data=[
+            pca_eigen_values,
+            variance_explained,
+            variance_explained_cumulated
+        ],
         columns=pca_components,
-    ).rename(index={0: "percent_variance_explained", 1: "cumulated_percent"})
-    print(f"\nVariance explained by the PCA:\n{variance_explained_df}")
+    ).rename(
+        index={
+            0: "Eigenvalues",
+            1: "Variance Explained (%)",
+            2: "Cumulated Variance (%)",
+        }
+    )
+    print(f"\nVariance Explained by the PCA:\n{variance_explained_df}")
     return variance_explained_df, variance_explained_cumulated
 
 
 def run_pc_analysis(
     features: pd.DataFrame,
     output_directory: str | Path
-) -> Tuple[pd.DataFrame]:
-    """summary.
+) -> Tuple[pd.DataFrame | np.ndarray, List[str]]:
+    """run_pc_analysis _summary_.
 
     Args:
-        features_1 (_type_): _description_
+        features (pd.DataFrame): _description_
+        output_directory (str | Path): _description_
 
     Returns:
-        _type_: _description_
+        Tuple[pd.DataFrame | np.ndarray, List[str]]: _description_
     """
     # Select only the numeric input variables, i.e. not mahalanobis variables
     selected_features_list = (
@@ -1908,21 +1947,21 @@ def check_normality_assumption_residuals(
         method="shapiro",
         alpha=(1 - confidence_interval)
     )
-    shapiro_wilk.rename(index={0: "shapiro_wilk"}, inplace=True)
+    shapiro_wilk.rename(index={0: "Shapiro-Wilk"}, inplace=True)
 
     normality = pg.normality(
         data=dataframe,
         method="normaltest",
         alpha=(1 - confidence_interval)
     )
-    normality.rename(index={0: "normality"}, inplace=True)
+    normality.rename(index={0: "Normality"}, inplace=True)
 
     jarque_bera = pg.normality(
         data=dataframe,
         method="jarque_bera",
         alpha=(1 - confidence_interval)
     )
-    jarque_bera.rename(index={0: "jarque_bera"}, inplace=True)
+    jarque_bera.rename(index={0: "Jarque-Bera"}, inplace=True)
 
     # Concatenate the tests output
     normality_tests = pd.concat(
@@ -1930,7 +1969,7 @@ def check_normality_assumption_residuals(
         axis=0,
     )
     normality_tests.rename(
-        columns={"W": "statistic", "pval": "p-value"},
+        columns={"W": "Statistic", "pval": "p-value"},
         inplace=True
     )
     print(f"Normality Tests Results:\n{normality_tests}\n")
@@ -1975,7 +2014,7 @@ def check_equal_variance_assumption_residuals(
     # Prepare a dataframe of the ANOVA model residuals
     model_residuals_dataframe = pd.concat(
         [dataframe[group_variable], model.resid], axis=1
-    ).rename(columns={0: "residuals"})
+    ).rename(columns={0: "Residuals"})
 
     bartlett = pg.homoscedasticity(
         data=model_residuals_dataframe,
@@ -1985,8 +2024,8 @@ def check_equal_variance_assumption_residuals(
         alpha=(1 - confidence_interval)
     )
     bartlett.rename(
-        index={"mean_intensities": "bartlett"},
-        columns={"T": "statistic", "pval": "p-value", "normal": "normal"},
+        index={"mean_intensities": "Bartlett's Test"},
+        columns={"T": "Statistic", "pval": "p-value", "normal": "Normal"},
         inplace=True
     )
 
@@ -1998,8 +2037,8 @@ def check_equal_variance_assumption_residuals(
         alpha=(1 - confidence_interval)
     )
     levene.rename(
-        index={"mean_intensities": "levene"},
-        columns={"W": "statistic", "pval": "p-value", "normal": "normal"},
+        index={"mean_intensities": "Levene's Test"},
+        columns={"W": "Statistic", "pval": "p-value", "normal": "Normal"},
         inplace=True
     )
 
@@ -2072,7 +2111,7 @@ def perform_multicomparison_correction(
 
     correction_dataframe = pd.DataFrame(concatenate_arrays)
     correction_dataframe.rename(
-        columns={0: "reject_hypothesis", 1: "corrected_p_values"},
+        columns={0: "Reject Hypothesis", 1: "Corrected p-values"},
         inplace=True
     )
     return correction_dataframe
