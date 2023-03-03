@@ -1652,6 +1652,35 @@ def explain_pca_variance(
     return variance_explained_df, variance_explained_cumulated
 
 
+def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
+    """find_best_pc_axes _summary_.
+
+    Args:
+        variance_explained_df (pd.DataFrame): _description_
+
+    Returns:
+        Tuple[List[str]]: _description_
+    """
+    # First, subset 'variance_explained_df' to keep cumulated values
+    cumulative_values = variance_explained_df.loc["Cumulated Variance (%)", :]
+
+    # Then, find the index of the last element in the array that is < 0.95
+    index = np.searchsorted(cumulative_values, 95, side='right')
+
+    # Include the first element that is >= 0.95
+    if cumulative_values[index-1] < 95:
+        # Add 1 to include the first element greater than or equal to 0.95
+        index += 1
+
+    # Slice the array to keep only the elements up to and including that index
+    best_pc_axes = cumulative_values[:index]
+    print(f"\nThe following filtered values are kept:\n{best_pc_axes}\n")
+
+    best_pc_axis_names = best_pc_axes.index.to_list()
+    best_pc_axis_values = best_pc_axes.to_list()
+    return best_pc_axis_names, best_pc_axis_values
+
+
 def run_pc_analysis(
     features: pd.DataFrame,
     output_directory: str | Path
@@ -1699,7 +1728,14 @@ def run_pc_analysis(
     # Set index as of the 'no_outlier' dataframe
     pca_df = pca_df.set_index(keys=features.index)
 
-    print(f"\nPCA Dataframe:\n{pca_df}\n")
+    # Keep the PC axes that correspond to AT LEAST 95% of the cumulated
+    # explained variance
+    best_pc_axis_names, best_pc_axis_values = cf.find_best_pc_axes(
+        variance_explained_df=variance_explained_df)
+
+    # Subset the PCA dataframe to include ONLY the best PC axes
+    final_pca_df = pca_df.loc[:, best_pc_axis_names]
+    print(f"\nFinal PCA Dataframe:\n{final_pca_df}\n")
 
     # -------------------------------------------------------------------------
 
