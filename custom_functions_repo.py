@@ -14,88 +14,90 @@ Content Sections:
     - DATA VISUALISATION
     - DATA MODELLING (MACHINE LEARNING)
 """
+import re
 # Call the libraries required
 # import glob
 import sys
-import re
 from datetime import datetime
-import dtale
+import itertools
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+import docx
+
+import dtale
 import matplotlib.pyplot as plt
 import numpy as np
 # import openpyxl
 import pandas as pd
 import pingouin as pg
-from pyod.models.mad import MAD
+import researchpy as rp
 import scipy as sp
 import seaborn as sns
 import sidetable as stb
 import statsmodels.api as sm
 import statsmodels.stats.multicomp as mc
-from scipy.io import loadmat
-from scipy.stats import chi2, zscore
-from statsmodels.formula.api import ols
-from statsmodels.multivariate.manova import MANOVA
-from statsmodels.stats.multicomp import MultiComparison
 import sweetviz as sv
-
-# Handle constant/duplicates and missing features/columns
-from feature_engine.selection import (
-    DropFeatures,
-    DropConstantFeatures,
-    DropDuplicateFeatures,
-)
-
-# Assemble pipeline(s)
-from sklearn import set_config, tree
-from sklearn.compose import (
-    ColumnTransformer,
-    make_column_selector as selector
-)
-from sklearn.decomposition import PCA
-from sklearn.feature_selection import VarianceThreshold, RFECV
-from sklearn.impute import SimpleImputer
-
-from sklearn.model_selection import (
-    # cross_validate,
-    cross_val_score,
-    GridSearchCV,
-    RandomizedSearchCV,
-    RepeatedStratifiedKFold,
-    StratifiedShuffleSplit,
-    train_test_split,
-)
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import (
-    LabelEncoder,
-    OneHotEncoder,
-    OrdinalEncoder,
-    RobustScaler,
-    StandardScaler,
-    MinMaxScaler,
-)
-from sklearn.tree import plot_tree, DecisionTreeClassifier
-
 # Sampling
 from fast_ml.model_development import train_valid_test_split
-from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import RandomUnderSampler
-
-# Models
-from xgboost import XGBClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+# Handle constant/duplicates and missing features/columns
+from feature_engine.selection import (
+    DropConstantFeatures,
+    DropDuplicateFeatures,
+    DropFeatures
+    )
+# from imblearn.over_sampling import SMOTE
+# from imblearn.under_sampling import RandomUnderSampler
+from pyod.models.mad import MAD
+from scipy.io import loadmat
+from scipy.stats import chi2, zscore
+# Assemble pipeline(s)
+# from sklearn import set_config
+# from sklearn.compose import ColumnTransformer
+# from sklearn.compose import make_column_selector as selector
+from sklearn.decomposition import PCA
+# from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+from sklearn.feature_selection import (
+    # RFECV,
+    VarianceThreshold
+)
+from sklearn.impute import SimpleImputer
+# from sklearn.inspection import permutation_importance
+# from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
     confusion_matrix,
-    multilabel_confusion_matrix,
     f1_score,
-    roc_curve,
     roc_auc_score,
-)
-from sklearn.inspection import permutation_importance
+    roc_curve
+    )
+from sklearn.model_selection import (
+    # GridSearchCV,
+    # cross_validate,
+    # RandomizedSearchCV,
+    # RepeatedStratifiedKFold,
+    # StratifiedShuffleSplit,
+    # cross_val_score,
+    train_test_split
+    )
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import (
+    LabelEncoder,
+    MinMaxScaler,
+    OneHotEncoder,
+    OrdinalEncoder,
+    RobustScaler,
+    StandardScaler
+    )
+# from sklearn.tree import (
+#     DecisionTreeClassifier,
+#     plot_tree
+# )
+from statsmodels.formula.api import ols
+from statsmodels.multivariate.manova import MANOVA
+from statsmodels.stats.multicomp import MultiComparison
+# Models
+# from xgboost import XGBClassifier
 
 # Uncomment next import when '.set_output(transform="pandas")' is fixed
 # from sklearn import set_config
@@ -444,7 +446,7 @@ def convert_dataframe_to_array(
     Note: the use of the present function could be avoided if the dataframe is
     transformed using one of the transformer function of the 'scikit-learn'
     library and its new parameter 'set_output(transform="pandas").
-    See 'standardise_features' function below for an exemple.
+    See 'standardise_features' function below for an example.
 
     Args:
         dataframe (_type_, optional): _description_. Defaults to dataframe.
@@ -1265,53 +1267,6 @@ def remove_mahalanobis_outliers(
     return no_outlier_dataframe
 
 
-def detect_multivariate_outliers(
-    dataframe: pd.DataFrame,
-    target_category_list: List[str],
-    output_directory: str | Path
-) -> pd.DataFrame:
-    """detect_multivariate_outliers _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        target_category_list (List[str]): _description_
-        output_directory (str | Path): _description_
-
-    Returns:
-        Tuple[pd.DataFrame]: _description_
-    """
-    # MAHALANOBIS TEST
-    # Perform Mahalanobis test and get outlier list
-    mahalanobis_dataframe, mahalanobis_outliers = apply_mahalanobis_test(
-        dataframe.select_dtypes(include=np.number),
-        alpha=0.01
-    )
-
-    # Concatenate the outliers with their corresponding target categories
-    mahalanobis_outlier_dataframe = pd.merge(
-        left=dataframe.loc[:, target_category_list],
-        right=mahalanobis_outliers,
-        on="file_name",
-        how="right"
-    )
-    print("\nTable of outliers based on Mahalanobis distance:")
-    print(mahalanobis_outlier_dataframe)
-
-    # Save output as a '.csv()' file
-    save_csv_file(
-        dataframe=mahalanobis_outlier_dataframe,
-        csv_path_name=output_directory/"mahalanobis_outliers.csv"
-    )
-
-    # Compile final outlier-free dataframe
-    no_outlier_dataframe = remove_mahalanobis_outliers(
-        mahalanobis_dataframe=mahalanobis_dataframe,
-        mahalanobis_outlier_dataframe=mahalanobis_outlier_dataframe,
-    )
-    # print(f"\nData without outliers:\n{no_outlier_dataframe}\n")
-    return no_outlier_dataframe
-
-
 def get_iqr_outliers(
     dataframe: pd.DataFrame,
     column_name: str
@@ -1402,9 +1357,9 @@ def get_mad_outliers(
     """
     print(f"\nFor {column_name}:")
     # Reshape the target column to make it 2D
-    column_2D = dataframe[column_name].values.reshape(-1, 1)
+    column_2d = dataframe[column_name].values.reshape(-1, 1)
     # Fit to the target column
-    mad = MAD().fit(column_2D)
+    mad = MAD().fit(column_2d)
 
     # Extract the inlier/outlier labels
     labels = mad.labels_
@@ -1422,6 +1377,47 @@ def get_mad_outliers(
     print(f"Table of outliers for {column_name} based on MAD value:")
     print(mad_outlier_dataframe)
     return mad_outliers
+
+
+def concatenate_outliers_with_target_category_dataframe(
+    dataframe: pd.DataFrame,
+    target_category_list: List[str],
+    data_outliers: pd.DataFrame,
+    feature: str,
+    outlier_method: str,
+    output_directory: str | Path,
+) -> pd.DataFrame:
+    """Concatenate the outliers with their corresponding target categories.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        target_category_list (List[str]): _description_
+        data_outliers (pd.DataFrame): _description_
+        feature (str): _description_
+        outlier_method (str): _description_
+        output_directory (str | Path): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    outlier_dataframe = pd.merge(
+        left=dataframe.loc[:, target_category_list],
+        right=data_outliers,
+        on="file_name",
+        how="right"
+    )
+    print(
+        f"\nTable of outliers for {feature} based on {outlier_method} values:"
+    )
+    print(outlier_dataframe)
+
+    # Save output as a '.csv()' file
+    save_csv_file(
+        dataframe=outlier_dataframe,
+        csv_path_name=output_directory /
+        f"{feature}_{outlier_method}_outliers.csv"
+    )
+    return outlier_dataframe
 
 
 def detect_univariate_outliers(
@@ -1466,6 +1462,53 @@ def detect_univariate_outliers(
 
     # TODO Merge ALL outlier dataframes using only common file names (inner ?)
     # return merged_outliers
+
+
+def detect_multivariate_outliers(
+    dataframe: pd.DataFrame,
+    target_category_list: List[str],
+    output_directory: str | Path
+) -> Tuple[pd.DataFrame]:
+    """detect_multivariate_outliers _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        target_category_list (List[str]): _description_
+        output_directory (str | Path): _description_
+
+    Returns:
+        Tuple[pd.DataFrame]: _description_
+    """
+    # MAHALANOBIS TEST
+    # Perform Mahalanobis test and get outlier list
+    mahalanobis_dataframe, mahalanobis_outliers = apply_mahalanobis_test(
+        dataframe.select_dtypes(include=np.number),
+        alpha=0.01
+    )
+
+    # Concatenate the outliers with their corresponding target categories
+    mahalanobis_outlier_dataframe = pd.merge(
+        left=dataframe.loc[:, target_category_list],
+        right=mahalanobis_outliers,
+        on="file_name",
+        how="right"
+    )
+    print("\nTable of outliers based on Mahalanobis distance:")
+    print(mahalanobis_outlier_dataframe)
+
+    # Save output as a '.csv()' file
+    save_csv_file(
+        dataframe=mahalanobis_outlier_dataframe,
+        csv_path_name=output_directory/"mahalanobis_outliers.csv"
+    )
+
+    # Compile final outlier-free dataframe
+    no_outlier_dataframe = remove_mahalanobis_outliers(
+        mahalanobis_dataframe=mahalanobis_dataframe,
+        mahalanobis_outlier_dataframe=mahalanobis_outlier_dataframe,
+    )
+    # print(f"\nData without outliers:\n{no_outlier_dataframe}\n")
+    return no_outlier_dataframe
 
 
 def standardise_features(features: List[str]) -> pd.DataFrame | np.ndarray:
@@ -1589,7 +1632,7 @@ def get_pca_eigen_values_vectors(
 
     pca_eigen_vectors = pca_model.components_
     print(f"\nPCA Eigenvectors:\n{pca_eigen_vectors}\n")
-    return pca_eigen_values, pca_eigen_vectors
+    return pca_eigen_values
 
 
 def apply_pca(
@@ -1649,7 +1692,7 @@ def explain_pca_variance(
         }
     )
     print(f"\nVariance Explained by the PCA:\n{variance_explained_df}")
-    return variance_explained_df, variance_explained_cumulated
+    return variance_explained_df
 
 
 def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
@@ -1703,6 +1746,12 @@ def run_pc_analysis(
     # Scale features data
     features_scaled = standardise_features(features=features)
 
+    # Get eigenvalues and eigenvectors
+    pca_eigen_values = get_pca_eigen_values_vectors(
+        n_components=len(features_scaled.columns),
+        features_scaled=features_scaled
+    )
+
     # Run the PC analysis
     pca_model, pca_array = apply_pca(
         n_components=len(features_scaled.columns),
@@ -1719,8 +1768,9 @@ def run_pc_analysis(
     pca_df.columns = pca_components
 
     # Calculate variance explained by PCA
-    variance_explained_df, variance_explained_cumulated = (
+    variance_explained_df = (
         explain_pca_variance(
+            pca_eigen_values=pca_eigen_values,
             pca_model=pca_model,
             pca_components=pca_components,
         )
@@ -1730,7 +1780,7 @@ def run_pc_analysis(
 
     # Keep the PC axes that correspond to AT LEAST 95% of the cumulated
     # explained variance
-    best_pc_axis_names, best_pc_axis_values = cf.find_best_pc_axes(
+    best_pc_axis_names, best_pc_axis_values = find_best_pc_axes(
         variance_explained_df=variance_explained_df)
 
     # Subset the PCA dataframe to include ONLY the best PC axes
@@ -1742,8 +1792,8 @@ def run_pc_analysis(
     # Draw a scree plot of the variance explained
     plt.figure(figsize=(15, 10))
     scree_plot = draw_scree_plot(
-        x_axis=pca_components,
-        y_axis=variance_explained_cumulated,
+        x_axis=best_pc_axis_names,
+        y_axis=best_pc_axis_values,
     )
     scree_plot.grid(False)  # remove the grid from the plot
     plt.axhline(
@@ -1836,7 +1886,6 @@ def run_anova_check_assumption(
     # ---------------------------------------------------------------
 
     draw_anova_quality_checks(
-        dataframe=dataframe,
         dependent_variable=dependent_variable,
         independent_variable=independent_variable,
         model=anova_model,
@@ -1928,7 +1977,7 @@ def perform_multicomparison(
         data=dataframe,
         groups=groups
     )
-    tukey_result = multicomparison.tukeyhsd(alpha=(1 - confidence_interval))
+    tukey_result = multicomparison.tukeyhsd(alpha=1 - confidence_interval)
     print(f"\nTukey's Multicomparison Test between groups:\n{tukey_result}\n")
     # print(f"Unique groups: {multicomparison.groupsunique}\n")
     return tukey_result
@@ -2156,6 +2205,28 @@ def perform_multicomparison_correction(
 # -----------------------------------------------------------------------------
 
 # DATA VISUALISATION
+
+
+def draw_scree_plot(x_axis, y_axis):
+    """Draw scree plot following a PCA.
+
+    Args:
+        x (_type_): _description_
+        y (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    scree_plot = sns.lineplot(
+        x=x_axis,
+        y=y_axis,
+        color='black',
+        linestyle='-',
+        linewidth=2,
+        marker='o',
+        markersize=8,
+    )
+    return scree_plot
 
 
 def draw_lineplot(x_axis, y_axis):
@@ -2693,7 +2764,6 @@ def draw_qqplot(
 
 
 def draw_anova_quality_checks(
-    dataframe: pd.DataFrame,
     dependent_variable: str,
     independent_variable: str,
     model,
@@ -2755,7 +2825,7 @@ def draw_tukeys_hsd_plot(
     tukey_result = perform_multicomparison(
         dataframe=dataframe[dependent_variable],
         groups=dataframe[independent_variable],
-        alpha=(1 - confidence_interval)
+        confidence_interval=confidence_interval
     )
 
     # Plot graphic output from Tukey's test
@@ -3119,15 +3189,6 @@ def draw_confusion_matrix_heatmap(
     save_figure(figure_name=figure_path_name)
     # print(confusion_matrix_heatmap)
     return None
-
-
-# # ????????????
-# multilabel_confusion_matrix_ = multilabel_confusion_matrix(
-#     y_true=target_test,
-#     y_pred=target_pred,
-#     labels=target_label_list,
-# )
-# print(f"\nMulti-Label Confusion Matrix:\n{multilabel_confusion_matrix_}\n")
 
 
 def perform_roc_auc_analysis(
