@@ -44,7 +44,7 @@ from feature_engine.selection import (
     DropConstantFeatures,
     DropDuplicateFeatures,
     DropFeatures
-    )
+)
 # from imblearn.over_sampling import SMOTE
 # from imblearn.under_sampling import RandomUnderSampler
 from pyod.models.mad import MAD
@@ -70,7 +70,7 @@ from sklearn.metrics import (
     f1_score,
     roc_auc_score,
     roc_curve
-    )
+)
 from sklearn.model_selection import (
     # GridSearchCV,
     # cross_validate,
@@ -79,7 +79,7 @@ from sklearn.model_selection import (
     # StratifiedShuffleSplit,
     # cross_val_score,
     train_test_split
-    )
+)
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
     LabelEncoder,
@@ -88,7 +88,7 @@ from sklearn.preprocessing import (
     OrdinalEncoder,
     RobustScaler,
     StandardScaler
-    )
+)
 # from sklearn.tree import (
 #     DecisionTreeClassifier,
 #     plot_tree
@@ -908,6 +908,33 @@ def get_missing_columns(dataframe: pd.DataFrame) -> pd.DataFrame | pd.Series:
     return missing_columns
 
 
+def prepare_scaled_features_encoded_target(
+    dataframe: pd.DataFrame,
+    target_name: str
+) -> Tuple[pd.DataFrame, np.ndarray, List[str]]:
+    """Define feature and target dataframes for modelling.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        target (str): _description_
+
+    Returns:
+        Tuple[pd.DataFrame, np.ndarray, List[str]]: _description_
+    """
+    features = dataframe.select_dtypes(include="number")
+    features_scaled = standardise_features(features)
+    target = dataframe[target_name]
+    target_encoded, target_class_list = target_label_encoder(
+        target_selection=target
+    )
+    return (
+        features,
+        features_scaled,
+        target_encoded,
+        target_class_list,
+    )
+
+
 # -----------------------------------------------------------------------------
 
 # EXPLORATORY DATA ANALYSIS
@@ -1511,7 +1538,7 @@ def detect_multivariate_outliers(
     return no_outlier_dataframe
 
 
-def standardise_features(features: List[str]) -> pd.DataFrame | np.ndarray:
+def standardise_features(features: pd.DataFrame) -> pd.DataFrame:
     """Standardise the features to get them on the same scale.
 
     When used for Principal Component Analysis (PCA), this MUST be performed
@@ -1537,8 +1564,11 @@ def standardise_features(features: List[str]) -> pd.DataFrame | np.ndarray:
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
 
-    # Delete next function call when .set_output(transform="pandas") is fixed
-    features_scaled = convert_data_to_dataframe(features_scaled)
+    # Convert the Numpy array to a Pandas dataframe
+    features_scaled = pd.DataFrame(
+        data=features_scaled,
+        columns=features.columns
+    )
     return features_scaled
 
 
@@ -1726,6 +1756,9 @@ def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
 
 def run_pc_analysis(
     features: pd.DataFrame,
+    target_encoded,
+    target_class_list: List[str],
+    eda_output_file_name: str,
     output_directory: str | Path
 ) -> Tuple[pd.DataFrame | np.ndarray, List[str]]:
     """run_pc_analysis _summary_.
@@ -1735,13 +1768,13 @@ def run_pc_analysis(
         output_directory (str | Path): _description_
 
     Returns:
-        Tuple[pd.DataFrame | np.ndarray, List[str]]: _description_
+        Tuple[pd.DataFrame | np.ndarray], List[str]: _description_
     """
     # Select only the numeric input variables, i.e. not mahalanobis variables
-    selected_features_list = (
+    numeric_feature_list = (
         features.select_dtypes(include="number").columns.to_list()
     )
-    print(f"\nSelected Features for PCA:\n{selected_features_list}\n")
+    print(f"\nSelected (Numeric) Features for PCA:\n{numeric_feature_list}\n")
 
     # Scale features data
     features_scaled = standardise_features(features=features)
@@ -1757,8 +1790,9 @@ def run_pc_analysis(
         n_components=len(features_scaled.columns),
         features_scaled=features_scaled
     )
+
     # Convert PCA array to a dataframe
-    pca_df = convert_list_to_dataframe(items_list=pca_array)
+    pca_df = pd.DataFrame(data=pca_array)
     pca_df.reset_index()
 
     # Get PC axis labels and insert into the dataframe
@@ -1775,17 +1809,28 @@ def run_pc_analysis(
             pca_components=pca_components,
         )
     )
-    # Set index as of the 'no_outlier' dataframe
+    # Set index as dataframe
     pca_df = pca_df.set_index(keys=features.index)
 
     # Keep the PC axes that correspond to AT LEAST 95% of the cumulated
     # explained variance
     best_pc_axis_names, best_pc_axis_values = find_best_pc_axes(
-        variance_explained_df=variance_explained_df)
+        variance_explained_df=variance_explained_df,
+        percent_cut_off_threshold=95
+    )
 
     # Subset the PCA dataframe to include ONLY the best PC axes
     final_pca_df = pca_df.loc[:, best_pc_axis_names]
     print(f"\nFinal PCA Dataframe:\n{final_pca_df}\n")
+
+    # -------------------------------------------------------------------------
+
+    # Produce an '.html' file of the main steps of the EDA
+    produce_sweetviz_eda_report(
+        dataframe=final_pca_df,
+        file_name=output_file_name,
+        output_directory=output_directory
+    )
 
     # -------------------------------------------------------------------------
 
@@ -1823,11 +1868,11 @@ def run_pc_analysis(
     plt.figure(figsize=(15, 10))
     draw_heatmap(
         data=pca_model.components_**2,
-        xticklabels=selected_features_list,
+        xticklabels=numeric_feature_list,
         yticklabels=pca_components,
     )
     plt.title(
-        label="Table des effets des paramètres sur la détection des défauts",
+        label="Table of parameter effects on defect detection",
         fontsize=16,
         loc="center"
     )
@@ -1835,8 +1880,9 @@ def run_pc_analysis(
 
     return (
         pca_model,
-        pca_df,
-        pca_components,
+        pca_array,
+        final_pca_df,
+        best_pc_axis_names,
         variance_explained_df,
     )
 
@@ -2292,7 +2338,7 @@ def draw_scatterplot(
     return scatterplot
 
 
-def draw_pca_scatterplot(
+def draw_all_pca_pairs_scatterplot(
     dataframe: pd.DataFrame,
     variance_explained_df: pd.DataFrame,
     pca_components: List[str],
@@ -2303,8 +2349,13 @@ def draw_pca_scatterplot(
     """Draw the scatter plots for all selected PC axes.
 
     The axes can be all those existing or a selection of them. The selection
-    can be the axes that represent at least 95% of the explained variance.
-    TODO Implement the selection of n-% variance explained.
+    can be the axes that represent at least 95% of the explained variance
+    AND/OR eigenvalues above 1.
+    Here, selection of n-% variance explained.
+
+    The function 'itertools.combinations()' generates all possible pairs of
+    elements from the pc component list while keeping unique pairs of elements.
+    This is possible via the use of the '2' parameters to work on 'pairs'.
 
     Args:
         dataframe (pd.DataFrame): _description_
@@ -2320,7 +2371,7 @@ def draw_pca_scatterplot(
     # while keeping unique pairs of elements
     # BUT keep the first four PC components only
     # OR PC axes that are AT LEAST equal to 0.95
-    pca_pair_combinations = itertools.combinations(pca_components[:4], 2)
+    pca_pair_combinations = itertools.combinations(pca_components, 2)
     pca_pair_combination_list = list(pca_pair_combinations)
     print(f"\nPairs of PC axes selected:\n{pca_pair_combination_list}\n")
 
@@ -2875,6 +2926,288 @@ def draw_tukeys_hsd_plot(
     #     f"\nTukey's Multicomparison Test Version 2:\n \
     #         {corrected_tukey_post_hoc_test}\n"
     # )
+
+
+def draw_pca_scatterplot_3d(
+    features_scaled: pd.DataFrame,
+    target_encoded: pd.Series,
+    target_class_list: List[str],
+    output_directory: str | Path,
+) -> None:
+    """PCA plot in 3 dimensions using 'yellowbrick' library.
+
+    The 'yellowbrick' library is used for Principle Component Analysis.
+    Prior to fitting the features and target, the latter must be first
+    label-encoded.
+
+    Args:
+        features_scaled (pd.DataFrame): _description_
+        target_encoded (pd.Series): _description_
+        target_class_list (List[str]): _description_
+        output_directory (str | Path): _description_
+    """
+    # colors = ["blue", "orange", "green", "red"]
+    plt.figure(figsize=(15, 10))
+    pca_model = yb_pca(
+        scale=True,
+        projection=3,
+        classes=target_class_list,
+        # colors=colors,
+    )
+    pca_model.fit_transform(features_scaled, target_encoded)
+    pca_model.show()
+
+    # -------------------------------------------------------------------------
+
+    # Save 3D scatter plot data as '.html' file to preserve its interactivity
+    scatter_data = pca_model.ax.collections[0]
+    scatter_data_data = scatter_data._offsets3d
+    classes = pca_model.classes_
+    print(f"\n{classes = }\n")
+
+    # Define the color map for the classes
+    colours = ["blue", "orange", "green", "red"]
+    colour_map = {colour: colours[i] for i, colour in enumerate(classes)}
+
+    # Create the Plotly trace
+    trace = go.Scatter3d(
+        x=scatter_data_data[0],
+        y=scatter_data_data[1],
+        z=scatter_data_data[2],
+        mode="markers",
+        marker=dict(
+            size=5,
+            color=scatter_data.get_facecolors(),
+            # color=[colour_map[colour] for colour in pca_model.y]  # BUG
+        )
+    )
+
+    # Create the Plotly layout
+    layout = go.Layout(
+        scene=dict(
+            xaxis=dict(title="PC1"),
+            yaxis=dict(title="PC2"),
+            zaxis=dict(title="PC3"),
+            aspectmode="data"
+        ),
+        title=dict(
+            text="Table of parameter effects on defect detection",
+            font=dict(size=24)
+        )
+    )
+
+    # Create the Plotly figure
+    fig = go.Figure(data=[trace], layout=layout)
+
+    # Save the Plotly figure as an HTML file
+    fig.write_html(output_directory/"pca_scatterplot_3d.html")
+
+
+def draw_pca_biplot(
+    pca_array: np.ndarray,
+    features_scaled: pd.DataFrame,
+    target_encoded: pd.Series,
+    target_class_list: List[str],
+    output_directory: str | Path,
+) -> None:
+    """draw_pca_biplot _summary_.
+
+    The 'yellowbrick' library is used for Principle Component Analysis.
+    Prior to fitting the features and target, the latter must be first
+    label-encoded.
+
+    Args:
+        features_scaled (pd.DataFrame): _description_
+        target_encoded (pd.Series): _description_
+        target_class_list (List[str]): _description_
+        output_directory (str | Path): _description_
+    """
+    plt.figure(figsize=(15, 10))
+    pca_biplot = yb_pca(
+        scale=True,
+        classes=target_class_list,
+        proj_features=True,
+    )
+    pca_biplot.fit_transform(features_scaled, target_encoded)
+
+    # plt.set(
+    #     xlabel=f"{pc_x.upper()} ({variance_list[0]:.1f} %)",
+    #     ylabel=f"{pc_y.upper()} ({variance_list[1]:.1f} %)"
+    # )
+    # plt.set(
+    #     xlabel="PC1",
+    #     ylabel="PC2"
+    # )
+    # plt.legend(
+    #     title="Legend",
+    #     bbox_to_anchor=(1, 1),
+    #     loc="upper left",
+    #     fontsize="10",
+    #     frameon=False,
+    #     markerscale=2
+    # )
+    plt.title(
+        label="Parameter Effects on Defect Detection PC1 vs. PC2",
+        fontsize=16,
+        loc="center"
+    )
+
+    # -------------------------------------------------------------------------
+
+    # Create ellipsis for 95% CI for each classe
+    # # BUG Code below NOT working
+    # add_confidence_interval_ellipses(
+    #     pca_array=pca_array,
+    #     target_class_list=target_class_list,
+    #     confidence_interval=0.90,
+    # )
+
+    # Define the confidence level and alpha value for the ellipse
+    confidence_interval = 0.95
+    alpha = 0.3  # this is the transparency level of the ellipses
+    # Define the colour scheme for identifying the ellipses
+    ellipse_colours = ["blue", "orange", "green", "red"]
+    # Iterate over each class in the dataset
+    for target_class, colour in zip(
+        range(len(target_class_list)), ellipse_colours
+    ):
+        # Select the data for the current class
+        pca_class = pca_array[target_encoded == target_class]
+        # Calculate the mean and covariance matrix for the data
+        mean = np.mean(pca_class, axis=0)
+        cov = np.cov(pca_class.T)
+        # Calculate the ellipse width and height based on the confidence level
+        # and covariance matrix
+        ellipse = Ellipse(
+            xy=mean,
+            width=2 * np.sqrt(cov[0, 0]) * stats.t.ppf(
+                q=(1 + confidence_interval) / 2,
+                df=pca_class.shape[0] - 1
+            ),
+            height=2 * np.sqrt(cov[1, 1]) * stats.t.ppf(
+                q=(1 + confidence_interval) / 2,
+                df=pca_class.shape[0] - 1
+            )
+        )
+        width, height = ellipse.get_width(), ellipse.get_height()
+
+        # Add the ellipse to the plot with the specified color and alpha value
+        plt.gca().add_artist(Ellipse(
+            xy=mean,
+            width=width,
+            height=height,
+            edgecolor=colour,
+            facecolor=colour,
+            alpha=alpha
+        ))
+    # pca_biplot.show()
+    save_figure(
+        figure_name=output_directory/"pca_biplot_conf_intervals.png"
+    )
+
+
+def add_confidence_interval_ellipses(
+    pca_array: np.ndarray,
+    target_class_list: List[str],
+    confidence_interval: float = 0.95,
+    alpha: float = 0.2,
+) -> None:
+    """Create ellipses for 95% CI for each class in a PCA array.
+
+    Define the confidence level and alpha value for the ellipsis.
+    The alpha value is is the transparency level of the ellipses. It takes a
+    value between 0 and 1, where 0 is completely transparent (i.e., invisible)
+    and 1 is completely opaque (i.e., solid).
+
+    IMPORTANT: the ellipses will be displayed on the latest figure object.
+
+    Args:
+        pca_array (np.ndarray): _description_
+        target_class_list (List[str]): _description_
+        confidence_interval (float, optional): _description_. Defaults to 0.95.
+        alpha (float, optional): _description_. Defaults to 0.2.
+    """
+    # Define the colour scheme for identifying the ellipses
+    ellipse_colours = ["blue", "orange", "green", "red"]
+    # Iterate over each class in the dataset
+    for target_class, colour in zip(
+        range(len(target_class_list)), ellipse_colours
+    ):
+        # Select the data for the current class
+        pca_class = pca_array[target_class_list == target_class]
+        # Calculate the mean and covariance matrix for the data
+        mean = np.mean(pca_class, axis=0)
+        cov = np.cov(pca_class.T)
+        # Calculate the ellipse width and height based on the confidence
+        # interval value and covariance matrix
+        ellipse = Ellipse(
+            xy=mean,
+            width=2*np.sqrt(cov[0, 0])*stats.t.ppf(
+                q=(1+confidence_interval)/2,
+                df=pca_class.shape[0]-1
+            ),
+            height=2*np.sqrt(cov[1, 1])*stats.t.ppf(
+                q=(1+confidence_interval)/2,
+                df=pca_class.shape[0]-1
+            )
+        )
+        width, height = ellipse.get_width(), ellipse.get_height()
+        # print(width, height)
+
+        # Add ellipses to the plot with the specified color & alpha value
+        plt.gca().add_artist(Ellipse(
+            xy=mean,
+            width=width,
+            height=height,
+            edgecolor=colour,
+            facecolor=colour,
+            alpha=alpha
+        ))
+    plt.show()
+
+
+# # RadViz with 'yellowbrick' library
+# plt.figure(dpi=120)
+# radviz = RadViz(classes=target_encoded_list)
+# radviz.fit(features, target_encoded)
+# radviz.transform(features)
+# # radviz.show()
+
+
+def draw_feature_rank(
+    features: pd.DataFrame,
+    target_encoded: pd.Series,
+    output_directory: str | Path,
+) -> None:
+    """draw_feature_rank _summary_.
+
+    The 'yellowbrick' library is used for ranking features.
+    Prior to fitting the features and target, the latter must be first
+    label-encoded.
+
+    Args:
+        features (pd.DataFrame): _description_
+        target_encoded (pd.Series): _description_
+        output_directory (str | Path): _description_
+    """
+    plt.figure(figsize=(15, 10))
+    # Instantiate the 1D visualiser with the Shapiro ranking algorithm
+    feature_rank = Rank1D(
+        algorithm="shapiro",
+        orient="h",
+    )
+    # Fit the data to the visualizer
+    feature_rank.fit(features, target_encoded)
+    feature_rank.transform(features)
+
+    plt.title(
+        label="Ranking of Features",
+        fontsize=16,
+        loc="center"
+    )
+    save_figure(
+        figure_name=output_directory/"feature_ranking.png"
+    )
 
 
 # -----------------------------------------------------------------------------
