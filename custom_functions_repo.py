@@ -110,6 +110,39 @@ from statsmodels.stats.multicomp import MultiComparison
 # INPUT/OUTPUT
 
 
+def bypass_outlier_removal(
+        dataframe_with_outliers: pd.DataFrame,
+        dataframe_no_outliers: pd.DataFrame
+) -> pd.DataFrame:
+    """Let the user choose whether to bypass outlier removal.
+
+    This will affect which dataframe is to be used within the next steps.
+
+    Args:
+        dataframe_with_outliers (pd.DataFrame): _description_
+        dataframe_no_outliers (pd.DataFrame): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    while True:
+        choice = input("Bypass Outlier Removal? (y/n): ").lower()
+        try:
+            assert choice == 'y' or choice == 'n', "Enter 'y' or 'n'"
+            break
+        except AssertionError as error:
+            print(error)
+        except ValueError:
+            print("Please enter a valid letter choice.")
+    if choice == 'y':
+        dataframe = dataframe_with_outliers.copy()
+        print("\nOutliers were NOT removed.\n")
+    else:
+        dataframe = dataframe_no_outliers.copy()
+        print("\nOutliers were removed.\n")
+    return dataframe
+
+
 def get_folder_name_list_from_directory(
     directory_name: str | Path
 ) -> List[str]:
@@ -1332,7 +1365,8 @@ def get_iqr_outliers(
     # Isolate the target column from the rest of the dataframe
     iqr_outlier_dataframe = iqr_outlier_dataframe[column_name]
     iqr_outlier_ratio = len(iqr_outlier_dataframe) / len(dataframe)
-    print(f"\nThere are {iqr_outlier_ratio:.1%} of IQR outliers.")
+    print(f"There are {len(iqr_outlier_dataframe)} IQR outliers.")
+    print(f"There are {iqr_outlier_ratio:.1%} of IQR outliers.")
     print(f"Table of outliers for {column_name} based on IQR value:")
     print(iqr_outlier_dataframe)
     return iqr_outlier_dataframe
@@ -1363,6 +1397,7 @@ def get_zscore_outliers(
     # Isolate the target column from the rest of the dataframe
     zscore_outlier_dataframe = zscore_outlier_dataframe[column_name]
     zscore_outlier_ratio = len(zscore_outlier_dataframe) / len(dataframe)
+    print(f"There are {len(zscore_outlier_dataframe)} Z-score outliers.")
     print(f"There are {zscore_outlier_ratio:.1%} of Z-score outliers.")
     print(f"Table of outliers for {column_name} based on Z-score value:")
     print(zscore_outlier_dataframe)
@@ -1400,6 +1435,7 @@ def get_mad_outliers(
     mad_outlier_dataframe = dataframe[column_name]
     mad_outlier_dataframe["mad_score"] = mad_outliers
     mad_outlier_ratio = len(mad_outliers) / len(dataframe)
+    print(f"There are {len(mad_outliers)} Z-score outliers.")
     print(f"There are {mad_outlier_ratio:.1%} of MAD outliers.")
     print(f"Table of outliers for {column_name} based on MAD value:")
     print(mad_outlier_dataframe)
@@ -2948,14 +2984,15 @@ def draw_pca_scatterplot_3d(
     """
     # colors = ["blue", "orange", "green", "red"]
     plt.figure(figsize=(15, 10))
-    pca_model = yb_pca(
+    pca_3d = yb_pca(
         scale=True,
         projection=3,
         classes=target_class_list,
-        # colors=colors,
+        proj_features=True,
     )
-    pca_model.fit_transform(features_scaled, target_encoded)
-    pca_model.show()
+    pca_3d.fit_transform(features_scaled, target_encoded)
+    pca_3d.finalize()
+    pca_3d.show()
 
     # -------------------------------------------------------------------------
 
@@ -3029,6 +3066,7 @@ def draw_pca_biplot(
         proj_features=True,
     )
     pca_biplot.fit_transform(features_scaled, target_encoded)
+    pca_biplot.finalize()
 
     # plt.set(
     #     xlabel=f"{pc_x.upper()} ({variance_list[0]:.1f} %)",
@@ -3066,7 +3104,7 @@ def draw_pca_biplot(
     confidence_interval = 0.95
     alpha = 0.3  # this is the transparency level of the ellipses
     # Define the colour scheme for identifying the ellipses
-    ellipse_colours = ["blue", "orange", "green", "red"]
+    ellipse_colours = ["blue", "orange", "green", "red", "purple"]
     # Iterate over each class in the dataset
     for target_class, colour in zip(
         range(len(target_class_list)), ellipse_colours
@@ -3128,7 +3166,7 @@ def add_confidence_interval_ellipses(
         alpha (float, optional): _description_. Defaults to 0.2.
     """
     # Define the colour scheme for identifying the ellipses
-    ellipse_colours = ["blue", "orange", "green", "red"]
+    ellipse_colours = ["blue", "orange", "green", "red", "purple"]
     # Iterate over each class in the dataset
     for target_class, colour in zip(
         range(len(target_class_list)), ellipse_colours
