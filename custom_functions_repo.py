@@ -840,13 +840,27 @@ def drop_row_by_value(
     return dataframe_reduced
 
 
-def select_row_by_query(
+def filter_dataframe(
     dataframe: pd.DataFrame,
-    query_content: str,
+    filter_content: str,
 ) -> pd.DataFrame:
-    """select_row_by_value _summary_."""
-    dataframe_reduced = dataframe.query(query_content)
-    return dataframe_reduced
+    """filter_dataframe _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        filter_content (str): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    print(f"The following filter was applied:\n{filter_content}\n")
+
+    # Apply the filter
+    filtered_dataframe = dataframe.query(filter_content)
+    print(
+        f"Filtered Cluster Dataset Shape:\n{filtered_dataframe.shape}"
+    )
+    return filtered_dataframe
 
 
 def get_list_of_unique_values(
