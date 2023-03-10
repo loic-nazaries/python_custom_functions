@@ -1330,7 +1330,7 @@ def remove_mahalanobis_outliers(
 def get_iqr_outliers(
     dataframe: pd.DataFrame,
     column_name: str
-) -> pd.DataFrame:
+):
     """Build a dataframe containing outliers details.
 
     Args:
@@ -1340,7 +1340,8 @@ def get_iqr_outliers(
     Returns:
         _type_: _description_
     """
-    print(f"\nFor {column_name}:")
+    print("\n==============================================================\n")
+    print(f"For {column_name}:")
     # Calculate Q1, Q3
     q_1, q_3 = np.percentile(
         a=dataframe[column_name],
@@ -1365,10 +1366,12 @@ def get_iqr_outliers(
     # Isolate the target column from the rest of the dataframe
     iqr_outlier_dataframe = iqr_outlier_dataframe[column_name]
     iqr_outlier_ratio = len(iqr_outlier_dataframe) / len(dataframe)
-    print(f"There are {len(iqr_outlier_dataframe)} IQR outliers.")
-    print(f"There are {iqr_outlier_ratio:.1%} of IQR outliers.")
-    print(f"Table of outliers for {column_name} based on IQR value:")
-    print(iqr_outlier_dataframe)
+    print(
+        f"There are {len(iqr_outlier_dataframe)} \
+({iqr_outlier_ratio:.1%}) IQR outliers."
+    )
+    # print(f"Table of outliers for {column_name} based on IQR value:")
+    # print(iqr_outlier_dataframe)
     return iqr_outlier_dataframe
 
 
@@ -1376,7 +1379,7 @@ def get_zscore_outliers(
     dataframe: pd.DataFrame,
     column_name: str,
     zscore_threshold: int = 3
-) -> pd.DataFrame:
+):
     """Build a dataframe containing outliers details based on their Z-score.
 
     Args:
@@ -1387,7 +1390,8 @@ def get_zscore_outliers(
     Returns:
         _type_: _description_
     """
-    print(f"\nFor {column_name}:")
+    print("\n==============================================================\n")
+    print(f"For {column_name}:")
     # Calculate Z-score
     z_score = np.abs(zscore(a=dataframe[column_name]))
 
@@ -1397,10 +1401,12 @@ def get_zscore_outliers(
     # Isolate the target column from the rest of the dataframe
     zscore_outlier_dataframe = zscore_outlier_dataframe[column_name]
     zscore_outlier_ratio = len(zscore_outlier_dataframe) / len(dataframe)
-    print(f"There are {len(zscore_outlier_dataframe)} Z-score outliers.")
-    print(f"There are {zscore_outlier_ratio:.1%} of Z-score outliers.")
-    print(f"Table of outliers for {column_name} based on Z-score value:")
-    print(zscore_outlier_dataframe)
+    print(
+        f"There are {len(zscore_outlier_dataframe)} \
+({zscore_outlier_ratio:.1%}) Z-score outliers."
+    )
+    # print(f"Table of outliers for {column_name} based on Z-score value:")
+    # print(zscore_outlier_dataframe)
     return zscore_outlier_dataframe
 
 
@@ -1417,7 +1423,8 @@ def get_mad_outliers(
     Returns:
         pd.DataFrame: _description_
     """
-    print(f"\nFor {column_name}:")
+    print("\n==============================================================\n")
+    print(f"For {column_name}:")
     # Reshape the target column to make it 2D
     column_2d = dataframe[column_name].values.reshape(-1, 1)
     # Fit to the target column
@@ -1430,15 +1437,18 @@ def get_mad_outliers(
     # Extract the outliers
     # use '== 0' to get inliers
     mad_outliers = dataframe[column_name][labels == 1]
+    # dataframe["mad_score"] = mad_outliers
 
     # Isolate the target column from the rest of the dataframe
     mad_outlier_dataframe = dataframe[column_name]
     mad_outlier_dataframe["mad_score"] = mad_outliers
     mad_outlier_ratio = len(mad_outliers) / len(dataframe)
-    print(f"There are {len(mad_outliers)} Z-score outliers.")
-    print(f"There are {mad_outlier_ratio:.1%} of MAD outliers.")
-    print(f"Table of outliers for {column_name} based on MAD value:")
-    print(mad_outlier_dataframe)
+    print(
+        f"There are {len(mad_outliers)} \
+({mad_outlier_ratio:.1%}) MAD outliers."
+    )
+    # print(f"Table of outliers for {column_name} based on MAD value:")
+    # print(mad_outlier_dataframe)
     return mad_outliers
 
 
