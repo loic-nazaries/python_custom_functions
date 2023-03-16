@@ -2313,6 +2313,38 @@ def perform_multicomparison_correction(
 # DATA VISUALISATION
 
 
+def create_missing_data_matrix(
+        dataframe: pd.DataFrame,
+        output_directory: str | Path,
+) -> None:
+    # fix type hints for the content of the 'object'
+    """Display missing values status for each column in a matrix.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+
+    Returns:
+        object: _description_
+    """
+    plt.figure(figsize=(15, 10))
+    msno.matrix(
+        dataframe,
+        sort="descending",  # NOT working
+        # figsize=(10, 5),
+        fontsize=8,
+        sparkline=False,
+    )
+    plt.title(
+        label="Summary of Missing Data",
+        fontsize=16,
+        loc="center"
+    )
+    # plt.show()
+    save_figure(
+        figure_name=output_directory/"missing_data_matrix.png"
+    )
+
+
 def draw_scree_plot(x_axis, y_axis):
     """Draw scree plot following a PCA.
 
@@ -2988,7 +3020,7 @@ def draw_tukeys_hsd_plot(
     # )
 
 
-def draw_pca_scatterplot_3d(
+def draw_pca_biplot_3d(
     features_scaled: pd.DataFrame,
     target_encoded: pd.Series,
     target_class_list: List[str],
