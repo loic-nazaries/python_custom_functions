@@ -3304,6 +3304,21 @@ def draw_feature_rank(
     )
 
 
+def show_items_per_category(data: pd.Series) -> None:
+    """show_items_per_category _summary_
+
+    Args:
+        data (pd.Series): _description_
+    """
+    # Show number of items in each class of the target
+    data_class_count = data.value_counts()
+    print(
+        f"\nItems number within each {data.name} class:\n{data_class_count}\n"
+    )
+    ax = data_class_count.sort_values().plot.barh()
+    ax.set(xlabel="Number of items", ylabel=data.name)
+
+
 # -----------------------------------------------------------------------------
 
 # DATA MODELLING (MACHINE LEARNING)
@@ -3447,16 +3462,18 @@ def drop_feature_pipeline(
     return drop_feature_pipe
 
 
-def select_numeric_feature_pipeline() -> Pipeline:
-    """Create the preprocessing pipeline for numeric data."""
+def preprocess_robust_scaler_numeric_feature_pipeline() -> Pipeline:
+    """Preprocess numeric data using robust scaling.
+
+    Returns:
+        Pipeline: _description_
+    """
     numeric_feature_pipeline = Pipeline(
         steps=[
             ("imputer", SimpleImputer(
                 missing_values=np.nan,
                 strategy="median",
             )),
-            # ("scaler", StandardScaler()),
-            # ("scaler", MinMaxScaler()),
             ("scaler", RobustScaler()),
         ],
         verbose=True,
@@ -3465,8 +3482,105 @@ def select_numeric_feature_pipeline() -> Pipeline:
     return numeric_feature_pipeline
 
 
-def select_categorical_feature_pipeline() -> Pipeline:
-    """Create the preprocessing pipeline for categorical data."""
+def preprocess_minmax_scaler_numeric_feature_pipeline() -> Pipeline:
+    """Preprocess numeric data using min-max normalising.
+
+    Returns:
+        Pipeline: _description_
+    """
+    numeric_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                missing_values=np.nan,
+                strategy="median",
+            )),
+            ("scaler", MinMaxScaler()),
+        ],
+        verbose=True,
+    )
+    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
+    return numeric_feature_pipeline
+
+
+def preprocess_std_scaler_numeric_feature_pipeline() -> Pipeline:
+    """Preprocess numeric data using standard scaling.
+
+    Returns:
+        Pipeline: _description_
+    """
+    numeric_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                missing_values=np.nan,
+                strategy="median",
+            )),
+            ("scaler", StandardScaler()),
+        ],
+        verbose=True,
+    )
+    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
+    return numeric_feature_pipeline
+
+
+def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
+    """preprocess_numeric_feature_pipeline _summary_.
+
+    Args:
+        scaler (str): _description_
+
+    Returns:
+        Pipeline: _description_
+    """
+    # Set up the dictionary for the scaler functions
+    scaler_dictionary = {
+        "standard_scaler": StandardScaler(),
+        "min_max_scaler": MinMaxScaler(),
+        "robust_scaler": RobustScaler()
+    }
+    scaler_class = scaler_dictionary.get(scaler)
+
+    # Build the pipeline for the chosen scaler
+    numeric_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                missing_values=np.nan,
+                strategy="median",
+            )),
+            ("scaler", scaler_class),
+        ],
+        verbose=True,
+    )
+    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
+    return numeric_feature_pipeline
+
+
+def preprocess_ordinal_categorical_feature_pipeline() -> Pipeline:
+    """Preprocess categorical data using ordinal encoding.
+
+    Returns:
+        Pipeline: _description_
+    """
+    categorical_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                strategy="most_frequent",
+                fill_value="missing",
+            )),
+            ("encoder", OrdinalEncoder(handle_unknown="ignore")),
+        ],
+        verbose=True,
+    )
+    print("\nCategorical Data Pipeline Structure:")
+    print(categorical_feature_pipeline)
+    return categorical_feature_pipeline
+
+
+def preprocess_one_hot_categorical_feature_pipeline() -> Pipeline:
+    """Preprocess categorical data using one-hot encoding.
+
+    Returns:
+        Pipeline: _description_
+    """
     categorical_feature_pipeline = Pipeline(
         steps=[
             ("imputer", SimpleImputer(
@@ -3474,13 +3588,119 @@ def select_categorical_feature_pipeline() -> Pipeline:
                 fill_value="missing",
             )),
             ("encoder", OneHotEncoder(handle_unknown="ignore")),
-            # ("encoder", OrdinalEncoder(handle_unknown="ignore")),
         ],
         verbose=True,
     )
     print("\nCategorical Data Pipeline Structure:")
     print(categorical_feature_pipeline)
     return categorical_feature_pipeline
+
+
+def preprocess_categorical_feature_pipeline(encoder: str) -> Pipeline:
+    """preprocess_numeric_feature_pipeline _summary_.
+
+    Args:
+        scaler (str): _description_
+
+    Returns:
+        Pipeline: _description_
+    """
+    # Set up the dictionary for the scaler functions
+    encoder_dictionary = {
+        "one_hot_encoder": OneHotEncoder(handle_unknown="ignore"),
+        "ordinal_encoder": OrdinalEncoder(handle_unknown="ignore"),
+    }
+    encoder_class = encoder_dictionary.get(encoder)
+
+    # Build the pipeline for the chosen scaler
+    categorical_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                strategy="most_frequent",
+                fill_value="missing",
+            )),
+            ("encoder", encoder_class),
+        ],
+        verbose=True,
+    )
+    print("\nCategorical Data Pipeline Structure:")
+    print(categorical_feature_pipeline)
+    return categorical_feature_pipeline
+
+
+def transform_feature_pipeline(
+    numeric_feature_pipeline: Pipeline,
+    categorical_feature_pipeline: Pipeline,
+) -> ColumnTransformer:
+    """Transform the selected features in the pipeline.
+
+    For the 'transformers' parameters, the settings represent, respectively:
+        - the transformer name
+        - the transformer pipeline it represents
+        - the columns included in the transformer
+
+    Args:
+        numeric_feature_pipeline (Pipeline): _description_
+        categorical_feature_pipeline (Pipeline): _description_
+
+    Returns:
+        ColumnTransformer: _description_
+    """
+    feature_transformer = ColumnTransformer(
+        transformers=[
+            (
+                "numeric features",
+                numeric_feature_pipeline,
+                selector(dtype_include="number")
+            ),
+            (
+                "categorical features",
+                categorical_feature_pipeline,
+                selector(dtype_include="category")
+            ),
+        ],
+        verbose_feature_names_out=False,  # if True, will display transformers
+        remainder="drop",
+        n_jobs=-1,
+    )
+    return feature_transformer
+
+
+def check_feature_transform_pipeline(
+    pipeline: Pipeline,
+    features_data: pd.DataFrame,
+) -> pd.DataFrame:
+    """Fit/transform preprocessed train or test data individually.
+
+    This is to check data were processed through properly, i.e. categorical and
+    numeric preprocessing was applied successfully.
+
+    NOTE: If needed, it is possible to set the config pipeline output to a
+    (dense, not sparse) Numpy array using the parameter below.
+    set_config(transform_output="default")
+
+    Args:
+        pipeline (Pipeline): _description_
+        features_data (pd.DataFrame): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    # Get a list of the pipeline features from an array
+    # Using the slice '[:-1]' means we take the last step of the pipeline,
+    # i.e. here, the model/classifier
+    feature_names_from_pipe = pipeline[:-1].get_feature_names_out().tolist()
+
+    # Similarly, we can extract the preprocessed array data
+    features_pipeline = pipeline[:-1].fit_transform(features_data)
+    # Convert the array into a dataframe
+    preprocessed_df = pd.DataFrame(
+        data=features_pipeline,
+        columns=feature_names_from_pipe,
+        index=features_data.index,
+    )
+    print(f"\nPreprocessed Data:\n{preprocessed_df.head()}\n")
+    return preprocessed_df
 
 
 def calculate_model_scores(
