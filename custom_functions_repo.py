@@ -1141,6 +1141,30 @@ def produce_sweetviz_eda_report(
     return
 
 
+def compare_sweetviz_eda_report(
+    train_set: pd.DataFrame,
+    test_set: pd.DataFrame,
+    eda_report_name: str,
+    output_directory: Path,
+) -> None:
+    """Exploratory Data Analysis using the Sweetviz library.
+
+    Particularly, this report compares the data split between the training
+    and testing sets.
+
+    Produce an '.html' file of the main steps of the EDA
+    """
+    print("\nPreparing SweetViz Report:\n")
+    sweetviz_eda_report = sv.compare(
+        [train_set, "Training Data"], [test_set, "Test Data"]
+    )
+    sweetviz_eda_report.show_html(
+        filepath=output_directory.joinpath(eda_report_name + ".html"),
+        open_browser=True,
+        layout="widescreen"
+    )
+
+
 def produce_dtale_eda_report(dataframe: pd.DataFrame) -> None:
     """Exploratory Data Analysis using the Dtale library.
 
@@ -2239,10 +2263,8 @@ def check_equal_variance_assumption_residuals(
         axis=0,
     )
     print(
-        f"""
-        \nEquality of Variance Tests Results - '{group_variable}' as group
-        \n{equal_variance_tests}\n
-        """
+        f"\nEquality of Variance Tests Results - '{group_variable}' as group"
+        f"\n{equal_variance_tests}\n"
     )
     # BUG It does not the difference between 'if' and 'else' output
     print("Equal Variance of Data Between Groups:")
@@ -2505,10 +2527,10 @@ def draw_all_pca_pairs_scatterplot(
             markerscale=2
         )
         plt.title(
-            label=f"""
-            Représentation des effets des paramètres de détection des défauts \
-            {pc_x.upper()} vs. {pc_y.upper()}
-            """,
+            label=(
+                f"Représentation des effets des paramètres de détection des"
+                f"défauts {pc_x.upper()} vs. {pc_y.upper()}"
+            ),
             fontsize=16,
             loc="center"
         )
@@ -2928,10 +2950,10 @@ def draw_anova_quality_checks(
         confidence_interval=confidence_interval
     )
     plt.title(
-        label=f"""
-        Q-Q Plot of Model Residuals ({dependent_variable} vs. \
-{independent_variable})
-        """,
+        label=(
+            f"Q-Q Plot of Model Residuals ({dependent_variable}"
+            f"vs. {independent_variable})"
+        ),
         fontsize=14,
         loc="center"
     )
@@ -3778,30 +3800,20 @@ def draw_confusion_matrix_heatmap(
     target_test: pd.Series,
     target_pred: pd.Series,
     target_label_list: List[str],
+    accuracy_score: float,
+    f1_score: float,
     figure_path_name: str,
 ) -> None:
-    """Draw_confusion_matrix_heatmap _summary_.
+    """_summary_.
 
     Args:
         target_test (pd.Series): _description_
         target_pred (pd.Series): _description_
         target_label_list (List[str]): _description_
+        accuracy_score (float): _description_
+        f1_score (float): _description_
         figure_path_name (str): _description_
-
-    Returns:
-        _type_: _description_
     """
-    # Compute model scores
-    accuracy_score_ = accuracy_score(
-        y_true=target_test,
-        y_pred=target_pred,
-    )
-    f1_score_ = f1_score(
-        y_true=target_test,
-        y_pred=target_pred,
-        average="weighted"
-    )
-
     # Compute the confusion matrix
     confusion_matrix_ = confusion_matrix(
         y_true=target_test,
@@ -3827,15 +3839,16 @@ def draw_confusion_matrix_heatmap(
     plt.xlabel("Predicted label")
     plt.title(
         label=(
-            f"Confusion matrix of predictions\n \
-    Model Accuracy = {accuracy_score_:.1%} - F1-score = {f1_score_:.1%}"),
+            f"Confusion matrix of predictions\n"
+            f"Model Accuracy = {accuracy_score:.1%} - "
+            f"F1-score = {f1_score:.1%}"),
         fontsize=16
     )
+    plt.grid(visible=False)
+    # plt.axis("off")
     plt.tight_layout()
     plt.show()
     save_figure(figure_name=figure_path_name)
-    # print(confusion_matrix_heatmap)
-    return None
 
 
 def perform_roc_auc_analysis(
