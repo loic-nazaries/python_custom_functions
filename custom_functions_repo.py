@@ -68,6 +68,8 @@ from sklearn.metrics import (
     classification_report,
     confusion_matrix,
     f1_score,
+    precision_score,
+    recall_score,
     roc_auc_score,
     roc_curve
 )
@@ -3042,6 +3044,73 @@ def draw_tukeys_hsd_plot(
     # )
 
 
+def draw_pca_outliers_biplot(
+    dataframe: pd.DataFrame,
+    label: str,
+    model: pca,
+    output_directory: str | Path,
+) -> None:
+    """Use the 'pca' library to detect outliers & display them in scatterplot.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        label (str): _description_
+        model (_type_): _description_
+    """
+    plt.figure()
+    model.biplot(
+        y=dataframe[label],  # (categorical) label
+        SPE=True,
+        hotellingt2=True,
+        legend=True,
+        label=False,
+        # figsize=(20, 12),
+        color_arrow="k",
+        title="Outliers marked using Hotellings T2 & SPE/DmodX methods",
+        # cmap="bwr_r",
+        # gradient="#FFFFFF",
+    )
+    plt.grid(False)
+    # plt.show()
+    save_figure(
+        figure_name=output_directory/"pca_outlier_biplot.png"
+    )
+
+
+def draw_pca_outliers_biplot_3d(
+    dataframe: pd.DataFrame,
+    label: str,
+    model: pca,
+    output_directory: str | Path,
+) -> None:
+    """Use the 'pca' library to detect outliers & display them in scatterplot.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        label (str): _description_
+        model (_type_): _description_
+        output_directory (str | Path): _description_
+    """
+    plt.figure()
+    model.biplot3d(
+        y=dataframe[label],  # (categorical) label
+        SPE=True,
+        hotellingt2=True,
+        legend=True,
+        label=False,
+        figsize=(20, 12),
+        # color_arrow="k",
+        title="Outliers marked using Hotellings T2 & SPE/DmodX methods",
+        # cmap="bwr_r",
+        # gradient="#FFFFFF",
+    )
+    plt.grid(False)
+    # plt.show()
+    save_figure(
+        figure_name=output_directory/"pca_outlier_biplot_3d.png"
+    )
+
+
 def draw_pca_biplot_3d(
     features_scaled: pd.DataFrame,
     target_encoded: pd.Series,
@@ -3688,7 +3757,7 @@ def transform_feature_pipeline(
     return feature_transformer
 
 
-def check_feature_transform_pipeline(
+def get_transformed_feature_pipeline(
     pipeline: Pipeline,
     features_data: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -3713,87 +3782,342 @@ def check_feature_transform_pipeline(
     # i.e. here, the model/classifier
     feature_names_from_pipe = pipeline[:-1].get_feature_names_out().tolist()
 
-    # Similarly, we can extract the preprocessed array data
-    features_pipeline = pipeline[:-1].fit_transform(features_data)
+    # Similarly, we can extract the preprocessed (transformed) array data
+    transformed_features_from_pipeline = (
+        pipeline[:-1].fit_transform(features_data)
+    )
     # Convert the array into a dataframe
     preprocessed_df = pd.DataFrame(
-        data=features_pipeline,
+        data=transformed_features_from_pipeline,
         columns=feature_names_from_pipe,
         index=features_data.index,
     )
-    print(f"\nPreprocessed Data:\n{preprocessed_df.head()}\n")
+    print(f"\nPreprocessed Data:\n{preprocessed_df.head(3)}\n")
     return preprocessed_df
 
 
-def calculate_model_scores(
-    pipeline: Pipeline,
-    model_name: str,
-    features_train: pd.DataFrame,
-    target_train: pd.Series,
+def calculate_cross_validation_scores(
+    model,
     features_test: pd.DataFrame,
     target_test: pd.Series,
     target_pred: pd.Series,
     target_label_list: List[str],
-    # ) -> None:
-) -> Dict[int | str, float] | ndarray[Any, Any]:
-    """Calculate_model_scores _summary_.
+    cv: int = 5
+) -> None:
+    """calculate_cross_validation_score _summary_.
 
     Args:
-        pipeline (Pipeline): _description_
-        model_name (str): _description_
-        features_train (pd.DataFrame): _description_
-        target_train (pd.Series): _description_
+        model (_type_): _description_
         features_test (pd.DataFrame): _description_
         target_test (pd.Series): _description_
+        target_pred (pd.Series): _description_
+        target_label_list (List[str]): _description_
     """
-    # Calculate the pipeline train and test scores
-    train_score = pipeline.score(X=features_train, y=target_train)
-    test_score = pipeline.score(X=features_test, y=target_test)
-
-    # Compute model scores
-    accuracy_score_ = accuracy_score(
+    balanced_accuracy_score_ = balanced_accuracy_score(
         y_true=target_test,
         y_pred=target_pred,
     )
-    f1_score_ = f1_score(
-        y_true=target_test,
-        y_pred=target_pred,
-        average="weighted"
-    )
+    print(f"\nBalanced Accuracy Score = {balanced_accuracy_score_:.2%}\n")
 
-    # Build a dictionary containing the model scores and convert to a dataframe
-    model_score_dictionary = {
-        "Model Name": model_name,
-        "Train Score": train_score,
-        "Test Score": test_score,
-        "Model Accuracy Score": accuracy_score_,
-        "Model F1-score": f1_score_,
-    }
-    # Convert the dictionary to a dataframe and drop duplicated rows
-    model_score_dataframe = convert_data_to_dataframe(
-        model_score_dictionary
-    ).set_index(keys="Model Name").drop_duplicates()
-    # Format scores as percentages and rotate the df for better viewing
-    model_score_dataframe = model_score_dataframe.applymap(
-        lambda float_: f"{float_:.1%}"
-    ).T
-    print(f"\nModel Score Output:\n{model_score_dataframe}\n")
+    cv_accuracy_score = cross_val_score(
+        estimator=model,
+        X=features_test,
+        y=target_test,
+        scoring="accuracy",
+        cv=cv,
+        n_jobs=-1,
+    )
+    cv_accuracy_score_mean = cv_accuracy_score.mean()
+    cv_accuracy_score_stdev = cv_accuracy_score.std()
+    print(
+        f"Cross-Validation Accuracy Score = {cv_accuracy_score_mean:.2%}"
+        f" +/- {cv_accuracy_score_stdev.std():.2%}"
+    )
 
     # Produce a classification report
     classification_report_ = classification_report(
         y_true=target_test,
         y_pred=target_pred,
         target_names=target_label_list,
-        # output_dict=True,  # not working inside the function...
+        # output_dict=True,
     )
     print(f"\nClassification Report:\n{classification_report_}\n")
-    return (
-        train_score,
-        test_score,
-        accuracy_score_,
-        f1_score_,
-        classification_report_,
+
+
+def calculate_cross_validation_prediction_scores(
+    model,
+    features: pd.DataFrame,
+    target: pd.Series,
+    # groups: np.ndarray,
+    cv: int = 5
+) -> None:
+    """calculate_cross_validation_predictions _summary_.
+
+    Args:
+        model (_type_): _description_
+        features (pd.DataFrame): _description_
+        target (pd.Series): _description_
+        cv (int, optional): _description_. Defaults to 5.
+
+    TODO code 'roc_auc_score' function
+    """
+    target_pred_cv = cross_val_predict(
+        estimator=model,
+        X=features,
+        y=target,
+        # groups=,  # how does it work ?
+        cv=cv,
+        n_jobs=-1,
     )
+
+    # roc_auc_score_ = roc_auc_score(
+    #     y_true=target,
+    #     y_score=,
+    #     average="macro",
+    #     # max_fprfloat=1,
+    #     # multi_class="ovr",
+    #     multi_class="ovo",
+    #     labels=,
+    # )
+    # TODO apply 'roc_curve' separately
+
+    # Set a list of scoring methods to be applied (imported at top of script)
+    score_list = [precision_score, recall_score, f1_score]
+
+    # Create a dictionary of score means and standard deviations
+    mean_scores = defaultdict(list)
+    stdev_scores = defaultdict(list)
+
+    # Apply each scoring method 'score' to a loop & append output to dictionary
+    for score in score_list:
+        score_name = (
+            score.__name__.replace("_", " ").replace(
+                "score", "").capitalize()
+        )
+        score_aggregation = score(
+            y_true=target,
+            y_pred=target_pred_cv,
+            # labels=groups,  # how does it work ?
+            average=None
+        )
+        # Calculate mean and standard deviation of each score
+        mean_scores[f"{score_name}"].append(score_aggregation.mean())
+        stdev_scores[f"{score_name}"].append(score_aggregation.std())
+
+    # Convert the dictionaries and concatenate them
+    score_mean_df = pd.DataFrame(data=mean_scores)
+    score_stdev_df = pd.DataFrame(data=stdev_scores)
+    prediction_scores_dataframe = pd.concat(
+        objs=[score_mean_df, score_stdev_df],
+        axis=0
+    )
+    prediction_scores_dataframe.index = ["Mean", "StDev"]
+
+    # Format scores as percentages
+    prediction_scores_dataframe = prediction_scores_dataframe.applymap(
+        lambda float_: f"{float_:.2%}"
+    )
+    print(f"\nModel Prediction Scores:\n{prediction_scores_dataframe}\n")
+
+
+def train_tree_classifier(
+    features_train: pd.DataFrame,
+    target_train: pd.Series,
+    features_test: pd.DataFrame,
+    target_test: pd.Series,
+    target_pred: pd.Series,
+    index_name: str
+) -> pd.DataFrame:
+    """Train a tree classifier.
+
+    Args:
+        features_train (pd.DataFrame): _description_
+        target_train (pd.Series): _description_
+        features_test (pd.DataFrame): _description_
+        target_test (pd.Series): _description_
+        target_pred (pd.Series): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    tree_classifier = DecisionTreeClassifier(
+        criterion="gini",
+        max_leaf_nodes=5,
+        # max_depth=3,
+        # max_features="sqrt",
+        random_state=42
+    )
+    tree_classifier.fit(X=features_train, y=target_train)
+    tree_classifier.predict(
+        X=features_test
+    )
+
+    # Build a dataframe of true/test values vs prediction values
+    target_pred_tree_classifier_df = pd.DataFrame(
+        data=target_pred,
+        columns=["predictions"]
+    )
+
+    # Compare the predictions against the target
+    prediction_list_tree_classifier = [
+        target_test.reset_index(),  # need resetting index before concatenating
+        target_pred_tree_classifier_df
+    ]
+    predictions_tree_classifier = pd.concat(
+        objs=prediction_list_tree_classifier,
+        axis=1
+    ).set_index(keys=index_name)
+    print("Test vs. Predictions for tree classifier:")
+    print(predictions_tree_classifier)
+    return tree_classifier, predictions_tree_classifier
+
+
+def show_tree_classifier_feature_importances(
+    tree_classifier,
+    # feature_names: List[str],
+    # OR
+    feature_name_list: List[str],
+    features_train: pd.DataFrame,
+    target_train: pd.Series,
+    features_test: pd.DataFrame,
+    target_test: pd.Series,
+) -> None:
+    """show_tree_classifier_feature_importances _summary_.
+
+    Args:
+        tree_classifier (_type_): _description_
+        feature_name_list (List[str]): _description_
+        features_train (pd.DataFrame): _description_
+        target_train (pd.Series): _description_
+        features_test (pd.DataFrame): _description_
+        target_test (pd.Series): _description_
+    """
+    # Create a df to store the importance of features in tree classification
+    # Get classification feature importance scores same way they are ordered
+    # in the source dataset
+    tree_classification_feat_importance = tree_classifier.feature_importances_
+    # Sort the INDEX of classification feature importance scores in desc. order
+    tree_classification_indices = np.argsort(
+        tree_classification_feat_importance)[::-1]
+    # Reorder classification importance scores according to the previous step
+    reordered_feat_importance = [
+        tree_classification_feat_importance[index]
+        for index in tree_classification_indices
+    ]
+    # Reorder the classification feature names according to the previous step
+    reordered_classification_names = [
+        feature_name_list[index] for index in tree_classification_indices
+    ]
+    # # Keep 1st part of classification feat. name to show it pretty in a table
+    # tree_classification_feat_names = [
+    #     name.split(sep="_")[1] for name in reordered_classification_names
+    # ]
+    tree_classification_importances = pd.DataFrame(
+        data=[reordered_feat_importance, reordered_classification_names],
+    ).T  # transpose to rotate rows to columns
+    tree_classification_importances.columns = ["Importance", "Feature"]
+    print("\nImportance of Features in Tree Classification:")
+    print(tree_classification_importances)
+
+    tree_classifiers_train_score = tree_classifier.score(
+        features_train, target_train
+    )
+    print(
+        f"\nDecision Tree Mean Accuracy Score for Train Set = \
+    {tree_classifiers_train_score:.1%}\n"
+    )
+    tree_classifiers_test_score = tree_classifier.score(
+        features_test, target_test
+    )
+    print(
+        f"\nDecision Tree Mean Accuracy Score for Test Set = \
+    {tree_classifiers_test_score:.1%}\n"
+    )
+
+
+def draw_decision_tree(
+    tree_classifier,
+    feature_name_list: List[str],
+    target_label_list: List[str],
+    figure_path_name: str | Path,
+) -> int:
+    """_summary_.
+
+    The parameter 'tree_classifier' MUST be acquired by running the function
+    'train_tree_classifier()'.
+
+    Args:
+        tree_classifier (_type_): _description_
+        feature_name_list (List[str]): _description_
+        target_label_list (List[str]): _description_
+        figure_path_name (str | Path): _description_
+
+    Returns:
+        int: _description_
+    """
+    # Define the tree classifier parameters
+    n_nodes = tree_classifier.tree_.node_count
+    children_left = tree_classifier.tree_.children_left
+    children_right = tree_classifier.tree_.children_right
+    feature = tree_classifier.tree_.feature
+    threshold_value = tree_classifier.tree_.threshold
+
+    node_depth = np.zeros(shape=n_nodes, dtype=np.int64)
+    is_leaves = np.zeros(shape=n_nodes, dtype=bool)
+    stack = [(0, 0)]  # start with the root node id (0) and its depth (0)
+    while len(stack) > 0:
+        # `pop` ensures each node is only visited once
+        node_id, depth = stack.pop()
+        node_depth[node_id] = depth
+
+        # If the left and right child of a node is not the same we have a split
+        # node
+        is_split_node = children_left[node_id] != children_right[node_id]
+        # If a split node, append left and right children and depth to `stack`
+        # so we can loop through them
+        if is_split_node:
+            stack.append((children_left[node_id], depth + 1))
+            stack.append((children_right[node_id], depth + 1))
+        else:
+            is_leaves[node_id] = True
+
+    print(
+        f"\nThe decision tree has {n_nodes} nodes "
+        f"and has the following structure:\n"
+    )
+    print("Feature order in the decision tree as described below:")
+    print(feature_name_list)
+    print(f"\n{target_label_list = }\n")
+
+    for index in range(n_nodes):
+        if is_leaves[index]:
+            print(f"node={index} is a leaf node.")
+        else:
+            print(
+                f"\nNode={index} is a split node: "
+                f"go to node {children_left[index]} "
+                f"if feature {feature[index]} <= {threshold_value[index]:.3f},"
+                f" else go to node {children_right[index]}."
+            )
+
+    # Display the tree structure
+    plt.subplots(figsize=(10, 10))
+    plot_tree(
+        decision_tree=tree_classifier,
+        # feature_names=feature_names,
+        # OR
+        feature_names=feature_name_list,
+        class_names=target_label_list,
+        filled=True,
+    )
+    plt.title(
+        label=("Decision Tree for the Identification of Target Categories"),
+        fontsize=20
+    )
+    plt.tight_layout()
+    plt.show()
+    save_figure(figure_name=figure_path_name)
+    return n_nodes
 
 
 def draw_confusion_matrix_heatmap(
