@@ -112,7 +112,7 @@ from statsmodels.stats.multicomp import MultiComparison
 # INPUT/OUTPUT
 
 
-def bypass_outlier_removal(
+def apply_outlier_removal(
         dataframe_with_outliers: pd.DataFrame,
         dataframe_no_outliers: pd.DataFrame
 ) -> pd.DataFrame:
@@ -128,7 +128,7 @@ def bypass_outlier_removal(
         pd.DataFrame: _description_
     """
     while True:
-        choice = input("Bypass Outlier Removal? (y/n): ").lower()
+        choice = input("Apply Outlier Removal? (y/n): ").lower()
         try:
             assert choice == 'y' or choice == 'n', "Enter 'y' or 'n'"
             break
@@ -137,11 +137,11 @@ def bypass_outlier_removal(
         except ValueError:
             print("Please enter a valid letter choice.")
     if choice == 'y':
-        dataframe = dataframe_with_outliers.copy()
-        print("\nOutliers were NOT removed.\n")
-    else:
         dataframe = dataframe_no_outliers.copy()
         print("\nOutliers were removed.\n")
+    else:
+        dataframe = dataframe_with_outliers.copy()
+        print("\nOutliers were NOT removed.\n")
     return dataframe
 
 
