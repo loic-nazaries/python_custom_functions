@@ -3813,12 +3813,14 @@ def calculate_cross_validation_scores(
         target_pred (pd.Series): _description_
         target_label_list (List[str]): _description_
     """
+    # Use below function when there is an imbalance in each target class
     balanced_accuracy_score_ = balanced_accuracy_score(
         y_true=target_test,
         y_pred=target_pred,
     )
     print(f"\nBalanced Accuracy Score = {balanced_accuracy_score_:.2%}\n")
 
+    # Apply cross-validation to improve the variability of the score
     cv_accuracy_score = cross_val_score(
         estimator=model,
         X=features_test,
@@ -3838,10 +3840,71 @@ def calculate_cross_validation_scores(
     classification_report_ = classification_report(
         y_true=target_test,
         y_pred=target_pred,
+        digits=3,
         target_names=target_label_list,
         # output_dict=True,
     )
     print(f"\nClassification Report:\n{classification_report_}\n")
+
+
+def calculate_multiple_cross_validation_scores(
+    model,
+    features: pd.DataFrame | np.ndarray,
+    target: pd.Series | np.ndarray,
+) -> None:
+    """calculate_multiple_cross_validation_scores _summary_.
+
+    Use the 'cross_validate()' function to calculate multiple model scores for
+    EACH train and test sets.
+    NOTE: to print out the train scores, the parameter 'return_train_score'
+    must be set to 'True'.
+
+    Args:
+        model (_type_): _description_
+        features (pd.DataFrame | np.ndarray): _description_
+        target (pd.Series | np.ndarray): _description_
+    """
+    scorer_list = [
+        "balanced_accuracy",
+        "precision_macro",
+        "recall_macro",
+        "f1_weighted"
+    ]
+    valid_scores_cv = cross_validate(
+        estimator=model,
+        X=features,
+        y=target,
+        # groups=group_list,
+        scoring=scorer_list,
+        cv=5,
+        n_jobs=-1,
+        verbose=1,
+        return_train_score=False,
+        # error_score=np.nan
+    )
+
+    # Convert output dictionary into a dataframe
+    valid_scores_cv_dataframe = pd.DataFrame(
+        data=valid_scores_cv,
+        columns=valid_scores_cv.keys(),
+    )
+
+    # Create a new df to hold the mean & standard deviation for each scorer
+    valid_scores_cv_means = pd.DataFrame()
+    valid_scores_cv_means["CV Mean"] = valid_scores_cv_dataframe.mean()
+    valid_scores_cv_means["CV StDev"] = valid_scores_cv_dataframe.std()
+    # Format scores as percentages (delete 'fit_time' and 'score_time' columns)
+    valid_scores_cv_means = valid_scores_cv_means.iloc[2:].applymap(
+        lambda float_: f"{float_:.2%}"
+    )
+    print(f"\nModel Score Output*:\n{valid_scores_cv_means}\n")
+    print("""
+        * Note: the scores calculated for the 'test' set are derived from the
+        'split' of the input data (i.e. the train set), hence the output values
+        should be very close to the ones calculated with the function
+        'calculate_cross_validation_prediction_scores', which uses the
+        'cross_val_predict' function from Scikit-learn library.
+    """)
 
 
 def calculate_cross_validation_prediction_scores(
@@ -3921,11 +3984,11 @@ def calculate_cross_validation_prediction_scores(
 
 
 def train_tree_classifier(
-    features_train: pd.DataFrame,
-    target_train: pd.Series,
-    features_test: pd.DataFrame,
-    target_test: pd.Series,
-    target_pred: pd.Series,
+    features_train: pd.DataFrame | np.ndarray,
+    target_train: pd.Series | np.ndarray,
+    features_test: pd.DataFrame | np.ndarray,
+    target_test: pd.Series | np.ndarray,
+    target_pred: pd.Series | np.ndarray,
     index_name: str
 ) -> pd.DataFrame:
     """Train a tree classifier.
@@ -3977,10 +4040,10 @@ def show_tree_classifier_feature_importances(
     # feature_names: List[str],
     # OR
     feature_name_list: List[str],
-    features_train: pd.DataFrame,
-    target_train: pd.Series,
-    features_test: pd.DataFrame,
-    target_test: pd.Series,
+    features_train: pd.DataFrame | np.ndarray,
+    target_train: pd.Series | np.ndarray,
+    features_test: pd.DataFrame | np.ndarray,
+    target_test: pd.Series | np.ndarray,
 ) -> None:
     """show_tree_classifier_feature_importances _summary_.
 
@@ -4040,7 +4103,7 @@ def draw_decision_tree(
     feature_name_list: List[str],
     target_label_list: List[str],
     figure_path_name: str | Path,
-) -> int:
+) -> None:
     """_summary_.
 
     The parameter 'tree_classifier' MUST be acquired by running the function
@@ -4051,9 +4114,6 @@ def draw_decision_tree(
         feature_name_list (List[str]): _description_
         target_label_list (List[str]): _description_
         figure_path_name (str | Path): _description_
-
-    Returns:
-        int: _description_
     """
     # Define the tree classifier parameters
     n_nodes = tree_classifier.tree_.node_count
@@ -4104,8 +4164,6 @@ def draw_decision_tree(
     plt.subplots(figsize=(10, 10))
     plot_tree(
         decision_tree=tree_classifier,
-        # feature_names=feature_names,
-        # OR
         feature_names=feature_name_list,
         class_names=target_label_list,
         filled=True,
@@ -4117,15 +4175,12 @@ def draw_decision_tree(
     plt.tight_layout()
     plt.show()
     save_figure(figure_name=figure_path_name)
-    return n_nodes
 
 
 def draw_confusion_matrix_heatmap(
     target_test: pd.Series,
     target_pred: pd.Series,
     target_label_list: List[str],
-    accuracy_score: float,
-    f1_score: float,
     figure_path_name: str,
 ) -> None:
     """_summary_.
@@ -4162,10 +4217,7 @@ def draw_confusion_matrix_heatmap(
     plt.ylabel("True label")
     plt.xlabel("Predicted label")
     plt.title(
-        label=(
-            f"Confusion matrix of predictions\n"
-            f"Model Accuracy = {accuracy_score:.1%} - "
-            f"F1-score = {f1_score:.1%}"),
+        label="Confusion matrix of predictions",
         fontsize=16
     )
     plt.grid(visible=False)
