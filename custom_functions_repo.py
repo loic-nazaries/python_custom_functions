@@ -27,11 +27,13 @@ import docx
 import dtale
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy import array, array_equal, load
 # import openpyxl
 import pandas as pd
 import pingouin as pg
 import researchpy as rp
 import scipy as sp
+from scipy.io import savemat
 import seaborn as sns
 import sidetable as stb
 import statsmodels.api as sm
@@ -397,6 +399,42 @@ def convert_text_file_to_docx(
     # Save the document as a Word file
     word_doc.save(output_directory.joinpath(file_name + ".docx"))
     print("The console output was converted to a MS Word document file.")
+
+
+@timing
+def convert_npz_to_mat(input_directory: str | Path) -> None:
+    """AI is creating summary for convert_npz_to_mat.
+
+    Args:
+        input_directory (str): [description]
+    """    
+    input_directory = input_directory
+    output_directory = input_directory
+
+    none_array = array(None)
+    NB_ERRORS = 0
+    NB_CONVERTED = 0
+
+    npz_file_list = list(input_directory.glob(pattern="*.npz"))
+
+    for input_path in npz_file_list:
+        try:
+            with load(file=str(input_path), allow_pickle=True) as npz_file:
+                data_dict = dict(npz_file)
+
+            for key, value in data_dict.items():
+                if array_equal(value, none_array):
+                    data_dict[key] = array([])
+
+            output_path = output_directory.joinpath(input_path.stem + ".mat")
+            savemat(file_name=str(output_path), mdict=data_dict)
+        except Exception:
+            NB_ERRORS += 1
+        else:
+            NB_CONVERTED += 1
+
+    print(f"{NB_ERRORS} error(s) occurred")
+    print(f"{NB_CONVERTED} file(s) converted")
 
 
 # ----------------------------------------------------------------------------
@@ -3129,7 +3167,22 @@ def draw_pca_biplot_3d(
         target_class_list (List[str]): _description_
         output_directory (str | Path): _description_
     """
-    # colors = ["blue", "orange", "green", "red"]
+        # Define the colour scheme for identifying the target classes
+
+    # Get a colour map
+    # cmap = plt.get_cmap('tab10')
+    # Create a list of colours based on the colour map and the number of
+    # colours, i.e. the number of target classes
+    # target_class_colour_list = [
+    #     cmap[colour] for colour in range(len(target_class_list))
+    # ]
+
+    # Generate list of random colors using Matplotlib
+    target_class_colour_list = [
+        "#%06X" % random.randint(0, 0xFFFFFF)
+        for colour in range(len(target_class_list))
+    ]
+
     plt.figure(figsize=(15, 10))
     pca_3d = yb_pca(
         scale=True,
@@ -3206,6 +3259,22 @@ def draw_pca_biplot(
         target_class_list (List[str]): _description_
         output_directory (str | Path): _description_
     """
+        # Define the colour scheme for identifying the target classes
+
+    # Get a colour map
+    # cmap = plt.get_cmap('tab10')
+    # Create a list of colours based on the colour map and the number of
+    # colours, i.e. the number of target classes
+    # target_class_colour_list = [
+    #     cmap[colour] for colour in range(len(target_class_list))
+    # ]
+
+    # Generate list of random colors using Matplotlib
+    target_class_colour_list = [
+        "#%06X" % random.randint(0, 0xFFFFFF)
+        for colour in range(len(target_class_list))
+    ]
+
     plt.figure(figsize=(15, 10))
     pca_biplot = yb_pca(
         scale=True,
@@ -3250,11 +3319,10 @@ def draw_pca_biplot(
     # Define the confidence level and alpha value for the ellipse
     confidence_interval = 0.95
     alpha = 0.3  # this is the transparency level of the ellipses
-    # Define the colour scheme for identifying the ellipses
-    ellipse_colours = ["blue", "orange", "green", "red", "purple"]
+
     # Iterate over each class in the dataset
     for target_class, colour in zip(
-        range(len(target_class_list)), ellipse_colours
+        range(len(target_class_list)), target_class_colour_list
     ):
         # Select the data for the current class
         pca_class = pca_array[target_encoded == target_class]
@@ -3312,11 +3380,25 @@ def add_confidence_interval_ellipses(
         confidence_interval (float, optional): _description_. Defaults to 0.95.
         alpha (float, optional): _description_. Defaults to 0.2.
     """
-    # Define the colour scheme for identifying the ellipses
-    ellipse_colours = ["blue", "orange", "green", "red", "purple"]
+    # Define the colour scheme for identifying the target classes
+
+    # Get a colour map
+    # cmap = plt.get_cmap('tab10')
+    # Create a list of colours based on the colour map and the number of
+    # colours, i.e. the number of target classes
+    # target_class_colour_list = [
+    #     cmap[colour] for colour in range(len(target_class_list))
+    # ]
+
+    # Generate list of random colors using Matplotlib
+    target_class_colour_list = [
+        "#%06X" % random.randint(0, 0xFFFFFF)
+        for colour in range(len(target_class_list))
+    ]
+
     # Iterate over each class in the dataset
     for target_class, colour in zip(
-        range(len(target_class_list)), ellipse_colours
+        range(len(target_class_list)), target_class_colour_list
     ):
         # Select the data for the current class
         pca_class = pca_array[target_class_list == target_class]
