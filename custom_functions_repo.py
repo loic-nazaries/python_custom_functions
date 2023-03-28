@@ -18,27 +18,37 @@ import re
 # Call the libraries required
 # import glob
 import sys
+from collections import defaultdict
 from datetime import datetime
+import time
 import itertools
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
-import docx
+from typing import Any, Dict, List, Optional, Tuple
 
+import colourmap as colourmap
+import docx
 import dtale
+# from matplotlib.colors import ListedColormap
+from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
+import missingno as msno
 import numpy as np
 from numpy import array, array_equal, load
 # import openpyxl
 import pandas as pd
+from pca import pca
 import pingouin as pg
+import plotly.graph_objs as go
 import researchpy as rp
 import scipy as sp
 from scipy.io import savemat
 import seaborn as sns
 import sidetable as stb
 import statsmodels.api as sm
-import statsmodels.stats.multicomp as mc
+# import statsmodels.stats.multicomp as mc
 import sweetviz as sv
+from yellowbrick.features import PCA as yb_pca, Rank1D
+# from yellowbrick.cluster import InterclusterDistance
 # Sampling
 from fast_ml.model_development import train_valid_test_split
 # Handle constant/duplicates and missing features/columns
@@ -52,10 +62,11 @@ from feature_engine.selection import (
 from pyod.models.mad import MAD
 from scipy.io import loadmat
 from scipy.stats import chi2, zscore
+from scipy import stats
 # Assemble pipeline(s)
 # from sklearn import set_config
-# from sklearn.compose import ColumnTransformer
-# from sklearn.compose import make_column_selector as selector
+from sklearn.compose import ColumnTransformer
+from sklearn.compose import make_column_selector as selector
 from sklearn.decomposition import PCA
 # from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.feature_selection import (
@@ -66,7 +77,8 @@ from sklearn.impute import SimpleImputer
 # from sklearn.inspection import permutation_importance
 # from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
-    accuracy_score,
+    # accuracy_score,
+    balanced_accuracy_score,
     classification_report,
     confusion_matrix,
     f1_score,
@@ -77,11 +89,12 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import (
     # GridSearchCV,
-    # cross_validate,
+    cross_validate,
     # RandomizedSearchCV,
     # RepeatedStratifiedKFold,
     # StratifiedShuffleSplit,
-    # cross_val_score,
+    cross_val_predict,
+    cross_val_score,
     train_test_split
 )
 from sklearn.pipeline import Pipeline
@@ -93,10 +106,10 @@ from sklearn.preprocessing import (
     RobustScaler,
     StandardScaler
 )
-# from sklearn.tree import (
-#     DecisionTreeClassifier,
-#     plot_tree
-# )
+from sklearn.tree import (
+    DecisionTreeClassifier,
+    plot_tree
+)
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
 from statsmodels.stats.multicomp import MultiComparison
@@ -107,6 +120,58 @@ from statsmodels.stats.multicomp import MultiComparison
 # from sklearn import set_config
 
 # set_config(transform_output="pandas")
+
+# Default directories
+INPUT_DIRECTORY = Path("./sources")
+OUTPUT_DIRECTORY = Path("./output")
+OUTPUT_DIR_IMAGES = Path("./images")
+OUTPUT_DIR_FIGURES = Path("./figures")
+
+
+# -----------------------------------------------------------------------------
+
+# DECORATOR FUNCTIONS
+
+
+# def cache(func: Callable[any, ...]) -> Callable[any, ...]:
+def cache(func):
+    """AI is creating summary for cache.
+
+    Args:
+        func ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
+    cached_results = {}
+
+    def wrapper(*args, **kwargs):
+        key = str(args) + str(kwargs)
+        if key not in cached_results:
+            cached_results[key] = func(*args, **kwargs)
+        return cached_results[key]
+
+    return wrapper
+
+
+def timing(func):
+    """AI is creating summary for timing.
+
+    Args:
+        func ([type]): [description]
+    """
+    def wrapper(*args, **kwargs):
+        # Do something before calling the function
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        # Do something after calling the function
+        end_time = time.time()
+        print(
+            f"\nFunction '{func.__name__}' took {end_time - start_time:.2} "
+            f"seconds to run.\n"
+        )
+        return result
+    return wrapper
 
 
 # ----------------------------------------------------------------------------
@@ -407,7 +472,7 @@ def convert_npz_to_mat(input_directory: str | Path) -> None:
 
     Args:
         input_directory (str): [description]
-    """    
+    """
     input_directory = input_directory
     output_directory = input_directory
 
@@ -716,12 +781,12 @@ def convert_to_string_type(
 
 def convert_variables_to_proper_type(
     dataframe: pd.DataFrame,
-    datetime_variable_list: List[str | datetime] = None,
-    category_variable_list: List[str] = None,
-    numeric_variable_list: List[str] = None,
-    integer_variable_list: List[str] = None,
-    float_variable_list: List[str] = None,
-    string_variable_list: List[str] = None,
+    datetime_variable_list: Optional[List[str | datetime]] = None,
+    category_variable_list: Optional[List[str]] = None,
+    numeric_variable_list: Optional[List[str]] = None,
+    integer_variable_list: Optional[List[str]] = None,
+    float_variable_list: Optional[List[str]] = None,
+    string_variable_list: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """convert_variables_to_proper_type _summary_.
 
@@ -1880,9 +1945,7 @@ def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
 
 def run_pc_analysis(
     features: pd.DataFrame,
-    target_encoded,
-    target_class_list: List[str],
-    eda_output_file_name: str,
+    eda_report_name: str,
     output_directory: str | Path
 ) -> Tuple[pd.DataFrame | np.ndarray, List[str]]:
     """run_pc_analysis _summary_.
@@ -1952,7 +2015,7 @@ def run_pc_analysis(
     # Produce an '.html' file of the main steps of the EDA
     produce_sweetviz_eda_report(
         dataframe=final_pca_df,
-        file_name=output_file_name,
+        eda_report_name=eda_report_name,
         output_directory=output_directory
     )
 
@@ -2166,11 +2229,11 @@ def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
         _type_: _description_
     """
     # Run MANOVA test
-    model = MANOVA.from_formula(
+    manova_model = MANOVA.from_formula(
         formula=formula,
         data=dataframe
     )
-    manova_test = model.mv_test()
+    manova_test = manova_model.mv_test()
     return manova_test
 
 
@@ -3082,43 +3145,11 @@ def draw_tukeys_hsd_plot(
     # )
 
 
-def draw_pca_outliers_biplot(
-    dataframe: pd.DataFrame,
-    label: str,
-    model: pca,
-    output_directory: str | Path,
-) -> None:
-    """Use the 'pca' library to detect outliers & display them in scatterplot.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        label (str): _description_
-        model (_type_): _description_
-    """
-    plt.figure()
-    model.biplot(
-        y=dataframe[label],  # (categorical) label
-        SPE=True,
-        hotellingt2=True,
-        legend=True,
-        label=False,
-        # figsize=(20, 12),
-        color_arrow="k",
-        title="Outliers marked using Hotellings T2 & SPE/DmodX methods",
-        # cmap="bwr_r",
-        # gradient="#FFFFFF",
-    )
-    plt.grid(False)
-    # plt.show()
-    save_figure(
-        figure_name=output_directory/"pca_outlier_biplot.png"
-    )
-
-
 def draw_pca_outliers_biplot_3d(
     dataframe: pd.DataFrame,
     label: str,
     model: pca,
+    target_class_list: List[str],
     output_directory: str | Path,
 ) -> None:
     """Use the 'pca' library to detect outliers & display them in scatterplot.
@@ -3129,6 +3160,14 @@ def draw_pca_outliers_biplot_3d(
         model (_type_): _description_
         output_directory (str | Path): _description_
     """
+    # Define the colour scheme for identifying the target classes ?
+    # BUG Below code NOT working ?!!
+    target_class_colour_list, _ = colourmap.fromlist(target_class_list)
+    # target_class_colour_list = colourmap.generate(
+    #     len(target_class_list),
+    #     method="seaborn"
+    # )
+
     plt.figure()
     model.biplot3d(
         y=dataframe[label],  # (categorical) label
@@ -3137,15 +3176,78 @@ def draw_pca_outliers_biplot_3d(
         legend=True,
         label=False,
         figsize=(20, 12),
-        # color_arrow="k",
+        color_arrow="k",
+        fontdict={
+            "weight": "bold",
+            "size": 12,
+            "ha": "center",
+            "va": "center",
+            "c": "color_arrow"
+        },
         title="Outliers marked using Hotellings T2 & SPE/DmodX methods",
         # cmap="bwr_r",
+        # cmap="Set2",
+        c=target_class_colour_list,
+        # cmap=target_class_colour_list,
         # gradient="#FFFFFF",
     )
     plt.grid(False)
     # plt.show()
     save_figure(
         figure_name=output_directory/"pca_outlier_biplot_3d.png"
+    )
+
+
+def draw_pca_outliers_biplot(
+    dataframe: pd.DataFrame,
+    label: str,
+    model: pca,
+    target_class_list: List[str],
+    output_directory: str | Path,
+) -> None:
+    """Use the 'pca' library to detect outliers & display them in scatterplot.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        label (str): _description_
+        model (_type_): _description_
+    """
+    # Define the colour scheme for identifying the target classes ?
+    # BUG Below code NOT working ?!!
+    target_class_colour_list, _ = colourmap.fromlist(target_class_list)
+    # target_class_colour_list = colourmap.generate(
+    #     len(target_class_list),
+    #     method="seaborn"
+    # )
+
+    plt.figure()
+    model.biplot(
+        y=dataframe[label],  # (categorical) label
+        SPE=True,
+        hotellingt2=True,
+        legend=True,
+        label=False,
+        # figsize=(20, 12),
+        color_arrow="k",
+        fontdict={
+            "weight": "bold",
+            "size": 12,
+            "ha": "center",
+            "va": "center",
+            "c": "color_arrow"
+        },
+        title="Outliers marked using Hotellings T2 & SPE/DmodX methods",
+        # cmap="bwr_r",
+        # cmap="Set2",
+        c=target_class_colour_list,
+        # cmap=target_class_colour_list,
+        # gradient="#FFFFFF",
+        visible=True,
+    )
+    plt.grid(False)
+    # plt.show()
+    save_figure(
+        figure_name=output_directory/"pca_outlier_biplot.png"
     )
 
 
@@ -3167,44 +3269,36 @@ def draw_pca_biplot_3d(
         target_class_list (List[str]): _description_
         output_directory (str | Path): _description_
     """
-        # Define the colour scheme for identifying the target classes
-
-    # Get a colour map
-    # cmap = plt.get_cmap('tab10')
-    # Create a list of colours based on the colour map and the number of
-    # colours, i.e. the number of target classes
-    # target_class_colour_list = [
-    #     cmap[colour] for colour in range(len(target_class_list))
-    # ]
-
-    # Generate list of random colors using Matplotlib
-    target_class_colour_list = [
-        "#%06X" % random.randint(0, 0xFFFFFF)
-        for colour in range(len(target_class_list))
-    ]
+    # Define the colour scheme for identifying the target classes ?
+    # target_class_colour_list, _ = colourmap.fromlist(target_class_list)
+    target_class_colour_list = colourmap.generate(
+        len(target_class_list),
+        method="seaborn"
+    )
 
     plt.figure(figsize=(15, 10))
-    pca_3d = yb_pca(
+    pca_biplot_3d = yb_pca(
         scale=True,
         projection=3,
         classes=target_class_list,
         proj_features=True,
+        colors=target_class_colour_list,
+        colormap="tab20",
+        # heatmap=True
     )
-    pca_3d.fit_transform(features_scaled, target_encoded)
-    pca_3d.finalize()
-    pca_3d.show()
+    pca_biplot_3d.fit_transform(features_scaled, target_encoded)
+    pca_biplot_3d.finalize()
+    # pca_biplot_3d.show()
 
     # -------------------------------------------------------------------------
 
     # Save 3D scatter plot data as '.html' file to preserve its interactivity
-    scatter_data = pca_model.ax.collections[0]
+    scatter_data = pca_biplot_3d.ax.collections[0]
     scatter_data_data = scatter_data._offsets3d
-    classes = pca_model.classes_
-    print(f"\n{classes = }\n")
 
-    # Define the color map for the classes
-    colours = ["blue", "orange", "green", "red"]
-    colour_map = {colour: colours[i] for i, colour in enumerate(classes)}
+    # # Define the color map for the classes ?
+    # colours = ["blue", "orange", "green", "red"]
+    # # colour_map = {colour: colours[i] for i, colour in enumerate(classes)}
 
     # Create the Plotly trace
     trace = go.Scatter3d(
@@ -3214,8 +3308,12 @@ def draw_pca_biplot_3d(
         mode="markers",
         marker=dict(
             size=5,
-            color=scatter_data.get_facecolors(),
-            # color=[colour_map[colour] for colour in pca_model.y]  # BUG
+            # color=scatter_data.get_facecolors(),
+            color=[
+                target_class_colour_list[target_class]
+                for target_class in target_class_list
+            ],
+            # color=[colour_map[colour] for colour in pca_biplot_3d.y]  # BUG
         )
     )
 
@@ -3235,7 +3333,7 @@ def draw_pca_biplot_3d(
 
     # Create the Plotly figure
     fig = go.Figure(data=[trace], layout=layout)
-
+    fig.show()
     # Save the Plotly figure as an HTML file
     fig.write_html(output_directory/"pca_scatterplot_3d.html")
 
@@ -3259,7 +3357,7 @@ def draw_pca_biplot(
         target_class_list (List[str]): _description_
         output_directory (str | Path): _description_
     """
-        # Define the colour scheme for identifying the target classes
+    # Define the colour scheme for identifying the target classes
 
     # Get a colour map
     # cmap = plt.get_cmap('tab10')
@@ -3269,11 +3367,8 @@ def draw_pca_biplot(
     #     cmap[colour] for colour in range(len(target_class_list))
     # ]
 
-    # Generate list of random colors using Matplotlib
-    target_class_colour_list = [
-        "#%06X" % random.randint(0, 0xFFFFFF)
-        for colour in range(len(target_class_list))
-    ]
+    # Define the colour scheme for identifying the target classes
+    target_class_colour_list, _ = colourmap.fromlist(target_class_list)
 
     plt.figure(figsize=(15, 10))
     pca_biplot = yb_pca(
@@ -3381,20 +3476,7 @@ def add_confidence_interval_ellipses(
         alpha (float, optional): _description_. Defaults to 0.2.
     """
     # Define the colour scheme for identifying the target classes
-
-    # Get a colour map
-    # cmap = plt.get_cmap('tab10')
-    # Create a list of colours based on the colour map and the number of
-    # colours, i.e. the number of target classes
-    # target_class_colour_list = [
-    #     cmap[colour] for colour in range(len(target_class_list))
-    # ]
-
-    # Generate list of random colors using Matplotlib
-    target_class_colour_list = [
-        "#%06X" % random.randint(0, 0xFFFFFF)
-        for colour in range(len(target_class_list))
-    ]
+    target_class_colour_list, _ = colourmap.fromlist(target_class_list)
 
     # Iterate over each class in the dataset
     for target_class, colour in zip(
@@ -3478,7 +3560,7 @@ def draw_feature_rank(
 
 
 def show_items_per_category(data: pd.Series) -> None:
-    """show_items_per_category _summary_
+    """show_items_per_category _summary_.
 
     Args:
         data (pd.Series): _description_
@@ -3933,6 +4015,7 @@ def calculate_multiple_cross_validation_scores(
     model,
     features: pd.DataFrame | np.ndarray,
     target: pd.Series | np.ndarray,
+    cv: int = 5
 ) -> None:
     """calculate_multiple_cross_validation_scores _summary_.
 
@@ -3958,7 +4041,7 @@ def calculate_multiple_cross_validation_scores(
         y=target,
         # groups=group_list,
         scoring=scorer_list,
-        cv=5,
+        cv=cv,
         n_jobs=-1,
         verbose=1,
         return_train_score=False,
@@ -4271,8 +4354,6 @@ def draw_confusion_matrix_heatmap(
         target_test (pd.Series): _description_
         target_pred (pd.Series): _description_
         target_label_list (List[str]): _description_
-        accuracy_score (float): _description_
-        f1_score (float): _description_
         figure_path_name (str): _description_
     """
     # Compute the confusion matrix
