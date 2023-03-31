@@ -22,6 +22,7 @@ from collections import defaultdict
 from datetime import datetime
 import time
 import itertools
+import joblib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -174,12 +175,12 @@ def timing(func):
     return wrapper
 
 
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
-# INPUT/OUTPUT
+# USER INTERFACE
 
 
-def apply_outlier_removal(
+def ask_user_outlier_removal(
         dataframe_with_outliers: pd.DataFrame,
         dataframe_no_outliers: pd.DataFrame
 ) -> pd.DataFrame:
@@ -210,6 +211,11 @@ def apply_outlier_removal(
         dataframe = dataframe_with_outliers.copy()
         print("\nOutliers were NOT removed.\n")
     return dataframe
+
+
+# ----------------------------------------------------------------------------
+
+# INPUT/OUTPUT
 
 
 def get_folder_name_list_from_directory(
@@ -247,7 +253,10 @@ def get_file_name_list_from_extension(
     return file_name_list
 
 
-def load_pickle_file(file_path_name: str | Path) -> pd.DataFrame:
+def load_pickle_file(
+    file_name: str,
+    output_directory: Path
+) -> pd.DataFrame:
     """Load the pickle file into a dataframe.
 
     Args:
@@ -256,7 +265,9 @@ def load_pickle_file(file_path_name: str | Path) -> pd.DataFrame:
     Returns:
         pd.DataFrame: _description_
     """
-    dataframe = pd.read_pickle(filepath_or_buffer=file_path_name)
+    dataframe = pd.read_pickle(
+        filepath_or_buffer=output_directory.joinpath(file_name + ".pkl")
+    )
     print("\nDataset details:\n")
     print(dataframe.info())
     return dataframe
@@ -328,10 +339,34 @@ def save_excel_file(
         dataframe (_type_): _description_
         file_name (_type_): _description_
     """
-    dataframe.to_excel(
-        excel_writer=f"./output/{excel_file_name}.xlsx"
+    dataframe.to_excel(excel_writer=f"./output/{excel_file_name}.xlsx")
+
+
+def save_pipeline_model(
+    pipeline_name: Pipeline,
+    file_name: str,
+    output_directory: Path,
+) -> Pipeline:
+    """save_pipeline_model _summary_.
+
+    Use 'joblib' library and/or 'pickle' / 'feather' format)
+
+    To load the pipeline, use the following command:
+    pipeline_name = joblib.load(filename="pipeline_file_name.joblib")
+
+    Args:
+        pipeline_name (Pipeline): _description_
+        file_name (str): _description_
+        output_directory (Path): _description_
+
+    Returns:
+        Pipeline: _description_
+    """
+    pipeline_model_file = joblib.dump(
+        value=pipeline_name,
+        filename=output_directory.joinpath(file_name + ".joblib"),
     )
-    # return
+    return pipeline_model_file
 
 
 def save_figure(figure_name: str, dpi: int = 300) -> None:
@@ -464,6 +499,45 @@ def convert_text_file_to_docx(
     # Save the document as a Word file
     word_doc.save(output_directory.joinpath(file_name + ".docx"))
     print("The console output was converted to a MS Word document file.")
+
+
+def convert_text_file_to_pdf(
+    file_name: str,
+    output_directory: Path
+) -> None:
+    """convert_text_file_to_pdf _summary_.
+
+    Args:
+        file_name (str): _description_
+        output_directory (Path): _description_
+    """
+    # Open the text file and read its contents
+    with open(
+            file=output_directory.joinpath(file_name + ".txt"),
+            mode="r",
+            encoding="utf-8"
+    ) as output_file:
+        output_text = output_file.read()
+
+    # Create a new PDF file
+    pdf_file = canvas.Canvas(
+        filename=f"{file_name}.pdf"
+    )
+    pdf_file = canvas.Canvas(
+        filename=f"{output_directory}/{file_name}.pdf"
+        # filename=output_directory.joinpath(file_name + ".pdf")  # BUG
+    )
+
+    # Set the font and font size
+    pdf_file.setFont("Helvetica", 12)
+
+    # Add the text to the PDF file
+    pdf_file.drawString(100, 750, output_text)
+
+    # Save the PDF file
+    pdf_file.save()
+    # pdf_file.save(output_directory.joinpath(file_name + ".pdf"))
+    print("The console output was converted to a PDF document file.")
 
 
 @timing
@@ -794,34 +868,40 @@ def convert_variables_to_proper_type(
 
     Args:
         dataframe (pd.DataFrame): _description_
-        datetime_variable_list (List[str], optional): _description_.
+        datetime_variable_list (Optional[List[str  |  datetime]], optional):
+        _description_. Defaults to None.
+        category_variable_list (Optional[List[str]], optional): _description_.
         Defaults to None.
-        category_variable_list (List[str], optional): _description_.
+        numeric_variable_list (Optional[List[str]], optional): _description_.
         Defaults to None.
-        numeric_variable_list (List[str], optional): _description_.
+        integer_variable_list (Optional[List[str]], optional): _description_.
         Defaults to None.
-        integer_variable_list (List[str], optional): _description_.
+        float_variable_list (Optional[List[str]], optional): _description_.
         Defaults to None.
-        float_variable_list (List[str], optional): _description_.
-        Defaults to None.
-        string_variable_list (List[str], optional): _description_.
+        string_variable_list (Optional[List[str]], optional): _description_.
         Defaults to None.
 
     Returns:
         pd.DataFrame: _description_
     """
     processed_dataframe_pipe = dataframe.pipe(
-        convert_to_datetime_type, datetime_variable_list=datetime_variable_list
+        func=convert_to_datetime_type,
+        datetime_variable_list=datetime_variable_list
     ).pipe(
-        convert_to_category_type, category_variable_list=category_variable_list
+        func=convert_to_category_type,
+        category_variable_list=category_variable_list
     ).pipe(
-        convert_to_number_type, numeric_variable_list=numeric_variable_list
+        func=convert_to_number_type,
+        numeric_variable_list=numeric_variable_list
     ).pipe(
-        convert_to_integer_type, integer_variable_list=integer_variable_list
+        func=convert_to_integer_type,
+        integer_variable_list=integer_variable_list
     ).pipe(
-        convert_to_float_type, float_variable_list=float_variable_list
+        func=convert_to_float_type,
+        float_variable_list=float_variable_list
     ).pipe(
-        convert_to_string_type, string_variable_list=string_variable_list
+        func=convert_to_string_type,
+        string_variable_list=string_variable_list
     )
     print("\nSummary of Data Types:")
     print(f"\n{processed_dataframe_pipe.info()}\n")
@@ -4202,8 +4282,6 @@ def train_tree_classifier(
 
 def show_tree_classifier_feature_importances(
     tree_classifier,
-    # feature_names: List[str],
-    # OR
     feature_name_list: List[str],
     features_train: pd.DataFrame | np.ndarray,
     target_train: pd.Series | np.ndarray,
@@ -4267,12 +4345,10 @@ def draw_decision_tree(
     tree_classifier,
     feature_name_list: List[str],
     target_label_list: List[str],
-    figure_path_name: str | Path,
+    figure_name: str,
+    output_directory: Path,
 ) -> None:
     """_summary_.
-
-    The parameter 'tree_classifier' MUST be acquired by running the function
-    'train_tree_classifier()'.
 
     Args:
         tree_classifier (_type_): _description_
@@ -4334,19 +4410,54 @@ def draw_decision_tree(
         filled=True,
     )
     plt.title(
-        label=("Decision Tree for the Identification of Target Categories"),
+        label="Decision Tree for the Identification of Target Categories",
         fontsize=20
     )
     plt.tight_layout()
     plt.show()
-    save_figure(figure_name=figure_path_name)
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+
+
+def draw_random_forest_tree(
+    random_forest_classifier,
+    feature_name_list: List[str],
+    target_label_list: List[str],
+    figure_name: str,
+    output_directory: Path,
+    ranked_tree: int = None,
+) -> None:
+    """_summary_.
+
+    Args:
+        random_forest_classifier (_type_): _description_
+        feature_name_list (List[str]): _description_
+        target_label_list (List[str]): _description_
+        figure_path_name (str | Path): _description_
+    """
+    # plt.figure()
+    tree.plot(
+        model=random_forest_classifier,
+        featnames=feature_name_list,
+        num_trees=ranked_tree,
+        plottype="vertical",
+    )
+    plt.title(
+        label=(
+            "Random Forest Tree for the Identification of Target Categories"
+        ),
+        fontsize=16
+    )
+    plt.tight_layout()
+    plt.show()
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
 
 
 def draw_confusion_matrix_heatmap(
     target_test: pd.Series,
     target_pred: pd.Series,
     target_label_list: List[str],
-    figure_path_name: str,
+    figure_name: str,
+    output_directory: Path,
 ) -> None:
     """_summary_.
 
@@ -4387,7 +4498,117 @@ def draw_confusion_matrix_heatmap(
     # plt.axis("off")
     plt.tight_layout()
     plt.show()
-    save_figure(figure_name=figure_path_name)
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+
+
+def get_feature_importance_scores(
+    model,
+    feature_name_list: List[str],
+    figure_name: str,
+    output_directory: Path,
+) -> pd.Series:
+    """get_feature_importance_scores _summary_.
+
+    Args:
+        model (_type_): _description_
+        feature_name_list (List[str]): _description_
+        figure_path_name (str | Path): _description_
+
+    Returns:
+        pd.Series: _description_
+    """
+    # Get feature importance scores the same way they are ordered in the
+    # source dataset
+    feature_importances = model.feature_importances_
+    # Sort the INDEX of the feature importance scores in descending order
+    feature_indices = np.argsort(feature_importances)[::-1]
+    # Reorder the feature names according to the previous step
+    feature_names = [
+        feature_name_list[index] for index in feature_indices
+    ]
+    # Calculate the standard deviation of all estimators
+    estimator_std = np.std(
+        [tree.feature_importances_ for tree in model.estimators_],
+        axis=0
+    )
+    # Create a Pandas Series to plot the data
+    model_feature_importances = pd.Series(
+        data=feature_importances[feature_indices],
+        index=feature_names
+    )
+
+    # Create a bar plot
+    fig, ax = plt.subplots()
+    model_feature_importances.plot.barh(
+        # xerr=estimator_std,
+        align="center",
+        ax=ax
+    )
+    plt.ylabel("Parameters")
+    plt.xlabel("Mean decrease in Impurity")
+    plt.title(label=("Feature Importance in Predictions"), fontsize=16)
+    plt.grid(visible=False)
+    fig.tight_layout()
+    # plt.show()
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+    return model_feature_importances
+
+
+def get_feature_importance_scores_permutation(
+    model,
+    features_test: pd.DataFrame,
+    target_test: pd.Series,
+    feature_name_list: List[str],
+    figure_name: str,
+    output_directory: Path,
+    n_repeats=10,
+) -> pd.Series:
+    """Feature importance based on feature permutation.
+
+    This removes bias toward high-cardinality features.
+
+    Args:
+        model (_type_): _description_
+        features_test (pd.DataFrame): _description_
+        target_test (pd.Series): _description_
+        feature_name_list (List[str]): _description_
+        figure_path_name (str | Path): _description_
+        n_repeats (int, optional): _description_. Defaults to 10.
+
+    Returns:
+        pd.Series: _description_
+    """
+    permutation_result = permutation_importance(
+        estimator=model,
+        X=features_test,
+        y=target_test,
+        n_repeats=n_repeats,
+        random_state=42,
+        scoring="neg_mean_squared_error",
+        n_jobs=-1,
+    )
+    # Try below
+    print(f"\n{permutation_result.importances = }\n")
+
+    # Create a Pandas Series to plot the data
+    model_feature_importances_permutation = pd.Series(
+        data=permutation_result.importances_mean,
+        index=feature_name_list
+    )
+    fig, ax = plt.subplots()
+    model_feature_importances_permutation.plot.barh(
+        xerr=permutation_result.importances_std,
+        align="center",
+        ax=ax
+    )
+    plt.ylabel("Parameters")
+    plt.xlabel("Mean accuracy decrease")
+    plt.title(label=("Feature importance in predictions"), fontsize=16)
+    plt.grid(visible=False)
+    fig.tight_layout()
+    # plt.show()
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+    return model_feature_importances_permutation
 
 
 def perform_roc_auc_analysis(
