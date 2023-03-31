@@ -40,6 +40,7 @@ import pandas as pd
 from pca import pca
 import pingouin as pg
 import plotly.graph_objs as go
+from reportlab.pdfgen import canvas
 import researchpy as rp
 import scipy as sp
 from scipy.io import savemat
@@ -65,7 +66,7 @@ from scipy.io import loadmat
 from scipy.stats import chi2, zscore
 from scipy import stats
 # Assemble pipeline(s)
-# from sklearn import set_config
+from sklearn import set_config
 from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector as selector
 from sklearn.decomposition import PCA
@@ -75,7 +76,7 @@ from sklearn.feature_selection import (
     VarianceThreshold
 )
 from sklearn.impute import SimpleImputer
-# from sklearn.inspection import permutation_importance
+from sklearn.inspection import permutation_importance
 # from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     # accuracy_score,
@@ -114,13 +115,12 @@ from sklearn.tree import (
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
 from statsmodels.stats.multicomp import MultiComparison
+import treeplot as tree
+
 # Models
 # from xgboost import XGBClassifier
 
-# Uncomment next import when '.set_output(transform="pandas")' is fixed
-# from sklearn import set_config
-
-# set_config(transform_output="pandas")
+set_config(transform_output="pandas")
 
 # Default directories
 INPUT_DIRECTORY = Path("./sources")
@@ -417,7 +417,7 @@ def save_image_show(
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    plt.show()
+    # plt.show()
     save_figure(figure_name=save_image_name)
     return image
 
@@ -1154,7 +1154,7 @@ def prepare_scaled_features_encoded_target(
         Tuple[pd.DataFrame, np.ndarray, List[str]]: _description_
     """
     features = dataframe.select_dtypes(include="number")
-    features_scaled = standardise_features(features)
+    features_scaled = standardise_features(features=features)
     target = dataframe[target_name]
     target_encoded, target_class_list = target_label_encoder(
         target_selection=target
@@ -1923,7 +1923,7 @@ def get_pca_eigen_values_vectors(
     Returns:
         Tuple[np.ndarray]: _description_
     """
-    pca_model = PCA(n_components, random_state=42)
+    pca_model = PCA(n_components=n_components, random_state=42)
     pca_model.fit(features_scaled)
 
     pca_eigen_values = pca_model.explained_variance_
@@ -1935,19 +1935,24 @@ def get_pca_eigen_values_vectors(
 
 
 def apply_pca(
-    n_components: int,
+    n_components: int | float,
     features_scaled: pd.DataFrame | np.ndarray
 ) -> Tuple[PCA, np.ndarray]:
     """Run a Principal Component Analysis (PCA) on scaled data.
 
     Args:
-        n_components (int): _description_
+        n_components (int | float): If 0 < n_components < 1, the float value
+        corresponds to the amount of variance that needs to be explained.
+        So if n_components = 0.95, we want to explain 95% of the variance.
+        Conversely, if 'n_components' is an integer value, this represents the
+        number of PC to include in the model.
+
         features_scaled (pd.DataFrame | np.ndarray): _description_
 
     Returns:
         Tuple[PCA, np.ndarray]: _description_
     """
-    pca_model = PCA(n_components, random_state=42)
+    pca_model = PCA(n_components=n_components, random_state=42)
     pca_array = pca_model.fit_transform(features_scaled)
 
     eigen_values = pca_model.explained_variance_
@@ -2152,6 +2157,119 @@ def run_pc_analysis(
         best_pc_axis_names,
         variance_explained_df,
     )
+
+
+def get_outliers_from_pca(
+    dataframe: pd.DataFrame,
+    label: str,
+    target_class_list: List[str],
+    min_percent_variance_coverage: float = 0.95,
+    hotellings_t2_alpha: float = 0.05,
+    number_std_deviation: int = 2,
+) -> pd.DataFrame:
+    """Use the 'pca' library to detect outliers.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        min_percent_variance_coverage (float, optional): _description_.
+        Defaults to 0.95.
+        hotellings_t2_alpha (float, optional): _description_. Defaults to 0.05.
+        number_std_deviation (int, optional): _description_. Defaults to 2.
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    pca_outlier_model = pca(
+        n_components=min_percent_variance_coverage,
+        method="pca",
+        normalize=True,
+        alpha=hotellings_t2_alpha,
+        multipletests="fdr_bh",
+        detect_outliers=["ht2", "spe"],
+        n_std=number_std_deviation,  # or 3 standard deviations
+        random_state=42,
+    )
+    # Fit and transform
+    # NOTE MUST be NUMERIC variables
+    # NOTE Alternatively, apply one-shot encoding to use CATEGORICAL variables
+    pca_results = pca_outlier_model.fit_transform(
+        dataframe.select_dtypes(include="number")
+    )
+    print(f"\nPCA Data Dictionary Content:\n{pca_results.keys()}\n")
+
+    # Get top features with the most effect on sample variance
+    pca_dataframe = pca_results["PC"]
+    print(f"PCA Output:\n{pca_dataframe}\n")
+
+    # Get variance ratio of each PC
+    variance_ratio = pca_results["variance_ratio"]
+    variance_ratio = np.around(variance_ratio * 100, decimals=1)
+    print(f"Percent Variance Ratio of Each PC:\n{variance_ratio}\n")
+
+    # Get (cumulated) explained variance of each PC
+    cumulated_variance = pca_results["explained_var"]
+    cumulated_variance = np.around(cumulated_variance * 100, decimals=1)
+    print(f"Cumulated Variance Ratio of Each PC:\n{cumulated_variance}\n")
+
+    # Get loadings from each feature
+    pca_loadings = pca_results["loadings"]
+    print(f"PC Loadings for Each Feature:\n{pca_loadings.round(2)}\n")
+
+    # Get total explained variance
+    pcp = pca_results["pcp"]
+    print(f"Total Explained Variance for Selected PCs:\n{pcp:.1%}\n")
+
+    # Get top features with the most effect on sample variance
+    top_features = pca_results["topfeat"]
+    # BUG Below NOT working ?!!
+    # top_features = top_features.applymap(
+    #     lambda float_: f"{float_:.2f}"
+    # )
+    print(f"Top Features for each PC:\n{top_features}\n")
+
+    # Get outliers stats values
+    outliers_params = pca_results["outliers_params"]
+    print(f"Outlier Parameters:\n{outliers_params}\n")
+
+    print("\nPCA Outlier Detection\n")
+    # Get the outliers using Hotellings T2 method.
+    outliers_ht2 = pca_results["outliers"]["y_bool"]
+    outliers_ht2_filtered = filter_dataframe(
+        dataframe=pca_results["outliers"],
+        filter_content="y_bool == True",
+    )
+    print(
+        f"\nList of Outliers using Hotellings T2:\n{outliers_ht2_filtered}\n"
+    )
+
+    # outlier_ht2_category_count = outliers_ht2.value_counts()
+    # print(
+    #     f"\nValue Count of 'Hotellings T2' Outliers ('True' Category):\n"
+    #     f"{outlier_ht2_category_count}\n"
+    # )
+
+    # Get the outliers using SPE/DmodX method.
+    outliers_spe = pca_results["outliers"]["y_bool_spe"]
+    outliers_spe_filtered = filter_dataframe(
+        dataframe=pca_results["outliers"],
+        filter_content="y_bool_spe == True",
+    )
+    print(f"\nList of Outliers using SPE/DmodX:\n{outliers_spe_filtered}\n")
+
+    # outlier_spe_category_count = outliers_spe.value_counts()
+    # print(
+    #     f"\nValue Count of 'SPE/DmodX' Outliers ('True' Category):\n"
+    #     f"{outlier_spe_category_count}\n"
+    # )
+
+    # Grab overlapping outliers
+    overlapping_outliers = np.logical_and(
+        outliers_ht2,
+        outliers_spe
+    )
+    pca_outlier_dataframe = dataframe.loc[overlapping_outliers, :]
+    print(f"\nOverlapping Outliers:\n{pca_outlier_dataframe}\n")
+    return pca_outlier_dataframe, pca_outlier_model
 
 
 def run_anova_check_assumption(
@@ -2544,6 +2662,7 @@ def create_missing_data_matrix(
         fontsize=16,
         loc="center"
     )
+    plt.tight_layout()
     # plt.show()
     save_figure(
         figure_name=output_directory/"missing_data_matrix.png"
@@ -2717,6 +2836,7 @@ def draw_all_pca_pairs_scatterplot(
             fontsize=16,
             loc="center"
         )
+        plt.tight_layout()
         # plt.show()
         save_figure(
             figure_name=output_directory /
@@ -3228,17 +3348,24 @@ def draw_tukeys_hsd_plot(
 def draw_pca_outliers_biplot_3d(
     dataframe: pd.DataFrame,
     label: str,
-    model: pca,
+    pca_outlier_model: pca,
     target_class_list: List[str],
-    output_directory: str | Path,
+    file_name: str,
+    output_directory: Path,
+    outlier_detection: bool = True,
 ) -> None:
     """Use the 'pca' library to detect outliers & display them in scatterplot.
+
+    See 'get_outliers_from_pca()' function.
 
     Args:
         dataframe (pd.DataFrame): _description_
         label (str): _description_
-        model (_type_): _description_
-        output_directory (str | Path): _description_
+        pca_outlier_model (pca): _description_
+        target_class_list (List[str]): _description_
+        file_name (str): _description_
+        output_directory (Path): _description_
+        outlier_detection (bool, optional): _description_. Defaults to True.
     """
     # Define the colour scheme for identifying the target classes ?
     # BUG Below code NOT working ?!!
@@ -3249,10 +3376,10 @@ def draw_pca_outliers_biplot_3d(
     # )
 
     plt.figure()
-    model.biplot3d(
+    pca_outlier_model.biplot3d(
         y=dataframe[label],  # (categorical) label
-        SPE=True,
-        hotellingt2=True,
+        SPE=outlier_detection,
+        hotellingt2=outlier_detection,
         legend=True,
         label=False,
         figsize=(20, 12),
@@ -3270,27 +3397,35 @@ def draw_pca_outliers_biplot_3d(
         c=target_class_colour_list,
         # cmap=target_class_colour_list,
         # gradient="#FFFFFF",
+        visible=True,
     )
     plt.grid(False)
+    plt.tight_layout()
     # plt.show()
-    save_figure(
-        figure_name=output_directory/"pca_outlier_biplot_3d.png"
-    )
+    save_figure(figure_name=output_directory.joinpath(file_name + ".png"))
 
 
 def draw_pca_outliers_biplot(
     dataframe: pd.DataFrame,
     label: str,
-    model: pca,
+    pca_outlier_model: pca,
     target_class_list: List[str],
-    output_directory: str | Path,
+    file_name: str,
+    output_directory: Path,
+    outlier_detection: bool = True,
 ) -> None:
     """Use the 'pca' library to detect outliers & display them in scatterplot.
+
+    See 'get_outliers_from_pca()' function.
 
     Args:
         dataframe (pd.DataFrame): _description_
         label (str): _description_
-        model (_type_): _description_
+        pca_outlier_model (pca): _description_
+        target_class_list (List[str]): _description_
+        file_name (str): _description_
+        output_directory (Path): _description_
+        outlier_detection (bool, optional): _description_. Defaults to True.
     """
     # Define the colour scheme for identifying the target classes ?
     # BUG Below code NOT working ?!!
@@ -3301,10 +3436,10 @@ def draw_pca_outliers_biplot(
     # )
 
     plt.figure()
-    model.biplot(
+    pca_outlier_model.biplot(
         y=dataframe[label],  # (categorical) label
-        SPE=True,
-        hotellingt2=True,
+        SPE=outlier_detection,
+        hotellingt2=outlier_detection,
         legend=True,
         label=False,
         # figsize=(20, 12),
@@ -3325,17 +3460,17 @@ def draw_pca_outliers_biplot(
         visible=True,
     )
     plt.grid(False)
+    plt.tight_layout()
     # plt.show()
-    save_figure(
-        figure_name=output_directory/"pca_outlier_biplot.png"
-    )
+    save_figure(figure_name=output_directory.joinpath(file_name + ".png"))
 
 
 def draw_pca_biplot_3d(
     features_scaled: pd.DataFrame,
     target_encoded: pd.Series,
     target_class_list: List[str],
-    output_directory: str | Path,
+    file_name: str,
+    output_directory: Path,
 ) -> None:
     """PCA plot in 3 dimensions using 'yellowbrick' library.
 
@@ -3415,7 +3550,7 @@ def draw_pca_biplot_3d(
     fig = go.Figure(data=[trace], layout=layout)
     fig.show()
     # Save the Plotly figure as an HTML file
-    fig.write_html(output_directory/"pca_scatterplot_3d.html")
+    fig.write_html(output_directory.joinpath(file_name + ".html"))
 
 
 def draw_pca_biplot(
@@ -3423,7 +3558,8 @@ def draw_pca_biplot(
     features_scaled: pd.DataFrame,
     target_encoded: pd.Series,
     target_class_list: List[str],
-    output_directory: str | Path,
+    file_name: str,
+    output_directory: Path,
 ) -> None:
     """draw_pca_biplot _summary_.
 
@@ -3529,9 +3665,7 @@ def draw_pca_biplot(
             alpha=alpha
         ))
     # pca_biplot.show()
-    save_figure(
-        figure_name=output_directory/"pca_biplot_conf_intervals.png"
-    )
+    save_figure(figure_name=output_directory.joinpath(file_name + ".png"))
 
 
 def add_confidence_interval_ellipses(
@@ -3592,6 +3726,7 @@ def add_confidence_interval_ellipses(
             facecolor=colour,
             alpha=alpha
         ))
+    plt.tight_layout()
     plt.show()
 
 
@@ -4414,7 +4549,7 @@ def draw_decision_tree(
         fontsize=20
     )
     plt.tight_layout()
-    plt.show()
+    # plt.show()
     save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
 
 
@@ -4448,7 +4583,7 @@ def draw_random_forest_tree(
         fontsize=16
     )
     plt.tight_layout()
-    plt.show()
+    # plt.show()
     save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
 
 
@@ -4497,7 +4632,7 @@ def draw_confusion_matrix_heatmap(
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    plt.show()
+    # plt.show()
     save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
 
 
