@@ -1157,7 +1157,8 @@ def prepare_scaled_features_encoded_target(
     features_scaled = standardise_features(features=features)
     target = dataframe[target_name]
     target_encoded, target_class_list = target_label_encoder(
-        target_selection=target
+        dataframe=dataframe,
+        target_name=target
     )
     return (
         features,
@@ -3795,22 +3796,25 @@ def show_items_per_category(data: pd.Series) -> None:
 
 
 def target_label_encoder(
-    target_selection: List[str | int] | pd.Series
+    dataframe: pd.DataFrame,
+    target_name: str
 ) -> Tuple[np.ndarray, List[str]]:
     """Encode the target labels (usually strings) into integers.
 
     Args:
-        target (List[str  |  int] | pd.Series): _description_
+        dataframe (pd.DataFrame): _description_
+        target_name (str): _description_
 
     Returns:
-        np.ndarray: _description_
+        Tuple[np.ndarray, List[str]]: _description_
     """
+    target_dataframe = dataframe[target_name]
     label_encoder = LabelEncoder()
-    target_encoded = label_encoder.fit_transform(target_selection)
+    target_encoded = label_encoder.fit_transform(target_dataframe)
     # Convert the encoded labels from a np.ndarray to a list
-    target_encoded_list = label_encoder.classes_.tolist()
-    print(f"\nList of the target encoded classes:\n{target_encoded_list}\n")
-    return target_encoded, target_encoded_list
+    target_class_list = label_encoder.classes_.tolist()
+    print(f"\nList of the target encoded classes:\n{target_class_list}\n")
+    return target_encoded, target_class_list
 
 
 def train_test_split_pipeline(
