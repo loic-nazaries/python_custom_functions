@@ -1905,31 +1905,22 @@ def identify_highly_correlated_features(
 # STATISTICAL ANALYSIS
 
 
-def get_pca_eigen_values_vectors(
-    n_components: int,
-    features_scaled: np.ndarray
-) -> Tuple[np.ndarray]:
+# Calculate eigenvalues and eigenvectors from PCA
+def get_pca_eigen_values_vectors(pca_model: PCA) -> Tuple[np.ndarray]:
     """Get eigenvalues and eigenvectors from a Principal Component Analysis.
 
-    This MUST be done on scaled data to account for differences in scale
-    between variables/features.
-    It is more appropriate to use the '.fit()' method instead of the
-    'fit_transform()' method to keep the original properties of the data.
-
     Args:
-        n_components (int): _description_
-        features_scaled (np.ndarray): _description_
+        pca_model (PCA): [description]
 
     Returns:
-        Tuple[np.ndarray]: _description_
+        Tuple[np.ndarray]: [description]
     """
-    pca_model = PCA(n_components=n_components, random_state=42)
-    pca_model.fit(features_scaled)
-
     pca_eigen_values = pca_model.explained_variance_
+    pca_eigen_values = np.round(pca_eigen_values, decimals=2)
     print(f"\nPCA Eigenvalues:\n{pca_eigen_values}")
 
     pca_eigen_vectors = pca_model.components_
+    pca_eigen_vectors = np.round(pca_eigen_vectors, decimals=2)
     print(f"\nPCA Eigenvectors:\n{pca_eigen_vectors}\n")
     return pca_eigen_values
 
@@ -2028,53 +2019,40 @@ def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
     return best_pc_axis_names, best_pc_axis_values
 
 
+# Then, perform PCA to observe clusters based on defect types
 def run_pc_analysis(
     features: pd.DataFrame,
-    eda_report_name: str,
-    output_directory: str | Path
 ) -> Tuple[pd.DataFrame | np.ndarray, List[str]]:
     """run_pc_analysis _summary_.
 
     Args:
         features (pd.DataFrame): _description_
-        output_directory (str | Path): _description_
 
     Returns:
         Tuple[pd.DataFrame | np.ndarray], List[str]: _description_
     """
-    # Select only the numeric input variables, i.e. not mahalanobis variables
-    numeric_feature_list = (
-        features.select_dtypes(include="number").columns.to_list()
-    )
-    print(f"\nSelected (Numeric) Features for PCA:\n{numeric_feature_list}\n")
-
     # Scale features data
-    features_scaled = standardise_features(features=features)
-
-    # Get eigenvalues and eigenvectors
-    pca_eigen_values = get_pca_eigen_values_vectors(
-        n_components=len(features_scaled.columns),
-        features_scaled=features_scaled
-    )
+    pca_features_scaled = standardise_features(features=features)
 
     # Run the PC analysis
-    pca_model, pca_array = apply_pca(
-        n_components=len(features_scaled.columns),
-        features_scaled=features_scaled
-    )
+    pca_model = PCA(n_components=0.95, random_state=42)
+    pca_array = pca_model.fit_transform(pca_features_scaled)
+
+    # Get eigenvalues and eigenvectors
+    pca_eigen_values = get_pca_eigen_values_vectors(pca_model=pca_model)
 
     # Convert PCA array to a dataframe
-    pca_df = pd.DataFrame(data=pca_array)
-    pca_df.reset_index()
+    pca_dataframe = pd.DataFrame(data=pca_array)
+    pca_dataframe.reset_index()
 
     # Get PC axis labels and insert into the dataframe
     pca_components = [
-        "pc" + str(col+1) for col in pca_df.columns.to_list()
+        "pc" + str(col+1) for col in pca_dataframe.columns.to_list()
     ]
-    pca_df.columns = pca_components
+    pca_dataframe.columns = pca_components
 
     # Calculate variance explained by PCA
-    variance_explained_df = (
+    pca_variance_explained = (
         explain_pca_variance(
             pca_eigen_values=pca_eigen_values,
             pca_model=pca_model,
@@ -2082,7 +2060,16 @@ def run_pc_analysis(
         )
     )
     # Set index as dataframe
-    pca_df = pca_df.set_index(keys=features.index)
+    pca_dataframe = pca_dataframe.set_index(keys=features.index)
+    # print(f"\nFinal PCA Dataframe:\n{pca_dataframe}\n")
+
+    return (
+        pca_model,
+        pca_array,
+        pca_dataframe,
+        pca_variance_explained,
+        pca_features_scaled
+    )
 
     # Keep the PC axes that correspond to AT LEAST 95% of the cumulated
     # explained variance
