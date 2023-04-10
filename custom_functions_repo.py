@@ -3777,6 +3777,21 @@ def show_items_per_category(data: pd.Series) -> None:
     ax.set(xlabel="Number of items", ylabel=data.name)
 
 
+def generate_class_colour_list(class_list: List[str]) -> List[str]:
+    """AI is creating summary for generate_class_colour_list.
+
+    Args:
+        class_list (List[str]): [description]
+
+    Returns:
+        List[str]: [description]
+    """
+    colour_list = colourmap.generate(
+        len(class_list),
+        method="seaborn"
+    )
+    return colour_list
+
 # -----------------------------------------------------------------------------
 
 # DATA MODELLING (MACHINE LEARNING)
