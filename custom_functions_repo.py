@@ -198,13 +198,13 @@ def ask_user_outlier_removal(
     while True:
         choice = input("Apply Outlier Removal? (y/n): ").lower()
         try:
-            assert choice == 'y' or choice == 'n', "Enter 'y' or 'n'"
+            assert choice in ("y", "n"), "Enter 'y' or 'n'"
             break
         except AssertionError as error:
             print(error)
         except ValueError:
             print("Please enter a valid letter choice.")
-    if choice == 'y':
+    if choice == "y":
         dataframe = dataframe_no_outliers.copy()
         print("\nOutliers were removed.\n")
     else:
@@ -266,7 +266,7 @@ def load_pickle_file(
         pd.DataFrame: _description_
     """
     dataframe = pd.read_pickle(
-        filepath_or_buffer=output_directory.joinpath(file_name + ".pkl")
+        filepath_or_buffer=output_directory.joinpath(f"{file_name}.pkl")
     )
     print("\nDataset details:\n")
     print(dataframe.info())
@@ -307,6 +307,31 @@ def load_excel_file(
         index_col=None,
         decimal=".",
     )
+    return dataframe
+
+
+def load_csv_file(
+    input_directory: Path,
+    input_file_name: str,
+    index_key: str = None,
+) -> pd.DataFrame:
+    """Load a CSV file.
+
+    Args:
+        input_directory (Path): Path to the input directory.
+        input_file_name (str): Name of the input file.
+        index_key (str): Name of the column to be used as dataframe index.
+
+    Returns:
+        pd.DataFrame: DataFrame containing the data from the input CSV file.
+    """
+    dataframe = pd.read_csv(
+        filepath_or_buffer=(
+            input_directory.joinpath(f"{input_file_name}.csv")
+        ),
+        encoding="utf-8"
+    )
+    dataframe.set_index(keys=index_key, inplace=True)
     return dataframe
 
 
@@ -364,7 +389,7 @@ def save_pipeline_model(
     """
     pipeline_model_file = joblib.dump(
         value=pipeline_name,
-        filename=output_directory.joinpath(file_name + ".joblib"),
+        filename=output_directory.joinpath(f"{file_name}.joblib"),
     )
     return pipeline_model_file
 
@@ -376,10 +401,10 @@ def save_figure(figure_name: str, dpi: int = 300) -> None:
         figure_name (_type_): _description_
     """
     for extension in (
-        [
+        (
             "png",
             # "svg"
-        ]
+        )
     ):
         plt.savefig(
             fname=f"./figures/{figure_name}.{extension}",
@@ -425,7 +450,7 @@ def save_image_show(
 def save_npz_file(
     file_name: str | Path,
     data_array: np.ndarray,
-):
+) -> None:
     """save_npz _summary_.
 
     Args:
@@ -434,10 +459,9 @@ def save_npz_file(
         save_image_name (str): _description_
     """
     np.savez(file=file_name, data=data_array)
-    return
 
 
-def save_pickle_file(dataframe: pd.DataFrame, file_path_name: str):
+def save_pickle_file(dataframe: pd.DataFrame, file_path_name: str) -> None:
     """Save the dataframe as a pickle object.
 
     Args:
@@ -445,7 +469,6 @@ def save_pickle_file(dataframe: pd.DataFrame, file_path_name: str):
         file_path_name (str): _description_
     """
     dataframe.to_pickle(path=file_path_name, protocol=-1)
-    return
 
 
 def save_console_output(file_name: str) -> None:
@@ -486,18 +509,19 @@ def convert_text_file_to_docx(
     """
     # Open the text file and read its contents
     with open(
-            file=output_directory.joinpath(file_name + ".txt"),
-            mode="r",
-            encoding="utf-8"
+        file=output_directory.joinpath(f"{file_name}.txt"),
+        mode="r",
+        encoding="utf-8"
     ) as output_file:
-        output_text = output_file.read()
+        # output_text = output_file.read()  # works fine
+        output_text = Path(output_file).read_text(...)  # to be tested
 
     # Create a new Word document
     word_doc = docx.Document()
     # Add the text to the document
     word_doc.add_paragraph(output_text)
     # Save the document as a Word file
-    word_doc.save(output_directory.joinpath(file_name + ".docx"))
+    word_doc.save(output_directory.joinpath(f"{file_name}.docx"))
     print("The console output was converted to a MS Word document file.")
 
 
@@ -513,11 +537,12 @@ def convert_text_file_to_pdf(
     """
     # Open the text file and read its contents
     with open(
-            file=output_directory.joinpath(file_name + ".txt"),
-            mode="r",
-            encoding="utf-8"
+        file=output_directory.joinpath(f"{file_name}.txt"),
+        mode="r",
+        encoding="utf-8"
     ) as output_file:
-        output_text = output_file.read()
+        # output_text = output_file.read()  # works fine
+        output_text = Path(output_file).read_text(...)  # to be tested
 
     # Create a new PDF file
     pdf_file = canvas.Canvas(
@@ -547,7 +572,6 @@ def convert_npz_to_mat(input_directory: str | Path) -> None:
     Args:
         input_directory (str): [description]
     """
-    input_directory = input_directory
     output_directory = input_directory
 
     none_array = array(None)
@@ -1319,12 +1343,10 @@ def produce_sweetviz_eda_report(
         pairwise_analysis="auto"
     )
     sweetviz_eda_report.show_html(
-        # filepath=output_directory/"sweetviz_eda_report.html",
-        filepath=output_directory.joinpath(eda_report_name + ".html"),
+        filepath=output_directory.joinpath(f"{eda_report_name}.html"),
         open_browser=True,
-        layout="widescreen"
+        layout="widescreen",
     )
-    return
 
 
 def compare_sweetviz_eda_report(
@@ -1345,9 +1367,9 @@ def compare_sweetviz_eda_report(
         [train_set, "Training Data"], [test_set, "Test Data"]
     )
     sweetviz_eda_report.show_html(
-        filepath=output_directory.joinpath(eda_report_name + ".html"),
+        filepath=output_directory.joinpath(f"{eda_report_name}.html"),
         open_browser=True,
-        layout="widescreen"
+        layout="widescreen",
     )
 
 
@@ -2048,7 +2070,7 @@ def run_pc_analysis(
 
     # Get PC axis labels and insert into the dataframe
     pca_components = [
-        "pc" + str(col+1) for col in pca_dataframe.columns.to_list()
+        f"pc{col + 1}" for col in pca_dataframe.columns.to_list()
     ]
     pca_dataframe.columns = pca_components
 
@@ -2064,30 +2086,30 @@ def run_pc_analysis(
     pca_dataframe = pca_dataframe.set_index(keys=features.index)
     # print(f"\nFinal PCA Dataframe:\n{pca_dataframe}\n")
 
-    return (
-        pca_model,
-        pca_array,
-        pca_dataframe,
-        pca_variance_explained,
-        pca_features_scaled
-    )
+    # return (
+    #     pca_model,
+    #     pca_array,
+    #     pca_dataframe,
+    #     pca_variance_explained,
+    #     pca_features_scaled
+    # )
 
     # Keep the PC axes that correspond to AT LEAST 95% of the cumulated
     # explained variance
     best_pc_axis_names, best_pc_axis_values = find_best_pc_axes(
-        variance_explained_df=variance_explained_df,
+        variance_explained_df=pca_variance_explained,
         percent_cut_off_threshold=95
     )
 
     # Subset the PCA dataframe to include ONLY the best PC axes
-    final_pca_df = pca_df.loc[:, best_pc_axis_names]
-    print(f"\nFinal PCA Dataframe:\n{final_pca_df}\n")
+    final_pca_dataframe = pca_dataframe.loc[:, best_pc_axis_names]
+    print(f"\nFinal PCA Dataframe:\n{final_pca_dataframe}\n")
 
     # -------------------------------------------------------------------------
 
     # Produce an '.html' file of the main steps of the EDA
     produce_sweetviz_eda_report(
-        dataframe=final_pca_df,
+        dataframe=final_pca_dataframe,
         eda_report_name=eda_report_name,
         output_directory=output_directory
     )
@@ -2141,9 +2163,9 @@ def run_pc_analysis(
     return (
         pca_model,
         pca_array,
-        final_pca_df,
+        final_pca_dataframe,
         best_pc_axis_names,
-        variance_explained_df,
+        pca_variance_explained,
     )
 
 
@@ -3390,7 +3412,7 @@ def draw_pca_outliers_biplot_3d(
     plt.grid(False)
     plt.tight_layout()
     # plt.show()
-    save_figure(figure_name=output_directory.joinpath(file_name + ".png"))
+    save_figure(figure_name=output_directory.joinpath(f"{file_name}.png"))
 
 
 def draw_pca_outliers_biplot(
@@ -3450,7 +3472,7 @@ def draw_pca_outliers_biplot(
     plt.grid(False)
     plt.tight_layout()
     # plt.show()
-    save_figure(figure_name=output_directory.joinpath(file_name + ".png"))
+    save_figure(figure_name=output_directory.joinpath(f"{file_name}.png"))
 
 
 def draw_pca_biplot_3d(
@@ -3538,7 +3560,7 @@ def draw_pca_biplot_3d(
     fig = go.Figure(data=[trace], layout=layout)
     fig.show()
     # Save the Plotly figure as an HTML file
-    fig.write_html(output_directory.joinpath(file_name + ".html"))
+    fig.write_html(output_directory.joinpath(f"{file_name}.html"))
 
 
 def draw_pca_biplot(
@@ -3653,7 +3675,7 @@ def draw_pca_biplot(
             alpha=alpha
         ))
     # pca_biplot.show()
-    save_figure(figure_name=output_directory.joinpath(file_name + ".png"))
+    save_figure(figure_name=output_directory.joinpath(f"{file_name}.png"))
 
 
 def add_confidence_interval_ellipses(
@@ -4507,7 +4529,7 @@ def draw_decision_tree(
     node_depth = np.zeros(shape=n_nodes, dtype=np.int64)
     is_leaves = np.zeros(shape=n_nodes, dtype=bool)
     stack = [(0, 0)]  # start with the root node id (0) and its depth (0)
-    while len(stack) > 0:
+    while stack:
         # `pop` ensures each node is only visited once
         node_id, depth = stack.pop()
         node_depth[node_id] = depth
@@ -4518,8 +4540,12 @@ def draw_decision_tree(
         # If a split node, append left and right children and depth to `stack`
         # so we can loop through them
         if is_split_node:
-            stack.append((children_left[node_id], depth + 1))
-            stack.append((children_right[node_id], depth + 1))
+            # stack.append((children_left[node_id], depth + 1))
+            # stack.append((children_right[node_id], depth + 1))
+            stack.extend(
+                (children_right[node_id], depth + 1),
+                (children_right[node_id], depth + 1),
+            )  # use `.extend()` when appending multiple values to a list
         else:
             is_leaves[node_id] = True
 
@@ -4556,7 +4582,7 @@ def draw_decision_tree(
     )
     plt.tight_layout()
     # plt.show()
-    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
 
 
 def draw_random_forest_tree(
@@ -4590,7 +4616,7 @@ def draw_random_forest_tree(
     )
     plt.tight_layout()
     # plt.show()
-    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
 
 
 def draw_confusion_matrix_heatmap(
@@ -4639,7 +4665,7 @@ def draw_confusion_matrix_heatmap(
     # plt.axis("off")
     plt.tight_layout()
     # plt.show()
-    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
 
 
 def get_feature_importance_scores(
@@ -4691,7 +4717,7 @@ def get_feature_importance_scores(
     plt.grid(visible=False)
     fig.tight_layout()
     # plt.show()
-    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
     return model_feature_importances
 
 
@@ -4748,7 +4774,7 @@ def get_feature_importance_scores_permutation(
     plt.grid(visible=False)
     fig.tight_layout()
     # plt.show()
-    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
     return model_feature_importances_permutation
 
 
