@@ -3630,12 +3630,6 @@ def draw_pca_biplot(
     # -------------------------------------------------------------------------
 
     # Create ellipsis for 95% CI for each classe
-    # # BUG Code below NOT working
-    # add_confidence_interval_ellipses(
-    #     pca_array=pca_array,
-    #     target_class_list=target_class_list,
-    #     confidence_interval=0.90,
-    # )
 
     # Define the confidence level and alpha value for the ellipse
     confidence_interval = 0.95
