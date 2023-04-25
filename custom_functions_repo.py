@@ -56,8 +56,10 @@ from fast_ml.model_development import train_valid_test_split
 # Handle constant/duplicates and missing features/columns
 from feature_engine.selection import (
     DropConstantFeatures,
+    DropCorrelatedFeatures,
     DropDuplicateFeatures,
-    DropFeatures
+    DropFeatures,
+    DropMissingData,
 )
 # from imblearn.over_sampling import SMOTE
 # from imblearn.under_sampling import RandomUnderSampler
@@ -3820,24 +3822,28 @@ def generate_class_colour_list(class_list: List[str]) -> List[str]:
 
 
 def target_label_encoder(
-    dataframe: pd.DataFrame,
-    target_name: str
+    data: pd.DataFrame | pd.Series,
 ) -> Tuple[np.ndarray, List[str]]:
     """Encode the target labels (usually strings) into integers.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        target_name (str): _description_
+        data (pd.DataFrame | pd.Series): _description_
 
     Returns:
         Tuple[np.ndarray, List[str]]: _description_
     """
-    target_dataframe = dataframe[target_name]
     label_encoder = LabelEncoder()
-    target_encoded = label_encoder.fit_transform(target_dataframe)
+    target_encoded = label_encoder.fit_transform(data)
+
     # Convert the encoded labels from a np.ndarray to a list
     target_class_list = label_encoder.classes_.tolist()
-    print(f"\nList of the target encoded classes:\n{target_class_list}\n")
+
+    # Get the mapping dictionary of original labels to encoded labels
+    label_mapping_dictionary = dict(
+        zip(target_class_list, range(len(target_class_list)))
+    )
+    print("\nDictionary of the target encoded classes:")
+    print(label_mapping_dictionary)
     return target_encoded, target_class_list
 
 
@@ -3926,35 +3932,68 @@ def train_valid_test_split_fast(
 
 
 def drop_feature_pipeline(
-    feature_selection: pd.DataFrame,
-    features_to_keep: List[str]
+    features: pd.DataFrame,
+    features_to_keep: List[str],
+    correlation_threshold: float = 0.8,
+    variables_with_nan_values: List[str] = None,
+    variance_threshold: float = None,  # use a value of 0.01 or 0.03
 ) -> Pipeline:
-    """Drop_feature_pipeline _summary_.
+    """drop_feature_pipeline _summary_.
 
+    TODO Add a 'identify_highly_correlated_features' function to pipeline ?
+    Try something like the code below:
+            var_thres = VarianceThreshold(threshold=threshold)
+            _ = var_thres.fit(features)
+            # Get a boolean mask
+            mask = var_thres.get_support()
+            # Subset the data
+            features_reduced = features.loc[:, mask]
+            print("The following features were retained:")
+            print(f"{features_reduced.columns}")
+    BUG Fix error message below when using 'VarianceThreshold' class.
+        ValueError: make_column_selector can only be applied to pandas df
     Args:
-        feature_selection (pd.DataFrame): _description_
+        features (pd.DataFrame): _description_
         features_to_keep (List[str]): _description_
+        correlation_threshold (float): _description_. Defaults to 0.8.
+        variables_with_nan_values (List[str], optional): _description_.
+        Defaults to None.
+        variance_threshold (float, optional): _description_. Defaults to 0.03.
 
     Returns:
-        _type_: _description_
+        Pipeline: _description_
     """
     drop_feature_pipe = Pipeline(
         steps=[
+            ("remove_nan_values", DropMissingData(
+                variables=variables_with_nan_values,
+                missing_only=True,
+                # threshold=0.01,  # variable with =< 0.1 variance removed
+                # threshold=None,  # variable with all NaNs will be removed
+            )),  # BUG all data removed !!
             ("drop_columns", DropFeatures(
                 features_to_drop=[
-                    feature for feature in feature_selection
+                    feature for feature in features
                     if feature not in features_to_keep
                 ]
             )),
             ("drop_constant_values", DropConstantFeatures(
-                tol=1,
+                tol=0.95,
                 missing_values="ignore"
-            )),
+            )),  # TODO to test vs. Scikit-learn 'VarianceThreshold()' (below)
             ("drop_duplicates", DropDuplicateFeatures(
                 missing_values="ignore"
             )),
-            # ("drop_low_variance", VarianceThreshold(threshold=0.03)),
+            ("drop_correlated_features", DropCorrelatedFeatures(
+                method="pearson",
+                threshold=correlation_threshold,
+                missing_values="ignore"
+            )),
+            # ("drop_low_variance", VarianceThreshold(
+            #     threshold=variance_threshold,
+            # )),
         ],
+        verbose=True
     )
     print(f"\nPipeline structure:\n{drop_feature_pipe}\n")
     return drop_feature_pipe
@@ -4147,12 +4186,12 @@ def transform_feature_pipeline(
     feature_transformer = ColumnTransformer(
         transformers=[
             (
-                "numeric features",
+                "Numeric Features",
                 numeric_feature_pipeline,
                 selector(dtype_include="number")
             ),
             (
-                "categorical features",
+                "Categorical Features",
                 categorical_feature_pipeline,
                 selector(dtype_include="category")
             ),
@@ -4201,6 +4240,19 @@ def get_transformed_feature_pipeline(
     )
     print(f"\nPreprocessed Data:\n{preprocessed_df.head(3)}\n")
     return preprocessed_df
+
+
+def join_parallel_pipelines():
+    model_transformer2 = FeatureUnion(
+        transformer_list=[
+            ("pca pipeline", pca_pipeline),
+            ("classifier pipeline", classifier_pipeline)
+        ],
+        n_jobs=-1,
+        verbose=True
+    )
+    print("\nModel Transformer Pipeline Structure ('FeatureUnion'):")
+    print(model_transformer2)
 
 
 def calculate_cross_validation_scores(
