@@ -101,7 +101,7 @@ from sklearn.model_selection import (
     cross_val_score,
     train_test_split
 )
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.preprocessing import (
     LabelEncoder,
     MinMaxScaler,
@@ -444,8 +444,8 @@ def save_image_show(
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    # plt.show()
     save_figure(figure_name=save_image_name)
+    # plt.show()
     return image
 
 
@@ -779,7 +779,7 @@ def convert_to_datetime_type(
         pd.DataFrame: _description_
     """
     dataframe[datetime_variable_list] = (
-        dataframe[datetime_variable_list].astype("datetime64[ns]")
+        dataframe[datetime_variable_list].astype(dtype="datetime64[ns]")
     )
     return dataframe
 
@@ -798,7 +798,7 @@ def convert_to_category_type(
         pd.DataFrame: _description_
     """
     dataframe[category_variable_list] = (
-        dataframe[category_variable_list].astype("category")
+        dataframe[category_variable_list].astype(dtype="category")
     )
     return dataframe
 
@@ -817,7 +817,7 @@ def convert_to_number_type(
         pd.DataFrame: _description_
     """
     dataframe[numeric_variable_list] = (
-        dataframe[numeric_variable_list].astype("number")
+        dataframe[numeric_variable_list].astype(dtype="number")
     )
     return dataframe
 
@@ -836,7 +836,7 @@ def convert_to_integer_type(
         pd.DataFrame: _description_
     """
     dataframe[integer_variable_list] = (
-        dataframe[integer_variable_list].astype("int")
+        dataframe[integer_variable_list].astype(dtype="int")
     )
     return dataframe
 
@@ -855,7 +855,7 @@ def convert_to_float_type(
         pd.DataFrame: _description_
     """
     dataframe[float_variable_list] = (
-        dataframe[float_variable_list].astype("float")
+        dataframe[float_variable_list].astype(dtype="float")
     )
     return dataframe
 
@@ -874,7 +874,7 @@ def convert_to_string_type(
         pd.DataFrame: _description_
     """
     dataframe[string_variable_list] = (
-        dataframe[string_variable_list].astype("string")
+        dataframe[string_variable_list].astype(dtype="string")
     )
     return dataframe
 
@@ -2633,7 +2633,7 @@ def perform_multicomparison_correction(
     )
     # Concatenate the two arrays together
     concatenate_arrays = np.column_stack((reject, p_values_corrected))
-    concatenate_arrays.astype(np.bool)
+    concatenate_arrays.astype(dtype=np.bool)
 
     correction_dataframe = pd.DataFrame(concatenate_arrays)
     correction_dataframe.rename(
@@ -2675,10 +2675,10 @@ def create_missing_data_matrix(
         loc="center"
     )
     plt.tight_layout()
-    # plt.show()
     save_figure(
         figure_name=output_directory/"missing_data_matrix.png"
     )
+    # plt.show()
 
 
 def draw_scree_plot(x_axis, y_axis):
@@ -2849,11 +2849,11 @@ def draw_all_pca_pairs_scatterplot(
             loc="center"
         )
         plt.tight_layout()
-        # plt.show()
         save_figure(
             figure_name=output_directory /
             f"scatterplot_pca_{target_category}_{pc_x}_vs_{pc_y}.png"
         )
+        # plt.show()
 
 
 def draw_heatmap(data, xticklabels, yticklabels):
@@ -3275,13 +3275,13 @@ def draw_anova_quality_checks(
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    # plt.show()
     save_figure(
         figure_name=(
             output_directory /
             f"qqplot_anova_{independent_variable}_{dependent_variable}.png"
         )
     )
+    # plt.show()
 
 
 def draw_tukeys_hsd_plot(
@@ -3323,13 +3323,13 @@ def draw_tukeys_hsd_plot(
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    # plt.show()
     save_figure(
         figure_name=(
             output_directory /
             f"tukey_anova_{independent_variable}_{dependent_variable}.png"
         )
     )
+    # plt.show()
 
     # -------------------------------------------------------------------------
 
@@ -3413,8 +3413,8 @@ def draw_pca_outliers_biplot_3d(
     )
     plt.grid(False)
     plt.tight_layout()
-    # plt.show()
     save_figure(figure_name=output_directory.joinpath(f"{file_name}.png"))
+    # plt.show()
 
 
 def draw_pca_outliers_biplot(
@@ -3473,8 +3473,8 @@ def draw_pca_outliers_biplot(
     )
     plt.grid(False)
     plt.tight_layout()
-    # plt.show()
     save_figure(figure_name=output_directory.joinpath(f"{file_name}.png"))
+    # plt.show()
 
 
 def draw_pca_biplot_3d(
@@ -4194,6 +4194,8 @@ def transform_feature_pipeline(
         remainder="drop",
         n_jobs=-1,
     )
+    print("\nModel Transformer Pipeline Structure ('ColumnTransformer'):")
+    print(feature_transformer)
     return feature_transformer
 
 
@@ -4236,17 +4238,34 @@ def get_transformed_feature_pipeline(
     return preprocessed_df
 
 
-def join_parallel_pipelines():
-    model_transformer2 = FeatureUnion(
+def join_parallel_pipelines(
+    pipeline_one: Pipeline,
+    pipeline_two: Pipeline,
+) -> FeatureUnion:
+    """Join pipelines for parallel processing.
+subtletiessubtleties
+    This approach is similar to that of the 'ColumnTransformer()' function.
+    There are some subtleties though:
+        -
+
+    Args:
+        pipeline_one (Pipeline): _description_
+        pipeline_two (Pipeline): _description_
+
+    Returns:
+        FeatureUnion: _description_
+    """
+    union_transformer = FeatureUnion(
         transformer_list=[
-            ("pca pipeline", pca_pipeline),
-            ("classifier pipeline", classifier_pipeline)
+            ("Pipeline #1", pipeline_one),
+            ("Pipeline #2", pipeline_two)
         ],
         n_jobs=-1,
         verbose=True
     )
     print("\nModel Transformer Pipeline Structure ('FeatureUnion'):")
-    print(model_transformer2)
+    print(union_transformer)
+    return union_transformer
 
 
 def calculate_cross_validation_scores(
@@ -4627,8 +4646,8 @@ def draw_decision_tree(
         fontsize=20
     )
     plt.tight_layout()
-    # plt.show()
     save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    # plt.show()
 
 
 def draw_random_forest_tree(
@@ -4661,8 +4680,8 @@ def draw_random_forest_tree(
         fontsize=16
     )
     plt.tight_layout()
-    # plt.show()
     save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    # plt.show()
 
 
 def draw_confusion_matrix_heatmap(
@@ -4710,8 +4729,8 @@ def draw_confusion_matrix_heatmap(
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    # plt.show()
     save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    # plt.show()
 
 
 def get_feature_importance_scores(
@@ -4762,8 +4781,8 @@ def get_feature_importance_scores(
     plt.title(label=("Feature Importance in Predictions"), fontsize=16)
     plt.grid(visible=False)
     fig.tight_layout()
-    # plt.show()
     save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    # plt.show()
     return model_feature_importances
 
 
@@ -4819,8 +4838,8 @@ def get_feature_importance_scores_permutation(
     plt.title(label=("Feature importance in predictions"), fontsize=16)
     plt.grid(visible=False)
     fig.tight_layout()
-    # plt.show()
     save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    # plt.show()
     return model_feature_importances_permutation
 
 
