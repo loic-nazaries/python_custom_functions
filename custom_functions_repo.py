@@ -289,20 +289,26 @@ def load_mat_file(mat_file_name: str) -> Dict[str, float]:
 
 
 def load_excel_file(
-    file_path_name: str,
-    sheet_name: Any = 0,
-    nrows: int = 0,
+    file_name: str,
+    input_directory: Path,
+    sheet_name: str | int = 0,
+    nrows: int = None,
 ) -> pd.DataFrame:
     """Load an Excel file.
 
     Args:
-        file_path_name (_type_): _description_
+        file_name (str): The file name of the Excel file.
+        output_directory (Path): The directory path where the file is located.
+        sheet_name (str | int, optional): The name or index of the sheet to
+            load. Defaults to 0.
+        nrows (int, optional): The number of rows to read from the sheet.
+            Defaults to None.
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: The loaded DataFrame object.
     """
     dataframe = pd.read_excel(
-        io=file_path_name,
+        io=input_directory.joinpath(f"{file_name}.xlsx"),
         sheet_name=sheet_name,
         header=0,
         nrows=nrows,
@@ -314,38 +320,36 @@ def load_excel_file(
 
 def load_csv_file(
     input_directory: Path,
-    input_file_name: str,
-    index_key: str = None,
+    file_name: str,
+    index_col: str = None,
 ) -> pd.DataFrame:
     """Load a CSV file.
 
     Args:
-        input_directory (Path): Path to the input directory.
-        input_file_name (str): Name of the input file.
-        index_key (str): Name of the column to be used as dataframe index.
+        input_directory (Path): Directory path where the CSV file resides.
+        file_name (str): Name of the CSV file, without extension.
+        index_col (str): Name of the column to be used as dataframe index.
 
     Returns:
         pd.DataFrame: DataFrame containing the data from the input CSV file.
     """
     dataframe = pd.read_csv(
         filepath_or_buffer=(
-            input_directory.joinpath(f"{input_file_name}.csv")
+            input_directory.joinpath(f"{file_name}.csv")
         ),
         encoding="utf-8"
     )
-    dataframe.set_index(keys=index_key, inplace=True)
+    if index_col is not None:
+        dataframe.set_index(keys=index_col, inplace=True)
     return dataframe
 
 
-def save_csv_file(
-    dataframe: pd.DataFrame,
-    csv_path_name: str
-) -> None:
+def save_csv_file(dataframe: pd.DataFrame, csv_path_name: str) -> None:
     """Save a dataframe as a '.csv()' file.
 
     Args:
-        dataframe (_type_): _description_
-        file_name (_type_): _description_
+        dataframe (pd.DataFrame): Pandas DataFrame to be saved to CSV.
+        csv_file_name (str): File path/name of the CSV file.
     """
     dataframe.to_csv(
         path_or_buf=csv_path_name,
@@ -353,20 +357,25 @@ def save_csv_file(
         encoding="utf-8",
         index=True,
     )
-    # return
+    return None
 
 
-def save_excel_file(
-    dataframe: pd.DataFrame,
-    excel_file_name: str
-) -> None:
+def save_excel_file(dataframe: pd.DataFrame, excel_path_name: str) -> None:
     """Save the dataframe to an MS Excel '.xlsx' file.
 
     Args:
-        dataframe (_type_): _description_
-        file_name (_type_): _description_
+        dataframe (pd.DataFrame): Pandas DataFrame to be saved to Excel.
+        excel_file_name (str): File path/name of the Excel file.
+
+    Returns:
+        None.
     """
-    dataframe.to_excel(excel_writer=f"./output/{excel_file_name}.xlsx")
+    dataframe.to_excel(
+        excel_writer=excel_path_name,
+        index=False,
+        sheet_name="Sheet1"
+    )
+    return None
 
 
 def save_pipeline_model(
@@ -727,41 +736,24 @@ def convert_array_to_series(array: np.ndarray, array_name: str) -> pd.Series:
 # CONVERT OBJECTS
 
 
-def convert_data_to_dataframe(
-    data: Dict[int | str, float] | np.ndarray
-) -> pd.DataFrame:
-    """Convert an array or dictionary to a dataframe.
+def convert_dictionary_to_dataframe(dictionary_file: Dict) -> pd.DataFrame:
+    """Convert a dictionary into a dataframe.
+
+    First, the 'len()' function gets the number of items in the dictionary.
+    Second, 'range()' is used to set a range from 0 to length of dictionary.
+    Finally, 'list()' converts the items into NUMERIC index values.
 
     Args:
-        data (_type_): _description_
-        Note: include list ?
+        dictionary_file (Dict): Dictionary containing data to be converted
+            to a dataframe.
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: Dataframe representing the data in the input dictionary.
     """
-    dataframe = pd.DataFrame(data=data)
-    return dataframe
-
-
-# Merge with above ?
-def convert_list_to_dataframe(
-    items_list: List[str],
-    # column_names: List[str]
-) -> pd.DataFrame:
-    """Convert a nested list into a dataframe.
-
-    Args:
-        items_list (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    dataframe = pd.DataFrame(data=items_list)
-    # # BUG Below NOT working
-    # dataframe = pd.DataFrame(
-    #     data=items_list,
-    #     columns=column_names
-    # )
+    dataframe = pd.DataFrame(
+        data=dictionary_file,
+        index=[list(range(len(dictionary_file)))]
+    )
     return dataframe
 
 
@@ -886,30 +878,41 @@ def convert_variables_to_proper_type(
     numeric_variable_list: Optional[List[str]] = None,
     integer_variable_list: Optional[List[str]] = None,
     float_variable_list: Optional[List[str]] = None,
-    string_variable_list: Optional[List[str]] = None,
+    string_variable_list: Optional[List[str]] = None
 ) -> pd.DataFrame:
-    """convert_variables_to_proper_type _summary_.
+    """Convert variables in a Pandas DataFrame to their proper data type.
 
     Apply the '.pipe()' method to the defined functions.
 
     Args:
-        dataframe (pd.DataFrame): _description_
+        dataframe (pd.DataFrame): The DataFrame to convert variables to
+            proper data type.
         datetime_variable_list (Optional[List[str  |  datetime]], optional):
-        _description_. Defaults to None.
-        category_variable_list (Optional[List[str]], optional): _description_.
-        Defaults to None.
-        numeric_variable_list (Optional[List[str]], optional): _description_.
-        Defaults to None.
-        integer_variable_list (Optional[List[str]], optional): _description_.
-        Defaults to None.
-        float_variable_list (Optional[List[str]], optional): _description_.
-        Defaults to None.
-        string_variable_list (Optional[List[str]], optional): _description_.
-        Defaults to None.
+            List of variable names to convert to 'datetime' type.
+            Defaults to None.
+        category_variable_list (Optional[List[str]], optional):  List of
+            variable names to convert to 'category' type. Defaults to None.
+        integer_variable_list (Optional[List[str]], optional): List of
+            variable names to convert to 'integer' type. Defaults to None.
+        float_variable_list (Optional[List[str]], optional): List of
+            variable names to convert to 'float' type. Defaults to None.
+        string_variable_list (Optional[List[str]], optional): List of
+            variable names to convert to 'string' type. Defaults to None.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: DataFrame with proper data types for selected variables.
     """
+    if category_variable_list is None:
+        category_variable_list = []
+    if numeric_variable_list is None:
+        numeric_variable_list = []
+    if integer_variable_list is None:
+        integer_variable_list = []
+    if float_variable_list is None:
+        float_variable_list = []
+    if string_variable_list is None:
+        string_variable_list = []
+
     processed_dataframe_pipe = dataframe.pipe(
         func=convert_to_datetime_type,
         datetime_variable_list=datetime_variable_list
@@ -929,8 +932,6 @@ def convert_variables_to_proper_type(
         func=convert_to_string_type,
         string_variable_list=string_variable_list
     )
-    print("\nSummary of Data Types:")
-    print(f"\n{processed_dataframe_pipe.info()}\n")
     return processed_dataframe_pipe
 
 
@@ -1000,11 +1001,13 @@ def remove_duplicated_rows(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Remove duplicated values row-wide and reset index.
 
     Args:
-        dataframe (pd.DataFrame): _description_
+        dataframe (pd.DataFrame): DataFrame containing duplicated rows to be
+            removed.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: DataFrame with all duplicated rows removed.
     """
+    # Drop all duplicated rows and reset the index
     dataframe = (
         dataframe.drop_duplicates().reset_index(drop=True)
     )
@@ -1055,21 +1058,21 @@ def filter_dataframe(
     dataframe: pd.DataFrame,
     filter_content: str,
 ) -> pd.DataFrame:
-    """filter_dataframe _summary_.
+    """Filter a dataframe using the provided filter.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        filter_content (str): _description_
+        dataframe (pd.DataFrame): Pandas dataframe to be filtered.
+        filter_content (str): Filter string to be applied on the dataframe.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: The filtered pandas dataframe.
     """
-    print(f"The following filter was applied:\n{filter_content}\n")
+    print(f"\nThe following filter was applied:\n{filter_content}\n")
 
     # Apply the filter
     filtered_dataframe = dataframe.query(filter_content)
     print(
-        f"Filtered Cluster Dataset Shape:\n{filtered_dataframe.shape}"
+        f"Filtered Cluster Dataset Shape:\n{filtered_dataframe.shape}\n"
     )
     return filtered_dataframe
 
@@ -3780,7 +3783,10 @@ def draw_feature_rank(
     )
 
 
-def show_items_per_category(data: pd.Series) -> None:
+def show_items_per_category(
+        data: pd.Series | pd.DataFrame,
+        category_name: str,
+) -> None:
     """show_items_per_category _summary_.
 
     Args:
@@ -3789,10 +3795,19 @@ def show_items_per_category(data: pd.Series) -> None:
     # Show number of items in each class of the target
     data_class_count = data.value_counts()
     print(
-        f"\nItems number within each {data.name} class:\n{data_class_count}\n"
+        f"\nNumber of items within each '{category_name}' class:\n"
+        f"{data_class_count}\n"
     )
+    plt.figure()
     ax = data_class_count.sort_values().plot.barh()
-    ax.set(xlabel="Number of items", ylabel=data.name)
+    ax.set(xlabel="Number of items", ylabel=category_name)
+    plt.title(
+        label=(
+            f"Number of items for each class of the category '{category_name}'"
+        ),
+        fontsize=16,
+        loc="center"
+    )
 
 
 def generate_class_colour_list(class_list: List[str]) -> List[str]:
@@ -4243,7 +4258,7 @@ def join_parallel_pipelines(
     pipeline_two: Pipeline,
 ) -> FeatureUnion:
     """Join pipelines for parallel processing.
-subtletiessubtleties
+
     This approach is similar to that of the 'ColumnTransformer()' function.
     There are some subtleties though:
         -
