@@ -1099,38 +1099,38 @@ def get_list_of_unique_values(
 def get_numeric_features(
     dataframe: pd.DataFrame
 ) -> Tuple[pd.DataFrame, List[str]]:
-    """get_numeric_features _summary_.
+    """Extract numeric features from a Pandas DataFrame.
 
     Args:
-        dataframe (_type_): _description_
+        dataframe (pd.DataFrame): DataFrame to select numeric features from.
 
     Returns:
-        _type_: _description_
+        Tuple (pd.Dataframe, List[str]): A tuple containing a pandas DataFrame
+            with only numeric features and a list of the feature names.
     """
     # Select numeric variables ONLY and make a list
-    numerical_features = dataframe.select_dtypes(include=np.number)
-    numerical_features_list = numerical_features.columns.to_list()
-    print(f"\nList of Numeric Features: \n{numerical_features_list}\n")
-    print(numerical_features.describe())
-    return numerical_features, numerical_features_list
+    numeric_features = dataframe.select_dtypes(include=np.number)
+    numeric_feature_list = numeric_features.columns.to_list()
+    print(f"\nList of Numeric Features:\n{numeric_feature_list}\n")
+    print(f"\nSummary Statistics:\n{numeric_features.describe()}\n")
+    return numeric_features, numeric_feature_list
 
 
-def get_categorical_features(
-    dataframe: pd.DataFrame
-) -> Tuple[pd.DataFrame, List[str]]:
-    """get_categorical_features _summary_.
+def get_categorical_features(dataframe):
+    """Extract categorical features from a Pandas DataFrame.
 
     Args:
-        dataframe (_type_): _description_
+        dataframe (pd.DataFrame): Df to select categorical features from.
 
     Returns:
-        _type_: _description_
+        Tuple (pd.Dataframe, List[str]): A tuple containing a pandas DataFrame
+            with only categorical features and a list of the feature names.
     """
     # Select categorical variables ONLY and make a list
     categorical_features = dataframe.select_dtypes(include="category")
     categorical_features_list = categorical_features.columns.to_list()
-    print(f"\nList of Categorical Features: \n{categorical_features_list}\n")
-    print(categorical_features.describe())
+    print(f"\nList of Categorical Features:\n{categorical_features_list}\n")
+    print(f"\nSummary Statistics:\n{categorical_features.describe()}\n")
     return categorical_features, categorical_features_list
 
 
@@ -1208,10 +1208,10 @@ def run_exploratory_data_analysis(dataframe: pd.DataFrame) -> pd.DataFrame:
     Also includes a missing table summary.
 
     Args:
-        dataframe (_type_): _description_
+        dataframe (_type_): Input dataset.
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: Table with summary statistics.
 
     TODO Include the 'mode' function to analyse the existence of a bimodal
     distribution within the transmissivity variables.
@@ -1226,45 +1226,40 @@ def run_exploratory_data_analysis(dataframe: pd.DataFrame) -> pd.DataFrame:
     # in the EDA
     summary_stats = dataframe.describe(include="all").T
 
-    # # Mode
-    # mode = dataframe.mode(axis=0).T
-    # # Rename the mode column names
-    # mode_col_names = [
-    #     "mode" + str(col) for col in mode.columns
-    # ]
-    # mode.columns = mode_col_names
-
     # Percent of variance (standard deviation actually) compared to mean value
     pct_variation = (
         dataframe.std() / dataframe.mean() * 100
     ).rename("pct_var")
+
     # Calculate mean absolute deviation (MAD)
     mad = dataframe.mad().rename("mad")
+
     # Kurtosis
     kurtosis = dataframe.kurt().rename("kurt")
+
     # Skewness
     skewness = dataframe.skew().rename("skew")
 
-    dataframe_list = [
+    # Concatenate the metrics into a dataframe
+    metrics_list = [
         summary_stats,
-        # mode,
         pct_variation,
         mad,
         kurtosis,
         skewness,
     ]
     summary_stats_table = pd.concat(
-        objs=dataframe_list,
+        objs=metrics_list,
         sort=False,
         axis=1
     )
+    print(f"\nExploratory Data Analysis:\n{summary_stats_table}\n")
 
     # Save statistics summary to .csv file
     save_csv_file(
         dataframe=summary_stats_table,
         csv_path_name="eda_output"
     )
-    print(f"\nExploratory Data Analysis:\n{summary_stats_table}\n")
     return summary_stats_table
 
 
@@ -1340,7 +1335,7 @@ def produce_sweetviz_eda_report(
 ) -> None:
     """Exploratory Data Analysis using the Sweetviz library.
 
-    Produce an '.html' file of the main steps of the EDA
+    Produce an '.html' file of the main steps of the EDA.
     """
     print("\nPreparing SweetViz Report:\n")
     sweetviz_eda_report = sv.analyze(
@@ -1397,11 +1392,13 @@ def get_missing_values_table(dataframe: pd.DataFrame) -> pd.DataFrame:
     Use parameter 'style=True' to style the display in the output table.
 
     Args:
-        dataframe (pd.DataFrame): _description_
+        dataframe (pd.DataFrame): The dataframe the metrics should be
+            calculated on.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: The metric table of missing values.
     """
+    # Produce a heatmap of missing values
     nan_table = dataframe.stb.missing(
         clip_0=True,
         # # BUG Below NOT working
@@ -2652,14 +2649,14 @@ def perform_multicomparison_correction(
 
 
 def create_missing_data_matrix(
-        dataframe: pd.DataFrame,
-        output_directory: str | Path,
+    dataframe: pd.DataFrame,
+    file_name: str,
+    output_directory: Path,
 ) -> None:
-    # fix type hints for the content of the 'object'
     """Display missing values status for each column in a matrix.
 
     Args:
-        dataframe (pd.DataFrame): _description_
+        dataframe (pd.DataFrame): Input dataframe.
 
     Returns:
         object: _description_
@@ -2671,6 +2668,7 @@ def create_missing_data_matrix(
         # figsize=(10, 5),
         fontsize=8,
         sparkline=False,
+        color=(0.50, 0.50, 0.50),
     )
     plt.title(
         label="Summary of Missing Data",
@@ -2679,7 +2677,7 @@ def create_missing_data_matrix(
     )
     plt.tight_layout()
     save_figure(
-        figure_name=output_directory/"missing_data_matrix.png"
+        figure_name=output_directory.joinpath(f"{file_name}.png")
     )
     # plt.show()
 
