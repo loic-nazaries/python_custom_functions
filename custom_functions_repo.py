@@ -24,7 +24,7 @@ import time
 import itertools
 import joblib
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import colourmap as colourmap
 import docx
@@ -257,18 +257,19 @@ def get_file_name_list_from_extension(
 
 def load_pickle_file(
     file_name: str,
-    output_directory: Path
+    input_directory: Path
 ) -> pd.DataFrame:
-    """Load the pickle file into a dataframe.
+    """Load a pickle file into a dataframe.
 
     Args:
-        file_path_name (str  |  Path]): _description_
+        file_name (str): Name of the pickle file, without extension.
+        input_directory (Path): Directory path where the '.pkl' file resides.
 
     Returns:
         pd.DataFrame: _description_
     """
     dataframe = pd.read_pickle(
-        filepath_or_buffer=output_directory.joinpath(f"{file_name}.pkl")
+        filepath_or_buffer=input_directory.joinpath(f"{file_name}.pkl")
     )
     print("\nDataset details:\n")
     print(dataframe.info())
@@ -319,15 +320,15 @@ def load_excel_file(
 
 
 def load_csv_file(
-    input_directory: Path,
     file_name: str,
+    input_directory: Path,
     index_col: str = None,
 ) -> pd.DataFrame:
     """Load a CSV file.
 
     Args:
-        input_directory (Path): Directory path where the CSV file resides.
         file_name (str): Name of the CSV file, without extension.
+        input_directory (Path): Directory path where the CSV file resides.
         index_col (str): Name of the column to be used as dataframe index.
 
     Returns:
@@ -2044,27 +2045,44 @@ def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
     return best_pc_axis_names, best_pc_axis_values
 
 
-# Then, perform PCA to observe clusters based on defect types
 def run_pc_analysis(
     features: pd.DataFrame,
+    eda_report_name: str,
+    output_directory: Path
 ) -> Tuple[pd.DataFrame | np.ndarray, List[str]]:
     """run_pc_analysis _summary_.
 
     Args:
         features (pd.DataFrame): _description_
+        eda_report_name (str): _description_
+        output_directory (Path): _description_
 
     Returns:
         Tuple[pd.DataFrame | np.ndarray], List[str]: _description_
     """
+    # Select only the numeric input variables, i.e. not mahalanobis variables
+    numeric_feature_list = (
+        features.select_dtypes(include="number").columns.to_list()
+    )
+    print(f"\nSelected (Numeric) Features for PCA:\n{numeric_feature_list}\n")
+
     # Scale features data
-    pca_features_scaled = standardise_features(features=features)
+    features_scaled = standardise_features(features=features)
 
     # Run the PC analysis
-    pca_model = PCA(n_components=0.95, random_state=42)
-    pca_array = pca_model.fit_transform(pca_features_scaled)
+    pca_model, pca_array = apply_pca(
+        # n_components=len(features_scaled.columns),
+        n_components=0.95,  # set to keep PCs with cumulated variance of 95%
+        features_scaled=features_scaled
+    )
 
     # Get eigenvalues and eigenvectors
-    pca_eigen_values = get_pca_eigen_values_vectors(pca_model=pca_model)
+    pca_eigen_values = get_pca_eigen_values_vectors(
+        # n_components=len(features_scaled.columns),
+        # n_components=0.95,  # set to keep PCs with cumulated variance of 95%
+        # features_scaled=features_scaled,
+        pca_model=pca_model
+    )
 
     # Convert PCA array to a dataframe
     pca_dataframe = pd.DataFrame(data=pca_array)
@@ -2072,12 +2090,13 @@ def run_pc_analysis(
 
     # Get PC axis labels and insert into the dataframe
     pca_components = [
-        f"pc{col + 1}" for col in pca_dataframe.columns.to_list()
+        # f"pc{str(col + 1)}" for col in pca_dataframe.columns.to_list()
+        f"pc{col + 1}" for col in pca_dataframe.columns.to_list()  # to test
     ]
     pca_dataframe.columns = pca_components
 
     # Calculate variance explained by PCA
-    pca_variance_explained = (
+    variance_explained_df = (
         explain_pca_variance(
             pca_eigen_values=pca_eigen_values,
             pca_model=pca_model,
@@ -2085,33 +2104,24 @@ def run_pc_analysis(
         )
     )
     # Set index as dataframe
-    pca_dataframe = pca_dataframe.set_index(keys=features.index)
-    # print(f"\nFinal PCA Dataframe:\n{pca_dataframe}\n")
-
-    # return (
-    #     pca_model,
-    #     pca_array,
-    #     pca_dataframe,
-    #     pca_variance_explained,
-    #     pca_features_scaled
-    # )
+    pca_dataframe = pca_dataframe.set_index(keys=[features.index])
 
     # Keep the PC axes that correspond to AT LEAST 95% of the cumulated
     # explained variance
     best_pc_axis_names, best_pc_axis_values = find_best_pc_axes(
-        variance_explained_df=pca_variance_explained,
+        variance_explained_df=variance_explained_df,
         percent_cut_off_threshold=95
     )
 
     # Subset the PCA dataframe to include ONLY the best PC axes
-    final_pca_dataframe = pca_dataframe.loc[:, best_pc_axis_names]
-    print(f"\nFinal PCA Dataframe:\n{final_pca_dataframe}\n")
+    final_pca_df = pca_dataframe.loc[:, best_pc_axis_names]
+    print(f"\nFinal PCA Dataframe:\n{final_pca_df}\n")
 
     # -------------------------------------------------------------------------
 
     # Produce an '.html' file of the main steps of the EDA
     produce_sweetviz_eda_report(
-        dataframe=final_pca_dataframe,
+        dataframe=final_pca_df,
         eda_report_name=eda_report_name,
         output_directory=output_directory
     )
@@ -2165,9 +2175,9 @@ def run_pc_analysis(
     return (
         pca_model,
         pca_array,
-        final_pca_dataframe,
+        final_pca_df,
         best_pc_axis_names,
-        pca_variance_explained,
+        variance_explained_df,
     )
 
 
@@ -3020,6 +3030,38 @@ def draw_kdeplot_subplots(
     return kdeplot_subplots
 
 
+# ! Compare function below with function above
+def draw_kde_plots(dataframe, columns, label):
+    """draw_kde_plots _summary_.
+
+    Args:
+        dataframe (_type_): _description_
+        columns (_type_): _description_
+        label (_type_): _description_
+    """
+    num_rows, num_cols = 4, 4
+    fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 12))
+    fig.suptitle(
+        f"Distribution of {label.capitalize()} Features (with Skewness)",
+        fontsize=20
+    )
+
+    for index, column in enumerate(dataframe[columns].columns):
+        i, j = (index // num_cols, index % num_cols)
+        graph = sns.kdeplot(
+            dataframe[column],
+            color="green",
+            shade=True,
+            label=f"{dataframe[column].skew():.2f}",
+            ax=axes[i, j],
+        )
+        graph.legend(loc="best")
+    fig.delaxes(axes[3, 2])
+    fig.delaxes(axes[3, 3])
+    plt.tight_layout()
+    plt.show()
+
+
 def draw_boxplot(
     dataframe: pd.DataFrame,
     x_axis: List[float],
@@ -3085,6 +3127,33 @@ def draw_barplot(
         palette=palette
     )
     return barplot
+
+
+def draw_box_plots(dataframe, columns, label):
+    """draw_box_plots _summary_.
+
+    Args:
+        dataframe (_type_): _description_
+        columns (_type_): _description_
+        label (_type_): _description_
+    """
+    num_rows, num_cols = 4, 4
+    fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 8))
+    fig.suptitle(f"Distribution of {label.capitalize()} Features", fontsize=20)
+
+    for index, column in enumerate(dataframe[columns].columns):
+        i, j = (index // num_cols, index % num_cols)
+        graph = sns.boxplot(
+            dataframe[column],
+            color="green",
+            orient="v",
+            ax=axes[i, j],
+        )
+        graph.legend(loc="best")
+    fig.delaxes(axes[3, 2])
+    fig.delaxes(axes[3, 3])
+    plt.tight_layout()
+    plt.show()
 
 
 def draw_barplot_subplots(
@@ -3177,6 +3246,34 @@ def draw_barplot_subplots(
     return barplot_subplots
 
 
+# ! Compare function below with function above
+def draw_bar_plots(dataframe, columns, label):
+    """draw_bar_plots _summary_.
+
+    Args:
+        dataframe (_type_): _description_
+        columns (_type_): _description_
+        label (_type_): _description_
+    """
+    num_rows, num_cols = 3, 4
+    fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 12))
+    fig.suptitle(f"{label.capitalize()} Features Count", fontsize=20)
+
+    for index, column in enumerate(dataframe[columns].columns):
+        i, j = (index // num_cols, index % num_cols)
+        graph = sns.countplot(
+            data=dataframe,
+            x=column,
+            color="red",
+            ax=axes[i, j],
+        )
+        graph.legend(loc="best")
+    fig.delaxes(axes[2, 2])
+    fig.delaxes(axes[2, 3])
+    plt.tight_layout()
+    plt.show()
+
+
 def draw_correlation_heatmap(dataframe, method="pearson"):
     """Draw a correlation matrix between variables.
 
@@ -3208,15 +3305,54 @@ def draw_correlation_heatmap(dataframe, method="pearson"):
         square=True,
         cbar=True,
         cmap="coolwarm",
-        center=0
+        center=0,
+        # linewidths=0.5,
+        # cbar_kws={"shrink": 0.5},
     )
     correlation_heatmap.set_xticklabels(
         labels=correlation_heatmap.get_xticklabels(),
         rotation=45,
-        ha="right"
+        horizontalalignment="right",
+        size=12,
+    )
+    correlation_heatmap.set_yticklabels(
+        labels=correlation_heatmap.get_yticklabels(),
+        rotation="horizontal",
+        size=12
     )
     correlation_heatmap.tick_params(left=True, bottom=True)
+    plt.title("Correlation Matrix Heatmap", fontsize=20)
+    plt.tight_layout()
+    plt.show()
     return correlation_matrix, correlation_heatmap
+
+
+def draw_pair_plot(dataframe, hue=None):
+    """draw_pair_plot _summary_.
+
+    Args:
+        dataframe (_type_): _description_
+        hue (_type_, optional): _description_. Defaults to None.
+    """
+    fig, ax = plt.subplots(figsize=(16, 12))
+    graph = sns.pairplot(
+        dataframe,
+        kind="reg",
+        diag_kind="kde",
+        hue=hue,
+        # palette="husl",  # disabled to favour "colorblind" setting at start
+        corner=True,
+        dropna=False,
+        size=2.5,
+    )
+    # CANNOT change position of the legend
+    graph.legend(
+        #         title="Season",
+        loc="center right"
+    )  # or loc="upper right"
+    plt.tight_layout()
+    plt.suptitle("Features Relationships", y=1.05, fontsize=20)
+    plt.show()
 
 
 def draw_qqplot(
@@ -4785,7 +4921,7 @@ def get_feature_importance_scores(
     # Create a bar plot
     fig, ax = plt.subplots()
     model_feature_importances.plot.barh(
-        # xerr=estimator_std,
+        xerr=estimator_std,
         align="center",
         ax=ax
     )

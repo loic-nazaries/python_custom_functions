@@ -226,9 +226,7 @@ def calculate_array_row_std(data_array, array_length):
         array_length (_type_, optional): _description_. Defaults to
         array_length.
     """
-    array_row_std = [
-        np.std(data_array[row]) for row in range(0, array_length)
-    ]
+    array_row_std = [np.std(data_array[row]) for row in range(array_length)]
     return array_row_std
 
 
