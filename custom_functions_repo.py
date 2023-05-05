@@ -1293,14 +1293,6 @@ def run_exploratory_data_analysis_nums_cats(
         include="number"
     ).describe(include="all").T
 
-    # # Mode
-    # mode = dataframe.mode(axis=0).T
-    # # Rename the mode column names
-    # mode_col_names = [
-    #     "mode" + str(col) for col in mode.columns
-    # ]
-    # mode.columns = mode_col_names
-
     # Percent of variance (standard deviation actually) compared to mean value
     pct_variation = (
         dataframe.std() / dataframe.mean() * 100
@@ -2667,9 +2659,8 @@ def create_missing_data_matrix(
 
     Args:
         dataframe (pd.DataFrame): Input dataframe.
-
-    Returns:
-        object: _description_
+        file_name (str): Output file name to save matrix.
+        output_directory (Path): Output directory where figure will be saved.
     """
     plt.figure(figsize=(15, 10))
     msno.matrix(
