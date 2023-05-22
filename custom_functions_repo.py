@@ -221,14 +221,11 @@ def ask_user_outlier_removal(
 # INPUT/OUTPUT
 
 
-def get_folder_name_list_from_directory(
-    directory_name: str | Path
-) -> List[str]:
+def get_folder_name_list_from_directory(directory_name: Path) -> List[str]:
     """Get the list of file (name) from a directory.
 
     Args:
-        directory_name (_type_): _description_
-        extension (_type_): _description_
+        directory_name (Path): _description_
 
     Returns:
         _type_: _description_
@@ -239,13 +236,13 @@ def get_folder_name_list_from_directory(
 
 
 def get_file_name_list_from_extension(
-    directory_name: str | Path,
+    directory_name: Path,
     extension: str
 ) -> List[str]:
     """Get the list of file (name) from a directory.
 
     Args:
-        directory_name (_type_): _description_
+        directory_name (Path): _description_
         extension (_type_): _description_
 
     Returns:
@@ -346,15 +343,20 @@ def load_csv_file(
     return dataframe
 
 
-def save_csv_file(dataframe: pd.DataFrame, csv_path_name: str) -> None:
+def save_csv_file(
+    dataframe: pd.DataFrame,
+    file_name: str,
+    output_directory: Path,
+) -> None:
     """Save a dataframe as a '.csv()' file.
 
     Args:
         dataframe (pd.DataFrame): Pandas DataFrame to be saved to CSV.
-        csv_file_name (str): File path/name of the CSV file.
+        file_name (str): File name of the CSV file. Without extension.
+        output_directory (Path): Folder where the data is saved to.
     """
     dataframe.to_csv(
-        path_or_buf=csv_path_name,
+        path_or_buf=output_directory.joinpath(f"{file_name}.csv"),
         sep=",",
         encoding="utf-8",
         index=True,
@@ -362,18 +364,20 @@ def save_csv_file(dataframe: pd.DataFrame, csv_path_name: str) -> None:
     return None
 
 
-def save_excel_file(dataframe: pd.DataFrame, excel_path_name: str) -> None:
-    """Save the dataframe to an MS Excel '.xlsx' file.
+def save_excel_file(
+    dataframe: pd.DataFrame,
+    file_name: str,
+    output_directory: Path,
+) -> None:
+    """Save a dataframe as a '.xlsx()' file.
 
     Args:
         dataframe (pd.DataFrame): Pandas DataFrame to be saved to Excel.
-        excel_file_name (str): File path/name of the Excel file.
-
-    Returns:
-        None.
+        file_name (str): File name of the Excel file. Without extension.
+        output_directory (Path): Folder where the data is saved to.
     """
     dataframe.to_excel(
-        excel_writer=excel_path_name,
+        excel_writer=output_directory.joinpath(f"{file_name}.xlsx"),
         index=False,
         sheet_name="Sheet1"
     )
@@ -407,31 +411,23 @@ def save_pipeline_model(
     return pipeline_model_file
 
 
-def save_figure(figure_name: str, dpi: int = 300) -> None:
-    """Save a figure as '.png' AND '.svg' file.
+def save_figure(file_name: str, output_directory: Path) -> None:
+    """Save a figure as '.png' file.
 
     Args:
-        figure_name (_type_): _description_
+        file_name (str): File name of the image file. Without extension.
+        output_directory (Path): Folder where the image is saved to.
     """
-    for extension in (
-        (
-            "png",
-            # "svg"
-        )
-    ):
-        plt.savefig(
-            fname=f"./figures/{figure_name}.{extension}",
-            format=extension,
-            bbox_inches="tight",
-            dpi=dpi
-        )
-    # return
+    plt.savefig(
+        fname=output_directory.joinpath(f"{file_name}.png"),
+        bbox_inches="tight",
+        dpi=300
+    )
 
 
 def save_image_show(
     image: np.ndarray,
     image_title: str,
-    save_image_name: str,
 ):
     """Image _summary_.
 
@@ -455,33 +451,44 @@ def save_image_show(
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    save_figure(figure_name=save_image_name)
+    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
     return image
 
 
 def save_npz_file(
-    file_name: str | Path,
+    file_name: str,
+    output_directory: Path
     data_array: np.ndarray,
 ) -> None:
     """save_npz _summary_.
 
     Args:
-        file_name (np.ndarray): _description_
-        data_array (str): _description_
-        save_image_name (str): _description_
+        file_name (str): _description_
+        output_directory (Path): _description_
+        data_array (np.ndarray): _description_
     """
-    np.savez(file=file_name, data=data_array)
+    np.savez(
+        file=output_directory.joinpath(f"{file_name}"),
+        data=data_array
+    )
 
 
-def save_pickle_file(dataframe: pd.DataFrame, file_path_name: str) -> None:
+def save_pickle_file(
+    dataframe: pd.DataFrame,
+    file_name: str,
+    output_directory: Path,
+) -> None:
     """Save the dataframe as a pickle object.
 
     Args:
         dataframe (pd.DataFrame): _description_
         file_path_name (str): _description_
     """
-    dataframe.to_pickle(path=file_path_name, protocol=-1)
+    dataframe.to_pickle(
+        path=output_directory.joinpath(f"{file_name}.pkl"),
+        protocol=-1
+    )
 
 
 def save_console_output(file_name: str) -> None:
@@ -579,11 +586,11 @@ def convert_text_file_to_pdf(
 
 
 @timing
-def convert_npz_to_mat(input_directory: str | Path) -> None:
+def convert_npz_to_mat(input_directory: Path) -> None:
     """AI is creating summary for convert_npz_to_mat.
 
     Args:
-        input_directory (str): [description]
+        input_directory (Path): [description]
     """
     output_directory = input_directory
 
@@ -1204,19 +1211,22 @@ def prepare_scaled_features_encoded_target(
 # EXPLORATORY DATA ANALYSIS
 
 
-def run_exploratory_data_analysis(dataframe: pd.DataFrame) -> pd.DataFrame:
+def run_exploratory_data_analysis(
+    dataframe: pd.DataFrame,
+    file_name: str,
+    output_directory: Path,
+) -> pd.DataFrame:
     """Print out the summary descriptive statistics from the dataset.
 
     Also includes a missing table summary.
 
     Args:
-        dataframe (_type_): Input dataset.
+        dataframe (pd.DataFrame): Input dataset.
+        file_name (str): File name.
+        output_directory (Path): Save directory.
 
     Returns:
         pd.DataFrame: Table with summary statistics.
-
-    TODO Include the 'mode' function to analyse the existence of a bimodal
-    distribution within the transmissivity variables.
     """
     print(
         f"\nData Shape: {dataframe.shape}\n",
@@ -1260,7 +1270,8 @@ def run_exploratory_data_analysis(dataframe: pd.DataFrame) -> pd.DataFrame:
     # Save statistics summary to .csv file
     save_csv_file(
         dataframe=summary_stats_table,
-        csv_path_name="eda_output"
+        file_name=file_name,
+        output_directory=output_directory,
     )
     return summary_stats_table
 
@@ -1293,14 +1304,6 @@ def run_exploratory_data_analysis_nums_cats(
     summary_stats_nums = dataframe.select_dtypes(
         include="number"
     ).describe(include="all").T
-
-    # # Mode
-    # mode = dataframe.mode(axis=0).T
-    # # Rename the mode column names
-    # mode_col_names = [
-    #     "mode" + str(col) for col in mode.columns
-    # ]
-    # mode.columns = mode_col_names
 
     # Percent of variance (standard deviation actually) compared to mean value
     pct_variation = (
@@ -1591,7 +1594,8 @@ def get_iqr_outliers(
         _type_: _description_
     """
     print("\n==============================================================\n")
-    print(f"For {column_name}:")
+    print(f"\n{column_name.upper()}\n")
+
     # Calculate Q1, Q3
     q_1, q_3 = np.percentile(
         a=dataframe[column_name],
@@ -1617,8 +1621,8 @@ def get_iqr_outliers(
     iqr_outlier_dataframe = iqr_outlier_dataframe[column_name]
     iqr_outlier_ratio = len(iqr_outlier_dataframe) / len(dataframe)
     print(
-        f"There are {len(iqr_outlier_dataframe)} \
-({iqr_outlier_ratio:.1%}) IQR outliers."
+        f"There are {len(iqr_outlier_dataframe)} "
+        f"({iqr_outlier_ratio:.1%}) IQR outliers."
     )
     # print(f"Table of outliers for {column_name} based on IQR value:")
     # print(iqr_outlier_dataframe)
@@ -1641,7 +1645,8 @@ def get_zscore_outliers(
         _type_: _description_
     """
     print("\n==============================================================\n")
-    print(f"For {column_name}:")
+    print(f"\n{column_name.upper()}\n")
+
     # Calculate Z-score
     z_score = np.abs(zscore(a=dataframe[column_name]))
 
@@ -1652,8 +1657,8 @@ def get_zscore_outliers(
     zscore_outlier_dataframe = zscore_outlier_dataframe[column_name]
     zscore_outlier_ratio = len(zscore_outlier_dataframe) / len(dataframe)
     print(
-        f"There are {len(zscore_outlier_dataframe)} \
-({zscore_outlier_ratio:.1%}) Z-score outliers."
+        f"There are {len(zscore_outlier_dataframe)} "
+        f"({zscore_outlier_ratio:.1%}) Z-score outliers."
     )
     # print(f"Table of outliers for {column_name} based on Z-score value:")
     # print(zscore_outlier_dataframe)
@@ -1674,7 +1679,8 @@ def get_mad_outliers(
         pd.DataFrame: _description_
     """
     print("\n==============================================================\n")
-    print(f"For {column_name}:")
+    print(f"\n{column_name.upper()}\n")
+
     # Reshape the target column to make it 2D
     column_2d = dataframe[column_name].values.reshape(-1, 1)
     # Fit to the target column
@@ -1694,8 +1700,8 @@ def get_mad_outliers(
     mad_outlier_dataframe["mad_score"] = mad_outliers
     mad_outlier_ratio = len(mad_outliers) / len(dataframe)
     print(
-        f"There are {len(mad_outliers)} \
-({mad_outlier_ratio:.1%}) MAD outliers."
+        f"There are {len(mad_outliers)} "
+        f"({mad_outlier_ratio:.1%}) MAD outliers."
     )
     # print(f"Table of outliers for {column_name} based on MAD value:")
     # print(mad_outlier_dataframe)
@@ -1708,7 +1714,7 @@ def concatenate_outliers_with_target_category_dataframe(
     data_outliers: pd.DataFrame,
     feature: str,
     outlier_method: str,
-    output_directory: str | Path,
+    output_directory: Path,
 ) -> pd.DataFrame:
     """Concatenate the outliers with their corresponding target categories.
 
@@ -1718,7 +1724,7 @@ def concatenate_outliers_with_target_category_dataframe(
         data_outliers (pd.DataFrame): _description_
         feature (str): _description_
         outlier_method (str): _description_
-        output_directory (str | Path): _description_
+        output_directory (Path): _description_
 
     Returns:
         pd.DataFrame: _description_
@@ -1737,8 +1743,8 @@ def concatenate_outliers_with_target_category_dataframe(
     # Save output as a '.csv()' file
     save_csv_file(
         dataframe=outlier_dataframe,
-        csv_path_name=output_directory /
-        f"{feature}_{outlier_method}_outliers.csv"
+        file_name=f"{feature}_{outlier_method}_outliers",
+        output_directory=output_directory,
     )
     return outlier_dataframe
 
@@ -1746,13 +1752,13 @@ def concatenate_outliers_with_target_category_dataframe(
 def detect_univariate_outliers(
     dataframe: pd.DataFrame,
     target_category_list: List[str],
-    output_directory: str | Path
+    output_directory: Path
 ) -> pd.DataFrame:
     """detect_univariate_outliers _summary_.
 
     Args:
         dataframe (pd.DataFrame): _description_
-        output_directory (str | Path): _description_
+        output_directory (Path): _description_
 
     Returns:
         pd.DataFrame: _description_
@@ -1790,14 +1796,14 @@ def detect_univariate_outliers(
 def detect_multivariate_outliers(
     dataframe: pd.DataFrame,
     target_category_list: List[str],
-    output_directory: str | Path
+    output_directory: Path
 ) -> Tuple[pd.DataFrame]:
     """detect_multivariate_outliers _summary_.
 
     Args:
         dataframe (pd.DataFrame): _description_
         target_category_list (List[str]): _description_
-        output_directory (str | Path): _description_
+        output_directory (Path): _description_
 
     Returns:
         Tuple[pd.DataFrame]: _description_
@@ -1822,7 +1828,8 @@ def detect_multivariate_outliers(
     # Save output as a '.csv()' file
     save_csv_file(
         dataframe=mahalanobis_outlier_dataframe,
-        csv_path_name=output_directory/"mahalanobis_outliers.csv"
+        file_name="mahalanobis_outliers",
+        output_directory=output_directory,
     )
 
     # Compile final outlier-free dataframe
@@ -1921,8 +1928,8 @@ def identify_highly_correlated_features(
         if any(reduced_correlation_matrix[feature] > correlation_threshold)
     ]
     print(
-        f"\nThere are {len(features_to_drop)} features to drop due to high \
-            correlation:\n{features_to_drop}\n"
+        f"\nThere are {len(features_to_drop)} features to drop due to high "
+        f"correlation:\n{features_to_drop}\n"
     )
     return features_to_drop
 
@@ -2148,13 +2155,9 @@ def run_pc_analysis(
         color="blue",
         fontsize=12
     )
-    plt.title(
-        label="Scree Plot PCA",
-        fontsize=16,
-        loc="center"
-    )
+    plt.title(label="Scree Plot PCA", fontsize=16)
     plt.ylabel("Percentage of Variance Explained")
-    save_figure(figure_name=output_directory/"pca_scree_plot.png")
+    save_figure(file_name="pca_scree_plot", output_directory=output_directory)
 
     # -------------------------------------------------------------------------
 
@@ -2171,7 +2174,9 @@ def run_pc_analysis(
         fontsize=16,
         loc="center"
     )
-    save_figure(figure_name=output_directory/"pca_loading_table.png")
+    save_figure(
+        file_name="pca_loading_table", output_directory=output_directory
+    )
 
     return (
         pca_model,
@@ -2295,27 +2300,28 @@ def get_outliers_from_pca(
     return pca_outlier_dataframe, pca_outlier_model
 
 
-def run_anova_check_assumption(
+def run_anova_check_assumptions(
     dataframe: pd.DataFrame,
     dependent_variable: pd.Series,
     independent_variable: pd.Series | str,
     group_variable: List[str],
-    output_directory: str | Path,
+    output_directory: Path,
     confidence_interval: float = 0.95,
 ) -> ols:
-    """run_anova_check_assumption _summary_.
+    """AI is creating summary for run_anova_check_assumptions.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        dependent_variable (pd.Series): _description_
-        independent_variable (pd.Series): _description_
-        group_variable (List[str]): _description_
-        output_directory (str | Path): _description_
+        dataframe (pd.DataFrame): [description]
+        dependent_variable (pd.Series): [description]
+        independent_variable (pd.Series): [description]
+        group_variable (List[str]): [description]
+        output_directory (Path): [description]
+        confidence_interval (float, optional): [description]. Defaults to 0.95.
 
     Returns:
-        _type_: _description_
+        ols: [description]
     """
-    anova_model = run_anova_test(
+    anova_model, tukey_results = run_anova_test(
         dataframe=dataframe,
         dependent_variable=dependent_variable,
         independent_variable=independent_variable,
@@ -2350,9 +2356,9 @@ def run_anova_check_assumption(
     # ---------------------------------------------------------------
 
     draw_tukeys_hsd_plot(
-        dataframe=dataframe,
-        dependent_variable=dependent_variable,
         independent_variable=independent_variable,
+        dependent_variable=dependent_variable,
+        tukey_results=tukey_results,
         output_directory=output_directory,
         confidence_interval=confidence_interval,
     )
@@ -2364,18 +2370,23 @@ def run_anova_test(
     dependent_variable: pd.Series,
     independent_variable: str,
     group_variable: str,
-    output_directory: str | Path,
+    output_directory: Path,
     confidence_interval: float = 0.95,
 ) -> None:
     """ANOVA test on numeric variables and calculate group confidence interval.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        dependent_variable (pd.Series): _description_
-        group_variable (str): _description_
-        confidence_interval (float, optional): _description_.
-        Defaults to 0.95.
+        dataframe (pd.DataFrame): [description]
+        dependent_variable (pd.Series): [description]
+        independent_variable (str): [description]
+        group_variable (str): [description]
+        output_directory (Path): [description]
+        confidence_interval (float, optional): [description]. Defaults to 0.95.
+
+    Returns:
+        [type]: [description]
     """
+    print("\n==============================================================\n")
     print(f"\n{dependent_variable.upper()}:")
 
     # Fit the OLS model
@@ -2389,27 +2400,27 @@ def run_anova_test(
     print(f"\nANOVA Test Output Table:\n{anova_table}")
 
     # Build confidence interval
-    ci_table_defect_type = rp.summary_cont(
+    ci_table_target_categories = rp.summary_cont(
         group1=dataframe[dependent_variable].groupby(
             dataframe[group_variable]
         ),
         conf=confidence_interval
     )
     print("One-way ANOVA and confidence intervals:")
-    print(ci_table_defect_type)
+    print(ci_table_target_categories)
     save_csv_file(
-        dataframe=ci_table_defect_type,
-        csv_path_name=output_directory /
-        f"ci_table_defect_type_{dependent_variable}.csv"
+        dataframe=ci_table_target_categories,
+        file_name=f"ci_table_target_categories_{dependent_variable}",
+        output_directory=output_directory,
     )
 
     # Find group differences
-    perform_multicomparison(
+    tukey_results = perform_multicomparison(
         dataframe=dataframe[dependent_variable],
         groups=dataframe[group_variable],
         confidence_interval=confidence_interval
     )
-    return ols_model
+    return ols_model, tukey_results
 
 
 def perform_multicomparison(
@@ -2431,10 +2442,9 @@ def perform_multicomparison(
         data=dataframe,
         groups=groups
     )
-    tukey_result = multicomparison.tukeyhsd(alpha=1 - confidence_interval)
-    print(f"\nTukey's Multicomparison Test between groups:\n{tukey_result}\n")
-    # print(f"Unique groups: {multicomparison.groupsunique}\n")
-    return tukey_result
+    tukey_results = multicomparison.tukeyhsd(alpha=1 - confidence_interval)
+    print(f"\nTukey's Multicomparison Test between groups:\n{tukey_results}\n")
+    return tukey_results
 
 
 def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
@@ -2668,28 +2678,20 @@ def create_missing_data_matrix(
 
     Args:
         dataframe (pd.DataFrame): Input dataframe.
-
-    Returns:
-        object: _description_
+        file_name (str): Output file name to save matrix.
+        output_directory (Path): Output directory where figure will be saved.
     """
     plt.figure(figsize=(15, 10))
     msno.matrix(
         dataframe,
         sort="descending",  # NOT working
-        # figsize=(10, 5),
         fontsize=8,
         sparkline=False,
         color=(0.50, 0.50, 0.50),
     )
-    plt.title(
-        label="Summary of Missing Data",
-        fontsize=16,
-        loc="center"
-    )
+    plt.title(label="Summary of Missing Data", fontsize=16)
     plt.tight_layout()
-    save_figure(
-        figure_name=output_directory.joinpath(f"{file_name}.png")
-    )
+    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
 
 
@@ -2784,7 +2786,7 @@ def draw_all_pca_pairs_scatterplot(
     pca_components: List[str],
     target_category: str,
     sub_category: str,
-    output_directory: str | Path
+    output_directory: Path
 ) -> None:
     """Draw the scatter plots for all selected PC axes.
 
@@ -2803,7 +2805,7 @@ def draw_all_pca_pairs_scatterplot(
         pca_components (List[str]): _description_
         target_category (str): _description_
         sub_category (str): _description_
-        output_directory (str | Path): _description_
+        output_directory (Path): _description_
 
     TODO Change the symbol shapes for the 'product' sub-category
     """
@@ -2854,7 +2856,7 @@ def draw_all_pca_pairs_scatterplot(
         )
         plt.title(
             label=(
-                f"Représentation des effets des paramètres de détection des"
+                f"Représentation des effets des paramètres de détection des "
                 f"défauts {pc_x.upper()} vs. {pc_y.upper()}"
             ),
             fontsize=16,
@@ -2862,8 +2864,8 @@ def draw_all_pca_pairs_scatterplot(
         )
         plt.tight_layout()
         save_figure(
-            figure_name=output_directory /
-            f"scatterplot_pca_{target_category}_{pc_x}_vs_{pc_y}.png"
+            file_name=f"scatterplot_pca_{target_category}_{pc_x}_vs_{pc_y}",
+            output_directory=output_directory
         )
         # plt.show()
 
@@ -3385,7 +3387,7 @@ def draw_anova_quality_checks(
     dependent_variable: str,
     independent_variable: str,
     model,
-    output_directory: str | Path,
+    output_directory: Path,
     confidence_interval: float = 0.95,
 ) -> None:
     """Draw Q-Q plots of the model dependent variable residuals.
@@ -3395,7 +3397,7 @@ def draw_anova_quality_checks(
         dependent_variable (str): _description_
         independent_variable (str): _description_
         model (_type_): _description_
-        output_directory (str | Path): _description_
+        output_directory (Path): _description_
         confidence_interval (float, optional): _description_. Defaults to 0.95.
     """
     draw_qqplot(
@@ -3403,10 +3405,7 @@ def draw_anova_quality_checks(
         confidence_interval=confidence_interval
     )
     plt.title(
-        label=(
-            f"Q-Q Plot of Model Residuals ({dependent_variable}"
-            f"vs. {independent_variable})"
-        ),
+        label=f"Q-Q Plot of Model Residuals for {dependent_variable}",
         fontsize=14,
         loc="center"
     )
@@ -3414,10 +3413,8 @@ def draw_anova_quality_checks(
     # plt.axis("off")
     plt.tight_layout()
     save_figure(
-        figure_name=(
-            output_directory /
-            f"qqplot_anova_{independent_variable}_{dependent_variable}.png"
-        )
+        file_name=f"qqplot_anova_{independent_variable}_{dependent_variable}",
+        output_directory=output_directory
     )
     # plt.show()
 
@@ -3426,7 +3423,7 @@ def draw_tukeys_hsd_plot(
     dataframe: pd.DataFrame,
     dependent_variable: str,
     independent_variable: str,
-    output_directory: str | Path,
+    output_directory: Path,
     confidence_interval: float = 0.95,
 ) -> None:
     """draw_tukeys_hsd_plot _summary_.
@@ -3435,7 +3432,7 @@ def draw_tukeys_hsd_plot(
         dataframe (pd.DataFrame): _description_
         dependent_variable (str): _description_
         independent_variable (str): _description_
-        output_directory (str | Path): _description_
+        output_directory (Path): _description_
         confidence_interval (float, optional): _description_. Defaults to 0.95.
     """
     print("\nStats for Tukey's HSD Plots")
@@ -3448,24 +3445,19 @@ def draw_tukeys_hsd_plot(
 
     # Plot graphic output from Tukey's test
     tukey_result.plot_simultaneous(
-        ylabel="Defects",
+        ylabel="Target Categories",
         xlabel="Score Difference"
     )
     plt.suptitle(
-        t=f"""
-        Tukey's HSD Post-hoc Test on {dependent_variable} for \
-{independent_variable}
-        """,
+        t=f"Tukey's HSD Post-hoc Test on {dependent_variable}",
         fontsize=14
     )
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
     save_figure(
-        figure_name=(
-            output_directory /
-            f"tukey_anova_{independent_variable}_{dependent_variable}.png"
-        )
+        file_name=f"tukey_anova_{independent_variable}_{dependent_variable}",
+        output_directory=output_directory
     )
     # plt.show()
 
@@ -3551,7 +3543,7 @@ def draw_pca_outliers_biplot_3d(
     )
     plt.grid(False)
     plt.tight_layout()
-    save_figure(figure_name=output_directory.joinpath(f"{file_name}.png"))
+    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
 
 
@@ -3592,7 +3584,6 @@ def draw_pca_outliers_biplot(
         hotellingt2=outlier_detection,
         legend=True,
         label=False,
-        # figsize=(20, 12),
         color_arrow="k",
         fontdict={
             "weight": "bold",
@@ -3611,7 +3602,7 @@ def draw_pca_outliers_biplot(
     )
     plt.grid(False)
     plt.tight_layout()
-    save_figure(figure_name=output_directory.joinpath(f"{file_name}.png"))
+    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
 
 
@@ -3632,7 +3623,7 @@ def draw_pca_biplot_3d(
         features_scaled (pd.DataFrame): _description_
         target_encoded (pd.Series): _description_
         target_class_list (List[str]): _description_
-        output_directory (str | Path): _description_
+        output_directory (Path): _description_
     """
     # Define the colour scheme for identifying the target classes ?
     # target_class_colour_list, _ = colourmap.fromlist(target_class_list)
@@ -3721,7 +3712,7 @@ def draw_pca_biplot(
         features_scaled (pd.DataFrame): _description_
         target_encoded (pd.Series): _description_
         target_class_list (List[str]): _description_
-        output_directory (str | Path): _description_
+        output_directory (Path): _description_
     """
     # Define the colour scheme for identifying the target classes
 
@@ -3809,7 +3800,7 @@ def draw_pca_biplot(
             alpha=alpha
         ))
     # pca_biplot.show()
-    save_figure(figure_name=output_directory.joinpath(f"{file_name}.png"))
+    save_figure(file_name=file_name, output_directory=output_directory)
 
 
 def add_confidence_interval_ellipses(
@@ -3885,7 +3876,7 @@ def add_confidence_interval_ellipses(
 def draw_feature_rank(
     features: pd.DataFrame,
     target_encoded: pd.Series,
-    output_directory: str | Path,
+    output_directory: Path,
 ) -> None:
     """draw_feature_rank _summary_.
 
@@ -3896,7 +3887,7 @@ def draw_feature_rank(
     Args:
         features (pd.DataFrame): _description_
         target_encoded (pd.Series): _description_
-        output_directory (str | Path): _description_
+        output_directory (Path): _description_
     """
     plt.figure(figsize=(15, 10))
     # Instantiate the 1D visualiser with the Shapiro ranking algorithm
@@ -3908,14 +3899,8 @@ def draw_feature_rank(
     feature_rank.fit(features, target_encoded)
     feature_rank.transform(features)
 
-    plt.title(
-        label="Ranking of Features",
-        fontsize=16,
-        loc="center"
-    )
-    save_figure(
-        figure_name=output_directory/"feature_ranking.png"
-    )
+    plt.title(label="Ranking of Features", fontsize=16)
+    save_figure(file_name="feature_ranking", output_directory=output_directory)
 
 
 def show_items_per_category(
@@ -4782,7 +4767,8 @@ def draw_decision_tree(
         tree_classifier (_type_): _description_
         feature_name_list (List[str]): _description_
         target_label_list (List[str]): _description_
-        figure_path_name (str | Path): _description_
+        figure_name (str): _description_
+        output_directory (Path): _description_
     """
     # Define the tree classifier parameters
     n_nodes = tree_classifier.tree_.node_count
@@ -4846,7 +4832,7 @@ def draw_decision_tree(
         fontsize=20
     )
     plt.tight_layout()
-    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
 
 
@@ -4864,7 +4850,8 @@ def draw_random_forest_tree(
         random_forest_classifier (_type_): _description_
         feature_name_list (List[str]): _description_
         target_label_list (List[str]): _description_
-        figure_path_name (str | Path): _description_
+        figure_name (str): _description_
+        output_directory (Path): _description_
     """
     # plt.figure()
     tree.plot(
@@ -4880,7 +4867,7 @@ def draw_random_forest_tree(
         fontsize=16
     )
     plt.tight_layout()
-    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
 
 
@@ -4922,14 +4909,11 @@ def draw_confusion_matrix_heatmap(
     )
     plt.ylabel("True label")
     plt.xlabel("Predicted label")
-    plt.title(
-        label="Confusion matrix of predictions",
-        fontsize=16
-    )
+    plt.title(label="Confusion matrix of predictions", fontsize=16)
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
 
 
@@ -4944,7 +4928,8 @@ def get_feature_importance_scores(
     Args:
         model (_type_): _description_
         feature_name_list (List[str]): _description_
-        figure_path_name (str | Path): _description_
+        figure_name (str): _description_
+        output_directory (Path): _description_
 
     Returns:
         pd.Series: _description_
@@ -4978,10 +4963,10 @@ def get_feature_importance_scores(
     )
     plt.ylabel("Parameters")
     plt.xlabel("Mean decrease in Impurity")
-    plt.title(label=("Feature Importance in Predictions"), fontsize=16)
+    plt.title(label="Feature Importance in Predictions", fontsize=16)
     plt.grid(visible=False)
     fig.tight_layout()
-    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
     return model_feature_importances
 
@@ -5004,7 +4989,8 @@ def get_feature_importance_scores_permutation(
         features_test (pd.DataFrame): _description_
         target_test (pd.Series): _description_
         feature_name_list (List[str]): _description_
-        figure_path_name (str | Path): _description_
+        figure_name (str): _description_
+        output_directory (Path): _description_
         n_repeats (int, optional): _description_. Defaults to 10.
 
     Returns:
@@ -5035,10 +5021,10 @@ def get_feature_importance_scores_permutation(
     )
     plt.ylabel("Parameters")
     plt.xlabel("Mean accuracy decrease")
-    plt.title(label=("Feature importance in predictions"), fontsize=16)
+    plt.title(label="Feature importance in predictions", fontsize=16)
     plt.grid(visible=False)
     fig.tight_layout()
-    save_figure(figure_name=output_directory.joinpath(f"{figure_name}.png"))
+    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
     return model_feature_importances_permutation
 
