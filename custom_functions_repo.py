@@ -103,6 +103,7 @@ from sklearn.model_selection import (
 )
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.preprocessing import (
+    FunctionTransformer,
     LabelEncoder,
     MinMaxScaler,
     OneHotEncoder,
@@ -4074,16 +4075,90 @@ def train_valid_test_split_fast(
     )
 
 
+def remove_features_with_nans(
+    dataframe: pd.DataFrame,
+    nan_threshold: float = 0.7
+) -> pd.DataFrame:
+    """Remove features if there is a high proportion of NaN values.
+
+    Args:
+        dataframe (pd.DataFrame): The input DataFrame.
+        nan_threshold (float, optional): The threshold for removing features
+            with NaN values. Defaults to 0.7.
+
+    Returns:
+        pd.DataFrame: A DataFrame with the features removed.
+    """
+    # Get the percentage of missing values in each column
+    missing_percent = dataframe.isnull().mean()
+
+    # Get the indices of columns that have less than or equal to the threshold
+    # of missing values
+    column_indices = missing_percent[missing_percent <= nan_threshold].index
+
+    # Return the subset of dataframe with those columns
+    reduced_dataframe = dataframe[column_indices]
+
+    # List the variables removed due to a high proportion of NaN values
+    variable_list_before = dataframe.columns.to_list()
+    variable_list_after = reduced_dataframe.columns.to_list()
+
+    removed_column_list = [
+        feature for feature in variable_list_before
+        if feature not in variable_list_after
+    ]
+    print("\nColumns Removed due to a High Proportion of NaN Values:")
+    print(removed_column_list)
+    return reduced_dataframe
+
+
+def remove_features_with_nans_transformer(
+    nan_threshold: float
+) -> FunctionTransformer:
+    """Create a transformer to remove features with a high proportion of NaNs.
+
+    Args:
+        nan_threshold (float): The threshold for removing features with NaNs.
+
+    Returns:
+        FunctionTransformer: A transformer object that can be fit and
+            transformed on a DataFrame.
+    """
+    remove_nan_transformer = FunctionTransformer(
+        func=remove_features_with_nans,
+        kw_args={"nan_threshold": nan_threshold},
+        validate=False,
+    )
+    return remove_nan_transformer
+
+
 def drop_feature_pipeline(
     features: pd.DataFrame,
     features_to_keep: List[str],
+    nan_threshold: float = 0.7,
     correlation_threshold: float = 0.8,
     variables_with_nan_values: List[str] = None,
-    variance_threshold: float = None,  # use a value of 0.01 or 0.03
+    variance_threshold: float = None,
 ) -> Pipeline:
-    """drop_feature_pipeline _summary_.
+    """Create a pipeline to drop features from a DataFrame.
 
-    TODO Add a 'identify_highly_correlated_features' function to pipeline ?
+    Args:
+        features (pd.DataFrame): The input DataFrame.
+        features_to_keep (List[str]): A list of feature names to keep.
+        nan_threshold (float, optional): The threshold for removing features
+            with NaN values. Defaults to 0.7.
+        correlation_threshold (float, optional): The threshold for removing
+            correlated features. Defaults to 0.8.
+        variables_with_nan_values (List[str], optional): A list of variables
+            with NaN values. Defaults to None.
+        variance_threshold (float, optional): The threshold for removing low
+            variance features. Defaults to None.
+
+    Returns:
+        Pipeline: Object that can be fit and transformed on a DataFrame.
+
+    TODO Add a 'drop_low_variance' function to pipeline ?
+    TODO Compare vs. 'DropCorrelatedFeatures' class.
     Try something like the code below:
             var_thres = VarianceThreshold(threshold=threshold)
             _ = var_thres.fit(features)
@@ -4095,50 +4170,58 @@ def drop_feature_pipeline(
             print(f"{features_reduced.columns}")
     BUG Fix error message below when using 'VarianceThreshold' class.
         ValueError: make_column_selector can only be applied to pandas df
-    Args:
-        features (pd.DataFrame): _description_
-        features_to_keep (List[str]): _description_
-        correlation_threshold (float): _description_. Defaults to 0.8.
-        variables_with_nan_values (List[str], optional): _description_.
-        Defaults to None.
-        variance_threshold (float, optional): _description_. Defaults to 0.03.
-
-    Returns:
-        Pipeline: _description_
     """
-    drop_feature_pipe = Pipeline(
-        steps=[
-            ("remove_nan_values", DropMissingData(
+    steps = [
+        (
+            "Remove Features With NaN Values",
+            remove_features_with_nans_transformer(nan_threshold=nan_threshold)
+        ),
+        (
+            "Remove Rows With NaN Values",
+            DropMissingData(
                 variables=variables_with_nan_values,
                 missing_only=True,
-                # threshold=0.01,  # variable with =< 0.1 variance removed
-                # threshold=None,  # variable with all NaNs will be removed
-            )),  # BUG all data removed !!
-            ("drop_columns", DropFeatures(
+                threshold=0.03,  # variable with =< 0.3 variance removed
+                # threshold=None,  # rows with any NaNs will be removed
+            )
+        ),
+        (
+            "Drop Columns",
+            DropFeatures(
                 features_to_drop=[
                     feature for feature in features
                     if feature not in features_to_keep
                 ]
-            )),
-            ("drop_constant_values", DropConstantFeatures(
-                tol=0.95,
-                missing_values="ignore"
-            )),  # TODO to test vs. Scikit-learn 'VarianceThreshold()' (below)
-            ("drop_duplicates", DropDuplicateFeatures(
-                missing_values="ignore"
-            )),
-            ("drop_correlated_features", DropCorrelatedFeatures(
+            )
+        ),
+        (
+            "Drop Constant Values",
+            DropConstantFeatures(tol=0.95, missing_values="ignore")
+        ),  # TODO to test vs. Scikit-learn 'VarianceThreshold()' (below)
+        (
+            "Drop Duplicates",
+            DropDuplicateFeatures(missing_values="ignore")
+        ),
+        (
+            "Drop Correlated Features",
+            DropCorrelatedFeatures(
                 method="pearson",
                 threshold=correlation_threshold,
                 missing_values="ignore"
-            )),
-            # ("drop_low_variance", VarianceThreshold(
-            #     threshold=variance_threshold,
-            # )),
-        ],
-        verbose=True
-    )
-    print(f"\nPipeline structure:\n{drop_feature_pipe}\n")
+            )
+        ),
+    ]
+
+    if variance_threshold is not None:
+        steps.append(
+            (
+                "drop_low_variance",
+                VarianceThreshold(threshold=variance_threshold)
+            )
+        )
+
+    drop_feature_pipe = Pipeline(steps=steps, verbose=True)
+    print(f"\nDrop-Feature Pipeline Structure:\n{drop_feature_pipe}\n")
     return drop_feature_pipe
 
 
@@ -4203,13 +4286,14 @@ def preprocess_std_scaler_numeric_feature_pipeline() -> Pipeline:
 
 
 def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
-    """preprocess_numeric_feature_pipeline _summary_.
+    """Create a pipeline to preprocess numeric features.
 
     Args:
-        scaler (str): _description_
+        scaler (str): The name of the scaler to use. Can be either
+            'standard_scaler', 'min_max_scaler' or 'robust_scaler'.
 
     Returns:
-        Pipeline: _description_
+        Pipeline: An object that can be fit and transformed on a DataFrame.
     """
     # Set up the dictionary for the scaler functions
     scaler_dictionary = {
@@ -4234,56 +4318,15 @@ def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
     return numeric_feature_pipeline
 
 
-def preprocess_ordinal_categorical_feature_pipeline() -> Pipeline:
-    """Preprocess categorical data using ordinal encoding.
-
-    Returns:
-        Pipeline: _description_
-    """
-    categorical_feature_pipeline = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(
-                strategy="most_frequent",
-                fill_value="missing",
-            )),
-            ("encoder", OrdinalEncoder(handle_unknown="ignore")),
-        ],
-        verbose=True,
-    )
-    print("\nCategorical Data Pipeline Structure:")
-    print(categorical_feature_pipeline)
-    return categorical_feature_pipeline
-
-
-def preprocess_one_hot_categorical_feature_pipeline() -> Pipeline:
-    """Preprocess categorical data using one-hot encoding.
-
-    Returns:
-        Pipeline: _description_
-    """
-    categorical_feature_pipeline = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(
-                strategy="most_frequent",
-                fill_value="missing",
-            )),
-            ("encoder", OneHotEncoder(handle_unknown="ignore")),
-        ],
-        verbose=True,
-    )
-    print("\nCategorical Data Pipeline Structure:")
-    print(categorical_feature_pipeline)
-    return categorical_feature_pipeline
-
-
 def preprocess_categorical_feature_pipeline(encoder: str) -> Pipeline:
-    """preprocess_numeric_feature_pipeline _summary_.
+    """Create a pipeline to preprocess categorical features.
 
     Args:
-        scaler (str): _description_
+        encoder (str): The name of the encoder to use. Can be either
+            'one_hot_encoder' or 'ordinal_encoder'.
 
     Returns:
-        Pipeline: _description_
+        Pipeline: An object that can be fit and transformed on a DataFrame.
     """
     # Set up the dictionary for the scaler functions
     encoder_dictionary = {
@@ -4308,23 +4351,31 @@ def preprocess_categorical_feature_pipeline(encoder: str) -> Pipeline:
     return categorical_feature_pipeline
 
 
+def select_best_features():
+    """select_best_features _summary_."""
+    return
+
+
 def transform_feature_pipeline(
     numeric_feature_pipeline: Pipeline,
     categorical_feature_pipeline: Pipeline,
 ) -> ColumnTransformer:
-    """Transform the selected features in the pipeline.
+    """Transform the selected features using the specified pipelines.
 
     For the 'transformers' parameters, the settings represent, respectively:
-        - the transformer name
-        - the transformer pipeline it represents
-        - the columns included in the transformer
+    - the transformer name
+    - the transformer pipeline it represents
+    - the columns included in the transformer
 
     Args:
-        numeric_feature_pipeline (Pipeline): _description_
-        categorical_feature_pipeline (Pipeline): _description_
+        numeric_feature_pipeline (Pipeline): Pipeline for transforming numeric
+            features.
+        categorical_feature_pipeline (Pipeline): Pipeline for transforming
+            categorical features.
 
     Returns:
-        ColumnTransformer: _description_
+        ColumnTransformer: A column transformer object that applies the
+            specified transformers to the appropriate columns.
     """
     feature_transformer = ColumnTransformer(
         transformers=[
