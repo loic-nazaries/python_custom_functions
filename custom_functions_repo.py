@@ -78,7 +78,6 @@ from sklearn.feature_selection import (
     VarianceThreshold
 )
 from sklearn.impute import SimpleImputer
-from sklearn.inspection import permutation_importance
 # from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     # accuracy_score,
@@ -428,12 +427,19 @@ def save_figure(file_name: str, output_directory: Path) -> None:
 def save_image_show(
     image: np.ndarray,
     image_title: str,
+    file_name: str,
+    output_directory: Path
 ):
-    """Image _summary_.
+    """save_image_show _summary_.
 
     Args:
         image (np.ndarray): _description_
         image_title (str): _description_
+        file_name (str): _description_
+        output_directory (Path): _description_
+
+    Returns:
+        _type_: _description_
     """
     image = plt.imshow(
         X=image,
@@ -458,7 +464,7 @@ def save_image_show(
 
 def save_npz_file(
     file_name: str,
-    output_directory: Path
+    output_directory: Path,
     data_array: np.ndarray,
 ) -> None:
     """save_npz _summary_.
@@ -3907,10 +3913,12 @@ def show_items_per_category(
         data: pd.Series | pd.DataFrame,
         category_name: str,
 ) -> None:
-    """show_items_per_category _summary_.
+    """Show the number of items in each class of a given category.
 
     Args:
-        data (pd.Series): _description_
+        data (pd.Series | pd.DataFrame): The data containing the category to be
+            analysed.
+        category_name (str): The name of the category to be analysed.
     """
     # Show number of items in each class of the target
     data_class_count = data.value_counts()
@@ -4210,66 +4218,6 @@ def drop_feature_pipeline(
     return drop_feature_pipe
 
 
-def preprocess_robust_scaler_numeric_feature_pipeline() -> Pipeline:
-    """Preprocess numeric data using robust scaling.
-
-    Returns:
-        Pipeline: _description_
-    """
-    numeric_feature_pipeline = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(
-                missing_values=np.nan,
-                strategy="median",
-            )),
-            ("scaler", RobustScaler()),
-        ],
-        verbose=True,
-    )
-    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
-    return numeric_feature_pipeline
-
-
-def preprocess_minmax_scaler_numeric_feature_pipeline() -> Pipeline:
-    """Preprocess numeric data using min-max normalising.
-
-    Returns:
-        Pipeline: _description_
-    """
-    numeric_feature_pipeline = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(
-                missing_values=np.nan,
-                strategy="median",
-            )),
-            ("scaler", MinMaxScaler()),
-        ],
-        verbose=True,
-    )
-    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
-    return numeric_feature_pipeline
-
-
-def preprocess_std_scaler_numeric_feature_pipeline() -> Pipeline:
-    """Preprocess numeric data using standard scaling.
-
-    Returns:
-        Pipeline: _description_
-    """
-    numeric_feature_pipeline = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(
-                missing_values=np.nan,
-                strategy="median",
-            )),
-            ("scaler", StandardScaler()),
-        ],
-        verbose=True,
-    )
-    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
-    return numeric_feature_pipeline
-
-
 def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
     """Create a pipeline to preprocess numeric features.
 
@@ -4421,6 +4369,87 @@ def get_transformed_feature_pipeline(
     )
     print(f"\nPreprocessed Data:\n{preprocessed_df.head(3)}\n")
     return preprocessed_df
+
+
+def get_dropped_features_from_pipeline(
+    model_pipeline: Pipeline,
+    model_features: pd.DataFrame
+) -> List[str]:
+    """get_dropped_features_from_pipeline _summary_.
+
+    Args:
+        model_pipeline (Pipeline): _description_
+
+    Returns:
+        List[str]: _description_
+    """
+    # Make a list of features dropped through the pipeline model
+    drop_constant_features = list(
+        model_pipeline.named_steps["Drop Constant Values"].features_to_drop_
+    )
+    print(f"\nFeatures with Constant Values:\n{drop_constant_features}\n")
+
+    drop_duplicate_features = list(
+        model_pipeline.named_steps["Drop Duplicates"].features_to_drop_
+    )
+    print(f"\nFeatures Duplicated:\n{drop_duplicate_features}\n")
+
+    drop_correlated_features = list(
+        model_pipeline.named_steps[
+            "Drop Correlated Features"].features_to_drop_
+    )
+    # Get a list of correlated features
+    correlated_features = list(
+        model_pipeline.named_steps[
+            "Drop Correlated Features"].correlated_feature_sets_
+    )
+    print(f"\nFeatures Correlated:\n{correlated_features}\n", sep="\n")
+    # Display a correlation matrix
+    correlation_matrix = model_features.corr()
+    print(f"\nCorrelation Matrix of Model Features:\n{correlation_matrix}\n")
+
+    # Concatenate lists of dropped features
+    dropped_feature_list = (
+        *drop_constant_features,
+        *drop_duplicate_features,
+        *drop_correlated_features
+    )
+    print(f"\nFeatures Dropped:\n{dropped_feature_list}\n")
+    return dropped_feature_list
+
+
+def predict_target(
+    model: Pipeline,
+    features_test: pd.DataFrame | np.ndarray,
+    target_test: pd.Series | np.ndarray,
+) -> np.ndarray:
+    """Predict target using a model and create a dataframe of predictions.
+
+    Args:
+        model (Pipeline): The trained model for prediction.
+        features_test (pd.DataFrame | np.ndarray): The test set features.
+        target_test (pd.Series | np.ndarray): The true target values for
+            the test set.
+
+    Returns:
+        np.ndarray: The predicted target values.
+    """
+    # Predict the target on the test set
+    target_pred = model.predict(X=features_test)
+
+    # Build a dataframe of true/test values vs. prediction values
+    target_pred_df = pd.DataFrame(
+        data=target_pred,
+        columns=["predictions"],
+        index=features_test.index
+    )
+
+    predictions_vs_test = pd.concat(
+        objs=[target_test, target_pred_df],
+        axis=1
+    ).reset_index(drop=True)
+    print(f"\nTest vs. Predictions:\n{predictions_vs_test}\n")
+    return target_pred
 
 
 def join_parallel_pipelines(
@@ -4758,7 +4787,7 @@ def draw_decision_tree(
     tree_classifier,
     feature_name_list: List[str],
     target_label_list: List[str],
-    figure_name: str,
+    file_name: str,
     output_directory: Path,
 ) -> None:
     """_summary_.
@@ -4767,7 +4796,7 @@ def draw_decision_tree(
         tree_classifier (_type_): _description_
         feature_name_list (List[str]): _description_
         target_label_list (List[str]): _description_
-        figure_name (str): _description_
+        file_name (str): _description_
         output_directory (Path): _description_
     """
     # Define the tree classifier parameters
@@ -4840,7 +4869,7 @@ def draw_random_forest_tree(
     random_forest_classifier,
     feature_name_list: List[str],
     target_label_list: List[str],
-    figure_name: str,
+    file_name: str,
     output_directory: Path,
     ranked_tree: int = None,
 ) -> None:
@@ -4850,7 +4879,7 @@ def draw_random_forest_tree(
         random_forest_classifier (_type_): _description_
         feature_name_list (List[str]): _description_
         target_label_list (List[str]): _description_
-        figure_name (str): _description_
+        file_name (str): _description_
         output_directory (Path): _description_
     """
     # plt.figure()
@@ -4875,7 +4904,7 @@ def draw_confusion_matrix_heatmap(
     target_test: pd.Series,
     target_pred: pd.Series,
     target_label_list: List[str],
-    figure_name: str,
+    file_name: str,
     output_directory: Path,
 ) -> None:
     """_summary_.
@@ -4884,7 +4913,8 @@ def draw_confusion_matrix_heatmap(
         target_test (pd.Series): _description_
         target_pred (pd.Series): _description_
         target_label_list (List[str]): _description_
-        figure_path_name (str): _description_
+        file_name (str): _description_
+        output_directory (Path): _description_
     """
     # Compute the confusion matrix
     confusion_matrix_ = confusion_matrix(
@@ -4920,7 +4950,7 @@ def draw_confusion_matrix_heatmap(
 def get_feature_importance_scores(
     model,
     feature_name_list: List[str],
-    figure_name: str,
+    file_name: str,
     output_directory: Path,
 ) -> pd.Series:
     """get_feature_importance_scores _summary_.
@@ -4928,7 +4958,7 @@ def get_feature_importance_scores(
     Args:
         model (_type_): _description_
         feature_name_list (List[str]): _description_
-        figure_name (str): _description_
+        file_name (str): _description_
         output_directory (Path): _description_
 
     Returns:
@@ -4971,62 +5001,58 @@ def get_feature_importance_scores(
     return model_feature_importances
 
 
-def get_feature_importance_scores_permutation(
-    model,
+def apply_cross_validation_analysis(
+    model: Pipeline,
+    features_train: pd.DataFrame,
+    target_train: pd.Series,
     features_test: pd.DataFrame,
     target_test: pd.Series,
-    feature_name_list: List[str],
-    figure_name: str,
-    output_directory: Path,
-    n_repeats=10,
-) -> pd.Series:
-    """Feature importance based on feature permutation.
-
-    This removes bias toward high-cardinality features.
+    target_pred: pd.Series,
+    target_label_list: str,
+    cv: int,
+    file_name: str,
+    output_directory: Path
+) -> None:
+    """apply_cross_validation_analysis _summary_.
 
     Args:
-        model (_type_): _description_
-        features_test (pd.DataFrame): _description_
-        target_test (pd.Series): _description_
-        feature_name_list (List[str]): _description_
-        figure_name (str): _description_
-        output_directory (Path): _description_
-        n_repeats (int, optional): _description_. Defaults to 10.
-
-    Returns:
-        pd.Series: _description_
+        model (Pipeline): The model to be used for cross validation analysis.
+        features_train (pd.DataFrame): The training data features.
+        target_train (pd.Series): The training data target.
+        features_test (pd.DataFrame): The test data features.
+        target_test (pd.Series): The test data target.
+        target_pred (pd.Series): The predicted target values.
+        target_label_list (str): The list of target labels.
+        cv (int): The number of cross validation folds.
+        file_name (str): The name of the file to save the confusion matrix
+            heatmap to.
+        output_directory (Path): The directory to save the confusion matrix
+            heatmap to.
     """
-    permutation_result = permutation_importance(
-        estimator=model,
-        X=features_test,
-        y=target_test,
-        n_repeats=n_repeats,
-        random_state=42,
-        scoring="neg_mean_squared_error",
-        n_jobs=-1,
+    calculate_cross_validation_scores(
+        model=model,
+        features_test=features_test,
+        target_test=target_test,
+        target_pred=target_pred,
+        target_label_list=target_label_list,
+        cv=cv
     )
-    # Try below
-    print(f"\n{permutation_result.importances = }\n")
 
-    # Create a Pandas Series to plot the data
-    model_feature_importances_permutation = pd.Series(
-        data=permutation_result.importances_mean,
-        index=feature_name_list
+    draw_confusion_matrix_heatmap(
+        target_test=target_test,
+        target_pred=target_pred,
+        # target_test=label_encoder.inverse_transform(target_test),
+        # target_pred=label_encoder.inverse_transform(target_pred),
+        target_label_list=target_label_list,
+        file_name=file_name,
+        output_directory=output_directory,
     )
-    fig, ax = plt.subplots()
-    model_feature_importances_permutation.plot.barh(
-        xerr=permutation_result.importances_std,
-        align="center",
-        ax=ax
+
+    calculate_multiple_cross_validation_scores(
+        model=model,
+        features=features_train,
+        target=target_train,
     )
-    plt.ylabel("Parameters")
-    plt.xlabel("Mean accuracy decrease")
-    plt.title(label="Feature importance in predictions", fontsize=16)
-    plt.grid(visible=False)
-    fig.tight_layout()
-    save_figure(file_name=file_name, output_directory=output_directory)
-    # plt.show()
-    return model_feature_importances_permutation
 
 
 def perform_roc_auc_analysis(
