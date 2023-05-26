@@ -44,6 +44,7 @@ from reportlab.pdfgen import canvas
 import researchpy as rp
 import scipy as sp
 from scipy.io import savemat
+from scipy.spatial.distance import mahalanobis
 import seaborn as sns
 import sidetable as stb
 import statsmodels.api as sm
@@ -776,14 +777,16 @@ def convert_to_datetime_type(
     dataframe: pd.DataFrame,
     datetime_variable_list: List[str | datetime]
 ) -> pd.DataFrame:
-    """convert_to_datetime_type _summary_.
+    """Convert specified columns in a DataFrame to datetime type.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        datetime_variable_list (List[str  |  datetime]): _description_
+        dataframe (pd.DataFrame): The DataFrame to be converted.
+        datetime_variable_list (List[str | datetime]): List of column names or
+            datetime variables to be converted to datetime type.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: The DataFrame with specified columns converted to
+            datetime type.
     """
     dataframe[datetime_variable_list] = (
         dataframe[datetime_variable_list].astype(dtype="datetime64[ns]")
@@ -795,14 +798,16 @@ def convert_to_category_type(
     dataframe: pd.DataFrame,
     category_variable_list: List[str]
 ) -> pd.DataFrame:
-    """convert_to_category_type _summary_.
+    """Convert specified columns in a DataFrame to category type.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        category_variable_list (List[str]): _description_
+        dataframe (pd.DataFrame): The DataFrame to be converted.
+        category_variable_list (List[str]): List of column names to be
+            converted to category type.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: The DataFrame with specified columns converted to
+            category type.
     """
     dataframe[category_variable_list] = (
         dataframe[category_variable_list].astype(dtype="category")
@@ -814,14 +819,16 @@ def convert_to_number_type(
     dataframe: pd.DataFrame,
     numeric_variable_list: List[str]
 ) -> pd.DataFrame:
-    """convert_to_number_type _summary_.
+    """Convert specified columns in a DataFrame to numeric type.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        numeric_variable_list (List[str]): _description_
+        dataframe (pd.DataFrame): The DataFrame to be converted.
+        numeric_variable_list (List[str]): List of column names to be
+            converted to string type.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: The DataFrame with specified columns converted to
+            number type.
     """
     dataframe[numeric_variable_list] = (
         dataframe[numeric_variable_list].astype(dtype="number")
@@ -833,14 +840,16 @@ def convert_to_integer_type(
     dataframe: pd.DataFrame,
     integer_variable_list: List[str]
 ) -> pd.DataFrame:
-    """convert_to_integer_type _summary_.
+    """Convert specified columns in a DataFrame to integer type.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        integer_variable_list (List[str]): _description_
+        dataframe (pd.DataFrame): The DataFrame to be converted.
+        integer_variable_list (List[str]): List of column names to be
+            converted to integer type.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: The DataFrame with specified columns converted to
+            integer type.
     """
     dataframe[integer_variable_list] = (
         dataframe[integer_variable_list].astype(dtype="int")
@@ -852,14 +861,16 @@ def convert_to_float_type(
     dataframe: pd.DataFrame,
     float_variable_list: List[str]
 ) -> pd.DataFrame:
-    """convert_to_float_type _summary_.
+    """Convert specified columns in a DataFrame to float type.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        float_variable_list (List[str]): _description_
+        dataframe (pd.DataFrame): The DataFrame to be converted.
+        float_variable_list (List[str]): List of column names to be
+            converted to float type.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: The DataFrame with specified columns converted to
+            float type.
     """
     dataframe[float_variable_list] = (
         dataframe[float_variable_list].astype(dtype="float")
@@ -871,14 +882,16 @@ def convert_to_string_type(
     dataframe: pd.DataFrame,
     string_variable_list: List[str]
 ) -> pd.DataFrame:
-    """convert_to_string_type _summary_.
+    """Convert specified columns in a DataFrame to string type.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        string_variable_list (List[str]): _description_
+        dataframe (pd.DataFrame): The DataFrame to be converted.
+        string_variable_list (List[str]): List of column names to be
+            converted to string type.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: The DataFrame with specified columns converted to
+            string type.
     """
     dataframe[string_variable_list] = (
         dataframe[string_variable_list].astype(dtype="string")
@@ -1485,10 +1498,10 @@ def calculate_mahalanobis_distance(
     """Compute the Mahalanobis Distance between each row of x and the data.
 
     Args:
-        var (_type_, optional): vector or matrix of data with, say, p columns.
+        var (np.ndarray): vector or matrix of data with, say, p columns.
         data (_type_, optional): ndarray of the distribution from which
             Mahalanobis distance of each observation of x is to be computed.
-        cov (_type_, optional): covariance matrix (p x p) of the distribution.
+        cov (pd.DataFrame): covariance matrix (p x p) of the distribution.
             If None, will be computed from data.
             Defaults to None.
 
@@ -1504,18 +1517,45 @@ def calculate_mahalanobis_distance(
     return mahalanobis.diagonal()
 
 
+def calculate_mahalanobis_distance_alt(dataframe: pd.DataFrame) -> List[float]:
+    """Calculate Mahalanobis distance between each pair of rows in dataframe.
+
+    Args:
+        dataframe (pd.DataFrame): Input dataframe.
+
+    Returns:
+        List[float]: List of Mahalanobis distances.
+    """
+    # Compute the covariance matrix of the data
+    cov = np.cov(dataframe.select_dtypes(include=np.number).T)
+
+    # Compute the inverse covariance matrix of the data
+    inv_cov = np.linalg.inv(cov)
+
+    # Compute the Mahalanobis distance between each pair of rows using a nested
+    # list comprehension
+    mahalanobis_distance_list = [
+        mahalanobis(dataframe.iloc[i], dataframe.iloc[j], inv_cov)
+        for i in range(dataframe.shape[0])
+        for j in range(i + 1, dataframe.shape[0])
+    ]
+    print(f"\n{mahalanobis_distance_list = }\n")
+    return mahalanobis_distance_list
+
+
 def apply_mahalanobis_test(
     dataframe: pd.DataFrame,
     alpha: float = 0.01
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Run the Mahalanobis test.
+    """Apply the Mahalanobis test to identify outliers in the dataframe.
 
     Args:
-        dataframe (_type_): _description_
-        alpha (float, optional): _description_. Defaults to 0.01.
+        dataframe (pd.DataFrame): Input dataframe.
+        alpha (float, optional): Significance level for test. Defaults to 0.01.
 
     Returns:
-        _type_: _description_
+        Tuple[pd.DataFrame, pd.DataFrame]: A tuple containing the Mahalanobis
+        dataframe and the outlier dataframe.
     """
     # Create a copy to enable row dropping within the loop instead of
     # overwriting the 'original' (here, reduced) dataframe
@@ -1533,8 +1573,8 @@ def apply_mahalanobis_test(
         df=len(mahalanobis_dataframe.columns) - 1
     )
     print(
-        f"\n\nMahalanobis Test Critical Value for alpha < {alpha}: \
-{mahalanobis_test_critical_value:.2f}"
+        f"\n\nMahalanobis Test Critical Value for alpha < {alpha}:"
+        f"{mahalanobis_test_critical_value:.2f}"
     )
 
     # Get p-values from chi2 distribution
@@ -1543,6 +1583,7 @@ def apply_mahalanobis_test(
             mahalanobis_dataframe["mahalanobis_score"],
             df=len(mahalanobis_dataframe.columns) - 1)
     )
+
     # Select the rows below the alpha threshold
     mahalanobis_outlier_dataframe = mahalanobis_dataframe[
         mahalanobis_dataframe.mahalanobis_p_value < alpha
@@ -1586,18 +1627,61 @@ def remove_mahalanobis_outliers(
     return no_outlier_dataframe
 
 
+def concatenate_outliers_with_target_category_dataframe(
+    dataframe: pd.DataFrame,
+    target_category_list: List[str],
+    data_outliers: pd.DataFrame,
+    feature: str,
+    outlier_method: str,
+    output_directory: Path,
+) -> pd.DataFrame:
+    """Concatenate the outliers with their corresponding target categories.
+
+    The output dataframe is saved as a CSV file.
+
+    Args:
+        dataframe(pd.DataFrame): Target category dataframe.
+        target_category_list(List[str]): List of target categories.
+        data_outliers(pd.DataFrame): Outliers dataframe.
+        feature(str): Name of the feature.
+        outlier_method(str): Name of the outlier detection method.
+        output_directory(Path): Directory to save the output file.
+
+    Returns:
+        pd.DataFrame: Merged dataframe of target categories and outliers.
+    """
+    outlier_dataframe = pd.merge(
+        left=dataframe.loc[:, target_category_list],
+        right=data_outliers,
+        on="file_name",
+        how="right"
+    )
+    print(
+        f"\nTable of outliers for {feature} based on {outlier_method} values:"
+    )
+    print(outlier_dataframe)
+
+    # Save output as a '.csv()' file
+    save_csv_file(
+        dataframe=outlier_dataframe,
+        file_name=f"{feature}_{outlier_method}_outliers",
+        output_directory=output_directory,
+    )
+    return outlier_dataframe
+
+
 def get_iqr_outliers(
     dataframe: pd.DataFrame,
     column_name: str
-):
-    """Build a dataframe containing outliers details.
+) -> pd.DataFrame:
+    """Get IQR (InterQuantile Range) outliers for a column in the dataframe.
 
     Args:
-        dataframe (_type_): _description_
-        column_name (_type_): _description_
+        dataframe (pd.DataFrame): Input dataframe.
+        column_name (str): Name of the column to find IQR outliers.
 
     Returns:
-        _type_: _description_
+        pd.Series: Series containing the IQR outliers.
     """
     print("\n==============================================================\n")
     print(f"\n{column_name.upper()}\n")
@@ -1620,15 +1704,14 @@ def get_iqr_outliers(
         dataframe[
             (dataframe[column_name] > upper_limit) |
             (dataframe[column_name] < lower_limit)
-        ]
+        ][column_name]
     )
 
-    # Isolate the target column from the rest of the dataframe
-    iqr_outlier_dataframe = iqr_outlier_dataframe[column_name]
+    # Calculate the ratio of outliers
     iqr_outlier_ratio = len(iqr_outlier_dataframe) / len(dataframe)
     print(
         f"There are {len(iqr_outlier_dataframe)} "
-        f"({iqr_outlier_ratio:.1%}) IQR outliers."
+        f"({iqr_outlier_ratio:.1%}) IQR outliers.\n"
     )
     # print(f"Table of outliers for {column_name} based on IQR value:")
     # print(iqr_outlier_dataframe)
@@ -1640,15 +1723,16 @@ def get_zscore_outliers(
     column_name: str,
     zscore_threshold: int = 3
 ):
-    """Build a dataframe containing outliers details based on their Z-score.
+    """Get Z-score outliers for a specific column in the dataframe.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        column_name (str): _description_
-        zscore_threshold (int, optional): _description_. Defaults to 3.
+        dataframe (pd.DataFrame): Input dataframe.
+        column_name (str): Name of the column to find Z-score outliers.
+        zscore_threshold (int, optional): Threshold value to reject outliers.
+            Defaults to 3.
 
     Returns:
-        _type_: _description_
+        pd.Series: Series containing the Z-score outliers.
     """
     print("\n==============================================================\n")
     print(f"\n{column_name.upper()}\n")
@@ -1657,14 +1741,15 @@ def get_zscore_outliers(
     z_score = np.abs(zscore(a=dataframe[column_name]))
 
     # Find outliers based on Z-score threshold value
-    zscore_outlier_dataframe = dataframe[z_score > zscore_threshold]
+    zscore_outlier_dataframe = (
+        dataframe[z_score > zscore_threshold][column_name]
+    )
 
-    # Isolate the target column from the rest of the dataframe
-    zscore_outlier_dataframe = zscore_outlier_dataframe[column_name]
+    # Calculate the ratio of outliers
     zscore_outlier_ratio = len(zscore_outlier_dataframe) / len(dataframe)
     print(
         f"There are {len(zscore_outlier_dataframe)} "
-        f"({zscore_outlier_ratio:.1%}) Z-score outliers."
+        f"({zscore_outlier_ratio:.1%}) Z-score outliers.\n"
     )
     # print(f"Table of outliers for {column_name} based on Z-score value:")
     # print(zscore_outlier_dataframe)
@@ -1675,14 +1760,14 @@ def get_mad_outliers(
     dataframe: pd.DataFrame,
     column_name: str,
 ) -> pd.DataFrame:
-    """get_mad_outliers _summary_.
+    """Get MAD (Mean Absolute Deviation) outliers for a column in a dataframe.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        column_name (str): _description_
+        dataframe (pd.DataFrame): Input dataframe.
+        column_name (str): Name of the column to find MAD outliers.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.Series: Series containing the MAD outliers.
     """
     print("\n==============================================================\n")
     print(f"\n{column_name.upper()}\n")
@@ -1698,61 +1783,17 @@ def get_mad_outliers(
 
     # Extract the outliers
     # use '== 0' to get inliers
-    mad_outliers = dataframe[column_name][labels == 1]
-    # dataframe["mad_score"] = mad_outliers
+    mad_outlier_dataframe = dataframe[column_name][labels == 1]
 
-    # Isolate the target column from the rest of the dataframe
-    mad_outlier_dataframe = dataframe[column_name]
-    mad_outlier_dataframe["mad_score"] = mad_outliers
-    mad_outlier_ratio = len(mad_outliers) / len(dataframe)
+    # Calculate the ratio of outliers
+    mad_outlier_ratio = len(mad_outlier_dataframe) / len(dataframe)
     print(
-        f"There are {len(mad_outliers)} "
-        f"({mad_outlier_ratio:.1%}) MAD outliers."
+        f"There are {len(mad_outlier_dataframe)} "
+        f"({mad_outlier_ratio:.1%}) MAD outliers.\n"
     )
     # print(f"Table of outliers for {column_name} based on MAD value:")
     # print(mad_outlier_dataframe)
-    return mad_outliers
-
-
-def concatenate_outliers_with_target_category_dataframe(
-    dataframe: pd.DataFrame,
-    target_category_list: List[str],
-    data_outliers: pd.DataFrame,
-    feature: str,
-    outlier_method: str,
-    output_directory: Path,
-) -> pd.DataFrame:
-    """Concatenate the outliers with their corresponding target categories.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        target_category_list (List[str]): _description_
-        data_outliers (pd.DataFrame): _description_
-        feature (str): _description_
-        outlier_method (str): _description_
-        output_directory (Path): _description_
-
-    Returns:
-        pd.DataFrame: _description_
-    """
-    outlier_dataframe = pd.merge(
-        left=dataframe.loc[:, target_category_list],
-        right=data_outliers,
-        on="file_name",
-        how="right"
-    )
-    print(
-        f"\nTable of outliers for {feature} based on {outlier_method} values:"
-    )
-    print(outlier_dataframe)
-
-    # Save output as a '.csv()' file
-    save_csv_file(
-        dataframe=outlier_dataframe,
-        file_name=f"{feature}_{outlier_method}_outliers",
-        output_directory=output_directory,
-    )
-    return outlier_dataframe
+    return mad_outlier_dataframe
 
 
 def detect_univariate_outliers(
@@ -1760,14 +1801,18 @@ def detect_univariate_outliers(
     target_category_list: List[str],
     output_directory: Path
 ) -> pd.DataFrame:
-    """detect_univariate_outliers _summary_.
+    """Detect outliers using several methods: IQR, Z-score and MAD.
+
+    It is a univariate analysis since each feature is analysed individually.
+    See 'detect_multivariate_outliers' function for a parallel analysis of all
+    features.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        output_directory (Path): _description_
+        dataframe (pd.DataFrame): Input dataframe.
+        output_directory (Path): Directory to save the output file.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: Dataframe containing outliers from the various methods.
     """
     # Create a list of methods as tuples containing the method name and the
     # 'getter' to the function definition
@@ -1781,6 +1826,7 @@ def detect_univariate_outliers(
     selected_numeric_feature_list = (
         dataframe.select_dtypes(include=np.number).columns.to_list()
     )
+
     # Run 'concatenate_outliers_with_target_category_dataframe' function on all
     # methods
     for method_name, method in methods:  # tuple unpacking
@@ -2474,6 +2520,40 @@ def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
     return manova_test
 
 
+def calculate_jarque_bera_values(
+    data: pd.Series | List[float]
+) -> pd.Series | List[float]:
+    """Calculate Jarque-Bera values for kurtosis and skewness.
+
+    NOTE: this is the manual implementation of the test.
+    # ? It seems data are not consistent with the statsmodels version (see
+    # ? below)
+
+    Args:
+        data (pd.Series | List[float]): Input data.
+
+    Returns:
+        pd.DataFrame: DataFrame with 'jarque_bera' and 'jb_p_value' columns.
+    """
+    # Jarque-Bera (kurtosis and skewness together)
+    jarque_bera, jb_p_value = stats.jarque_bera(
+        x=data,
+        nan_policy="propagate"
+    )
+    jarque_bera_values = {
+        'jarque_bera': jarque_bera,
+        'jb_p_value': jb_p_value
+    }
+    jarque_bera_df = pd.DataFrame.from_dict(
+        data=jarque_bera_values,
+        orient='index',
+        columns=['Value']
+    ).T
+    print("\nJarque-Bera Test Results:")
+    print(jarque_bera_df)
+    return jarque_bera
+
+
 def check_normality_assumption_residuals(
     dataframe: pd.DataFrame,
     confidence_interval: float = 0.95,
@@ -3000,8 +3080,7 @@ def draw_kdeplot_subplots(
     ncols = nb_columns
 
     # calculate number of corresponding rows
-    nrows = len(item_list) // ncols + \
-        (len(item_list) % ncols > 0)
+    nrows = len(item_list) // ncols + (len(item_list) % ncols > 0)
 
     # loop through the length of tickers and keep track of index
     for index, item in enumerate(item_list):
@@ -3217,8 +3296,7 @@ def draw_barplot_subplots(
     ncols = nb_columns
 
     # calculate number of corresponding rows
-    nrows = len(item_list) // ncols + \
-        (len(item_list) % ncols > 0)
+    nrows = len(item_list) // ncols + (len(item_list) % ncols > 0)
 
     # loop through the length of tickers and keep track of index
     for index, item in enumerate(item_list):
@@ -3488,8 +3566,8 @@ def draw_tukeys_hsd_plot(
     #     objs=[tukey_post_hoc_test, corrected_tukey_dataframe], axis=1
     # )
     # print(
-    #     f"\nTukey's Multicomparison Test Version 2:\n \
-    #         {corrected_tukey_post_hoc_test}\n"
+    #     f"\nTukey's Multicomparison Test Version 2:\n"
+    #     f"{corrected_tukey_post_hoc_test}\n"
     # )
 
 
@@ -4771,15 +4849,15 @@ def show_tree_classifier_feature_importances(
         features_train, target_train
     )
     print(
-        f"\nDecision Tree Mean Accuracy Score for Train Set = \
-    {tree_classifiers_train_score:.1%}\n"
+        f"\nDecision Tree Mean Accuracy Score for Train Set = "
+        f"{tree_classifiers_train_score:.1%}\n"
     )
     tree_classifiers_test_score = tree_classifier.score(
         features_test, target_test
     )
     print(
-        f"\nDecision Tree Mean Accuracy Score for Test Set = \
-    {tree_classifiers_test_score:.1%}\n"
+        f"\nDecision Tree Mean Accuracy Score for Test Set = "
+        f"{tree_classifiers_test_score:.1%}\n"
     )
 
 
