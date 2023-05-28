@@ -3,32 +3,21 @@
 CUSTOM FUNCTIONS
 
 Definition of the functions customised for the Rockwool analyses.
-
-Content Sections:
-    - INPUT/OUTPUT
-    - ARRAYS
-    - CONVERT OBJECTS
-    - DATA MANIPULATION
-    - EXPLORATORY DATA ANALYSIS
-    - STATISTICAL ANALYSIS
-    - DATA VISUALISATION
-    - DATA MODELLING (MACHINE LEARNING)
 """
-import re
 # Call the libraries required
-# import glob
 import sys
-from collections import defaultdict
+import copy
 from datetime import datetime
 import time
 import itertools
 import joblib
+import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
+from collections import defaultdict
 
 import colourmap as colourmap
-import docx
-import dtale
+# import docx
 # from matplotlib.colors import ListedColormap
 from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
@@ -38,19 +27,23 @@ from numpy import array, array_equal, load
 # import openpyxl
 import pandas as pd
 from pca import pca
+from icecream import ic
 import pingouin as pg
-import plotly.graph_objs as go
-from reportlab.pdfgen import canvas
 import researchpy as rp
 import scipy as sp
 from scipy.io import savemat
+from scipy.spatial.distance import mahalanobis
 import seaborn as sns
+import shap
 import sidetable as stb
 import statsmodels.api as sm
-# import statsmodels.stats.multicomp as mc
 import sweetviz as sv
 from yellowbrick.features import PCA as yb_pca, Rank1D
-# from yellowbrick.cluster import InterclusterDistance
+from yellowbrick.cluster import InterclusterDistance
+import plotly.graph_objs as go
+from sklearn.model_selection import RepeatedStratifiedKFold
+# from docx.enum.style import WD_STYLE_TYPE
+
 # Sampling
 from fast_ml.model_development import train_valid_test_split
 # Handle constant/duplicates and missing features/columns
@@ -58,28 +51,41 @@ from feature_engine.selection import (
     DropConstantFeatures,
     DropCorrelatedFeatures,
     DropDuplicateFeatures,
-    DropFeatures,
-    DropMissingData,
+    DropFeatures
 )
-# from imblearn.over_sampling import SMOTE
-# from imblearn.under_sampling import RandomUnderSampler
+from feature_engine.imputation import DropMissingData
+
 from pyod.models.mad import MAD
+from reportlab.pdfgen import canvas
+# import statsmodels.stats.multicomp as mc
 from scipy.io import loadmat
 from scipy.stats import chi2, zscore
 from scipy import stats
+
 # Assemble pipeline(s)
 from sklearn import set_config
+from sklearn.cluster import KMeans
 from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector as selector
 from sklearn.decomposition import PCA
-# from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.feature_selection import (
+    VarianceThreshold,
+    # f_regression,
     # RFECV,
-    VarianceThreshold
+    # SelectKBest,
 )
 from sklearn.impute import SimpleImputer
+from sklearn.inspection import permutation_importance
+
+# Models
+# from xgboost import XGBClassifier
 # from sklearn.linear_model import LogisticRegression
+# from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.metrics import (
+    # mean_squared_error,
+    # multilabel_confusion_matrix,
+    roc_auc_score,
+    # roc_curve,
     # accuracy_score,
     balanced_accuracy_score,
     classification_report,
@@ -87,12 +93,10 @@ from sklearn.metrics import (
     f1_score,
     precision_score,
     recall_score,
-    roc_auc_score,
-    roc_curve
 )
 from sklearn.model_selection import (
-    # GridSearchCV,
     cross_validate,
+    # GridSearchCV,
     # RandomizedSearchCV,
     # RepeatedStratifiedKFold,
     # StratifiedShuffleSplit,
@@ -100,7 +104,8 @@ from sklearn.model_selection import (
     cross_val_score,
     train_test_split
 )
-from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.pipeline import Pipeline
+# from imblearn.pipeline import Pipeline
 from sklearn.preprocessing import (
     FunctionTransformer,
     LabelEncoder,
@@ -110,19 +115,17 @@ from sklearn.preprocessing import (
     RobustScaler,
     StandardScaler
 )
-from sklearn.tree import (
-    DecisionTreeClassifier,
-    plot_tree
-)
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+import treeplot as tree
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
 from statsmodels.stats.multicomp import MultiComparison
-import treeplot as tree
 
-# Models
-# from xgboost import XGBClassifier
+# from imblearn.over_sampling import SMOTE
+# from imblearn.under_sampling import RandomUnderSampler
 
-set_config(transform_output="pandas")
+# Set configuration parameters for scikit-learn
+set_config(display="diagram", transform_output="default")
 
 # Default directories
 INPUT_DIRECTORY = Path("./sources")
@@ -170,8 +173,8 @@ def timing(func):
         # Do something after calling the function
         end_time = time.time()
         print(
-            f"\nFunction '{func.__name__}' took {end_time - start_time:.2} "
-            f"seconds to run.\n"
+            f"\nFunction '{func.__name__}' took "
+            f"{(end_time - start_time) / 1000 :.2} ms to run.\n"
         )
         return result
     return wrapper
@@ -200,13 +203,13 @@ def ask_user_outlier_removal(
     while True:
         choice = input("Apply Outlier Removal? (y/n): ").lower()
         try:
-            assert choice in ("y", "n"), "Enter 'y' or 'n'"
+            assert choice == 'y' or choice == 'n', "Enter 'y' or 'n'"
             break
         except AssertionError as error:
             print(error)
         except ValueError:
             print("Please enter a valid letter choice.")
-    if choice == "y":
+    if choice == 'y':
         dataframe = dataframe_no_outliers.copy()
         print("\nOutliers were removed.\n")
     else:
@@ -215,16 +218,19 @@ def ask_user_outlier_removal(
     return dataframe
 
 
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 # INPUT/OUTPUT
 
 
-def get_folder_name_list_from_directory(directory_name: Path) -> List[str]:
+def get_folder_name_list_from_directory(
+    directory_name: str | Path
+) -> List[str]:
     """Get the list of file (name) from a directory.
 
     Args:
-        directory_name (Path): _description_
+        directory_name (_type_): _description_
+        extension (_type_): _description_
 
     Returns:
         _type_: _description_
@@ -234,46 +240,41 @@ def get_folder_name_list_from_directory(directory_name: Path) -> List[str]:
     return folder_name_list
 
 
-def get_file_name_list_from_extension(
-    directory_name: Path,
-    extension: str
-) -> List[str]:
-    """Get the list of file (name) from a directory.
+def get_mat_file_list(directory_name: str | Path) -> List[str]:
+    """Get the list of file from a directory.
 
     Args:
-        directory_name (Path): _description_
-        extension (_type_): _description_
+        directory_name (_type_): _description_
 
     Returns:
         _type_: _description_
     """
-    paths = Path(directory_name).glob(pattern=f"**/*.{extension}")
+    paths = Path(directory_name).glob(pattern="**/*.mat")
     file_name_list = [str(path) for path in paths]
     return file_name_list
 
 
 def load_pickle_file(
     file_name: str,
-    input_directory: Path
+    output_directory: Path
 ) -> pd.DataFrame:
-    """Load a pickle file into a dataframe.
+    """Load the pickle file into a dataframe.
 
     Args:
-        file_name (str): Name of the pickle file, without extension.
-        input_directory (Path): Directory path where the '.pkl' file resides.
+        file_path_name (str  |  Path]): _description_
 
     Returns:
         pd.DataFrame: _description_
     """
     dataframe = pd.read_pickle(
-        filepath_or_buffer=input_directory.joinpath(f"{file_name}.pkl")
+        filepath_or_buffer=output_directory.joinpath(file_name + ".pkl")
     )
     print("\nDataset details:\n")
     print(dataframe.info())
     return dataframe
 
 
-def load_mat_file(mat_file_name: str) -> Dict[str, float]:
+def load_mat_file(mat_file_name):
     """Load data from '.mat' file as a dictionary and print it.
 
     Args:
@@ -283,30 +284,21 @@ def load_mat_file(mat_file_name: str) -> Dict[str, float]:
         _type_: _description_
     """
     dictionary = loadmat(file_name=mat_file_name)
-    return dictionary  # check dict content type
+    # dictionary.pop("pos_border")  # remove data as sometimes missing value
+    return dictionary
 
 
-def load_excel_file(
-    file_name: str,
-    input_directory: Path,
-    sheet_name: str | int = 0,
-    nrows: int = None,
-) -> pd.DataFrame:
+def load_excel_file(file_path_name, sheet_name=0, nrows=None):
     """Load an Excel file.
 
     Args:
-        file_name (str): The file name of the Excel file.
-        output_directory (Path): The directory path where the file is located.
-        sheet_name (str | int, optional): The name or index of the sheet to
-            load. Defaults to 0.
-        nrows (int, optional): The number of rows to read from the sheet.
-            Defaults to None.
+        file_path_name (_type_): _description_
 
     Returns:
-        pd.DataFrame: The loaded DataFrame object.
+        _type_: _description_
     """
     dataframe = pd.read_excel(
-        io=input_directory.joinpath(f"{file_name}.xlsx"),
+        io=file_path_name,
         sheet_name=sheet_name,
         header=0,
         nrows=nrows,
@@ -316,71 +308,30 @@ def load_excel_file(
     return dataframe
 
 
-def load_csv_file(
-    file_name: str,
-    input_directory: Path,
-    index_col: str = None,
-) -> pd.DataFrame:
-    """Load a CSV file.
-
-    Args:
-        file_name (str): Name of the CSV file, without extension.
-        input_directory (Path): Directory path where the CSV file resides.
-        index_col (str): Name of the column to be used as dataframe index.
-
-    Returns:
-        pd.DataFrame: DataFrame containing the data from the input CSV file.
-    """
-    dataframe = pd.read_csv(
-        filepath_or_buffer=(
-            input_directory.joinpath(f"{file_name}.csv")
-        ),
-        encoding="utf-8"
-    )
-    if index_col is not None:
-        dataframe.set_index(keys=index_col, inplace=True)
-    return dataframe
-
-
-def save_csv_file(
-    dataframe: pd.DataFrame,
-    file_name: str,
-    output_directory: Path,
-) -> None:
+def save_csv_file(dataframe, csv_path_name):
     """Save a dataframe as a '.csv()' file.
 
     Args:
-        dataframe (pd.DataFrame): Pandas DataFrame to be saved to CSV.
-        file_name (str): File name of the CSV file. Without extension.
-        output_directory (Path): Folder where the data is saved to.
+        dataframe (_type_): _description_
+        csv_file_name (_type_): _description_
     """
     dataframe.to_csv(
-        path_or_buf=output_directory.joinpath(f"{file_name}.csv"),
+        path_or_buf=csv_path_name,
         sep=",",
         encoding="utf-8",
         index=True,
     )
-    return None
+    return
 
 
-def save_excel_file(
-    dataframe: pd.DataFrame,
-    file_name: str,
-    output_directory: Path,
-) -> None:
-    """Save a dataframe as a '.xlsx()' file.
+def save_excel_file(dataframe, excel_path_name):
+    """Save the dataframe to an MS Excel '.xlsx' file.
 
     Args:
-        dataframe (pd.DataFrame): Pandas DataFrame to be saved to Excel.
-        file_name (str): File name of the Excel file. Without extension.
-        output_directory (Path): Folder where the data is saved to.
+        dataframe (_type_): _description_
+        excel_file_name (_type_): _description_
     """
-    dataframe.to_excel(
-        excel_writer=output_directory.joinpath(f"{file_name}.xlsx"),
-        index=False,
-        sheet_name="Sheet1"
-    )
-    return None
+    dataframe.to_excel(excel_writer=excel_path_name)
 
 
 def save_pipeline_model(
@@ -405,41 +356,42 @@ def save_pipeline_model(
     """
     pipeline_model_file = joblib.dump(
         value=pipeline_name,
-        filename=output_directory.joinpath(f"{file_name}.joblib"),
+        filename=output_directory.joinpath(file_name + ".joblib"),
     )
     return pipeline_model_file
 
 
-def save_figure(file_name: str, output_directory: Path) -> None:
-    """Save a figure as '.png' file.
+def save_figure(figure_name):
+    """Save a figure as '.png' AND '.svg' file.
 
     Args:
-        file_name (str): File name of the image file. Without extension.
-        output_directory (Path): Folder where the image is saved to.
+        figure_name (_type_): _description_
     """
-    plt.savefig(
-        fname=output_directory.joinpath(f"{file_name}.png"),
-        bbox_inches="tight",
-        dpi=300
-    )
+    for extension in (
+        [
+            "png",
+            # "svg"
+        ]
+    ):
+        plt.savefig(
+            fname=figure_name,
+            format=extension,
+            bbox_inches="tight",
+            dpi=300
+        )
+    return
 
 
 def save_image_show(
     image: np.ndarray,
     image_title: str,
-    file_name: str,
-    output_directory: Path
+    save_image_name: str,
 ):
-    """save_image_show _summary_.
+    """Image _summary_.
 
     Args:
         image (np.ndarray): _description_
         image_title (str): _description_
-        file_name (str): _description_
-        output_directory (Path): _description_
-
-    Returns:
-        _type_: _description_
     """
     image = plt.imshow(
         X=image,
@@ -457,44 +409,35 @@ def save_image_show(
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
+    save_figure(figure_name=save_image_name)
     return image
 
 
 def save_npz_file(
     file_name: str,
-    output_directory: Path,
     data_array: np.ndarray,
-) -> None:
-    """save_npz _summary_.
+):
+    """Save_npz _summary_.
 
     Args:
-        file_name (str): _description_
-        output_directory (Path): _description_
-        data_array (np.ndarray): _description_
+        file_name (np.ndarray): _description_
+        data_array (str): _description_
+        save_image_name (str): _description_
     """
-    np.savez(
-        file=output_directory.joinpath(f"{file_name}"),
-        data=data_array
-    )
+    np.savez(file=file_name, data=data_array)
+    return
 
 
-def save_pickle_file(
-    dataframe: pd.DataFrame,
-    file_name: str,
-    output_directory: Path,
-) -> None:
+def save_pickle_file(dataframe: pd.DataFrame, file_path_name: str):
     """Save the dataframe as a pickle object.
 
     Args:
         dataframe (pd.DataFrame): _description_
         file_path_name (str): _description_
     """
-    dataframe.to_pickle(
-        path=output_directory.joinpath(f"{file_name}.pkl"),
-        protocol=-1
-    )
+    dataframe.to_pickle(path=file_path_name, protocol=-1)
+    return
 
 
 def save_console_output(file_name: str) -> None:
@@ -520,35 +463,270 @@ def save_console_output(file_name: str) -> None:
         yield
         # Reset stdout back to the original
         sys.stdout = original_stdout
-    print("The console output was saved.")
+        print("The console output was saved.")
 
 
-def convert_text_file_to_docx(
-    file_name: str,
-    output_directory: Path
-) -> None:
-    """convert_text_to_docx _summary_.
+# ----------------------------------------------------------------------------
+
+# CONVERT OBJECTS
+
+
+def convert_dictionary_to_dataframe(dictionary_file):
+    """Convert a dictionary into a dataframe.
+
+    First, the 'len()' function gets the number of items in the dictionary.
+    Second, 'range()' is used to set a range from 0 to length of dictionary.
+    Finally, 'list()' converts the items into NUMERIC index values.
 
     Args:
-        file_path_name (str): _description_
-        output_directory (Path): _description_
-    """
-    # Open the text file and read its contents
-    with open(
-        file=output_directory.joinpath(f"{file_name}.txt"),
-        mode="r",
-        encoding="utf-8"
-    ) as output_file:
-        # output_text = output_file.read()  # works fine
-        output_text = Path(output_file).read_text(...)  # to be tested
+        dictionary_file (_type_): _description_
 
-    # Create a new Word document
-    word_doc = docx.Document()
-    # Add the text to the document
-    word_doc.add_paragraph(output_text)
-    # Save the document as a Word file
-    word_doc.save(output_directory.joinpath(f"{file_name}.docx"))
-    print("The console output was converted to a MS Word document file.")
+    Returns:
+        _type_: _description_
+    """
+    dataframe = pd.DataFrame(
+        data=dictionary_file,
+        index=[list(range(len(dictionary_file)))]
+    )
+    return dataframe
+
+
+# def convert_list_to_dataframe(
+#     items_list,
+#     # column_names
+# ):
+#     """Convert a nested list into a dataframe.
+
+#     Args:
+#         items_list (_type_): _description_
+
+#     Returns:
+#         _type_: _description_
+#     """
+#     dataframe = pd.DataFrame(data=items_list)
+#     # # BUG Below NOT working
+#     # dataframe = pd.DataFrame(
+#     #     data=items_list,
+#     #     columns=column_names
+#     # )
+#     return dataframe
+
+
+def convert_to_datetime_type(
+    dataframe: pd.DataFrame,
+    datetime_variable_list: List[str | datetime]
+) -> pd.DataFrame:
+    """convert_to_datetime_type _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        datetime_variable_list (List[str  |  datetime]): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    dataframe[datetime_variable_list] = (
+        dataframe[datetime_variable_list].astype("datetime64[ns]")
+    )
+    return dataframe
+
+
+def convert_to_category_type(
+    dataframe: pd.DataFrame,
+    category_variable_list: List[str]
+) -> pd.DataFrame:
+    """convert_to_category_type _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        category_variable_list (List[str]): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    dataframe[category_variable_list] = (
+        dataframe[category_variable_list].astype("category")
+    )
+    return dataframe
+
+
+def convert_to_number_type(
+    dataframe: pd.DataFrame,
+    numeric_variable_list: List[str]
+) -> pd.DataFrame:
+    """convert_to_number_type _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        numeric_variable_list (List[str]): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    dataframe[numeric_variable_list] = (
+        dataframe[numeric_variable_list].astype("number")
+    )
+    return dataframe
+
+
+def convert_to_integer_type(
+    dataframe: pd.DataFrame,
+    integer_variable_list: List[str]
+) -> pd.DataFrame:
+    """convert_to_integer_type _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        integer_variable_list (List[str]): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    dataframe[integer_variable_list] = (
+        dataframe[integer_variable_list].astype("int")
+    )
+    return dataframe
+
+
+def convert_to_float_type(
+    dataframe: pd.DataFrame,
+    float_variable_list: List[str]
+) -> pd.DataFrame:
+    """convert_to_float_type _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        float_variable_list (List[str]): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    dataframe[float_variable_list] = (
+        dataframe[float_variable_list].astype("float")
+    )
+    return dataframe
+
+
+def convert_to_string_type(
+    dataframe: pd.DataFrame,
+    string_variable_list: List[str]
+) -> pd.DataFrame:
+    """convert_to_string_type _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        string_variable_list (List[str]): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    dataframe[string_variable_list] = (
+        dataframe[string_variable_list].astype("string")
+    )
+    return dataframe
+
+
+def convert_variables_to_proper_type(
+    dataframe: pd.DataFrame,
+    datetime_variable_list: Optional[List[str | datetime]] = None,
+    category_variable_list: Optional[List[str]] = None,
+    # numeric_variable_list: Optional[List[str]] = None,
+    integer_variable_list: Optional[List[str]] = None,
+    float_variable_list: Optional[List[str]] = None,
+    string_variable_list: Optional[List[str]] = None,
+) -> pd.DataFrame:
+    """convert_variables_to_proper_type _summary_.
+
+    Apply the '.pipe()' method to the defined functions.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+        datetime_variable_list (Optional[List[str  |  datetime]], optional):
+        _description_. Defaults to None.
+        category_variable_list (Optional[List[str]], optional): _description_.
+        Defaults to None.
+        integer_variable_list (Optional[List[str]], optional): _description_.
+        Defaults to None.
+        float_variable_list (Optional[List[str]], optional): _description_.
+        Defaults to None.
+        string_variable_list (Optional[List[str]], optional): _description_.
+        Defaults to None.
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+    processed_dataframe_pipe = dataframe.pipe(
+        func=convert_to_datetime_type,
+        datetime_variable_list=datetime_variable_list
+    ).pipe(
+        func=convert_to_category_type,
+        category_variable_list=category_variable_list
+        # ).pipe(
+        #     func=convert_to_number_type,
+        #     numeric_variable_list=numeric_variable_list
+    ).pipe(
+        func=convert_to_integer_type,
+        integer_variable_list=integer_variable_list
+    ).pipe(
+        func=convert_to_float_type,
+        float_variable_list=float_variable_list
+    ).pipe(
+        func=convert_to_string_type,
+        string_variable_list=string_variable_list
+    )
+    return processed_dataframe_pipe
+
+
+# def convert_text_file_to_docx(
+#     file_name: str,
+#     output_directory: Path
+# ) -> None:
+#     """convert_text_to_docx _summary_.
+
+#     Args:
+#         file_path_name (str): _description_
+#         output_directory (Path): _description_
+#     """
+#     # Open the text file and read its contents
+#     with open(
+#             file=output_directory.joinpath(file_name + ".txt"),
+#             mode="r",
+#             encoding="utf-8"
+#     ) as output_file:
+#         output_text = output_file.read()
+
+#     # Create a new Word document
+#     word_doc = docx.Document()
+
+#     # Define a custom style for the document
+#     custom_style = word_doc.styles.add_style("Custom", WD_STYLE_TYPE.PARAGRAPH)
+#     custom_style.font.size = docx.shared.Pt(9)
+#     custom_style.font.name = "Arial"
+#     custom_style.font.color.rgb = docx.shared.RGBColor(0x00, 0x00, 0x00)
+
+#     # Add the text to the document
+#     word_doc.add_paragraph(output_text, style="Custom")
+
+#     # BELOW code is supposed to keep '.txt' file format... BUG !!
+#     # # Split the text into lines and add each line as a paragraph
+#     # for line in output_text.split('\n'):
+#     #     # Create a new paragraph
+#     #     paragraph = word_doc.add_paragraph(output_file)
+#     #     # paragraph = word_doc.add_paragraph(output_file, style="Custom")
+
+#     #     # Split the line into words and add each word as a run with
+#     #     # appropriate formatting
+#     #     for word in line.split():
+#     #         # Create new run with appropriate formatting based on the word
+#     #         paragraph_run = paragraph.add_run(word)
+
+#     #         # Apply bold formatting if the word is in uppercase
+#     #         if word.isupper():
+#     #             paragraph_run.bold = True
+
+#     # Save the document as a Word file
+#     word_doc.save(output_directory.joinpath(file_name + ".docx"))
+#     print("The console output was converted to a MS Word document file.")
 
 
 def convert_text_file_to_pdf(
@@ -563,12 +741,11 @@ def convert_text_file_to_pdf(
     """
     # Open the text file and read its contents
     with open(
-        file=output_directory.joinpath(f"{file_name}.txt"),
-        mode="r",
-        encoding="utf-8"
+            file=output_directory.joinpath(file_name + ".txt"),
+            mode="r",
+            encoding="utf-8"
     ) as output_file:
-        # output_text = output_file.read()  # works fine
-        output_text = Path(output_file).read_text(...)  # to be tested
+        output_text = output_file.read()
 
     # Create a new PDF file
     pdf_file = canvas.Canvas(
@@ -592,12 +769,15 @@ def convert_text_file_to_pdf(
 
 
 @timing
-def convert_npz_to_mat(input_directory: Path) -> None:
+def convert_npz_to_mat(input_directory: str | Path) -> None:
     """AI is creating summary for convert_npz_to_mat.
 
+    NOTE: the converted files are saved in the same directory as the originals.
+
     Args:
-        input_directory (Path): [description]
+        input_directory (str): [description]
     """
+    input_directory = input_directory
     output_directory = input_directory
 
     none_array = array(None)
@@ -626,330 +806,6 @@ def convert_npz_to_mat(input_directory: Path) -> None:
     print(f"{NB_CONVERTED} file(s) converted")
 
 
-# ----------------------------------------------------------------------------
-
-
-def remove_key_from_dictionary(
-    dictionary: dict,  # check dict content type
-    key_name: str
-) -> dict:  # check dict content type
-    """Delete a key and its content from a dictionary.
-
-    Args:
-        dictionary (_type_): _description_
-        key_name (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    del dictionary[key_name]
-    return dictionary  # check dict content type
-
-
-def extract_pattern_from_file_name(file_name: str) -> List[str]:
-    """Use regular expressions to extract a pattern from a list of file names.
-
-    Specifically, it splits the string (here, file name) each time an
-    underscore '_' is encountered using the pattern '_+'. A list of strings is
-    returned.
-    Then, in our case, the first element of the new string list is selected
-    using '[0]'.
-    Finally, string slicing is used to extract the string from the 8th
-    character up to the 15th, and ignore everything til the end of the string
-    applying the slice '[8:16:]'.
-
-    Args:
-        file_name (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    pattern_output_list = [
-        re.split(pattern="_+", string=name)[0][8:16:] for name in file_name
-    ]
-    return pattern_output_list  # check list content type
-
-
-def extract_pattern_from_file_name_2(file_name):
-    """Use regular expressions to extract a pattern from a list of file names.
-
-    Specifically, it splits the string each time an underscore '_' is
-    encountered using the pattern '_+'. A list of strings is returned.
-
-    Here, the first element of the list is selected using '[0]'.
-    Then, string slicing is used to extract the string from the 19th
-    character up to the end of the element using '[19:]'.
-
-    Args:
-        file_name (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    pattern_output_list = [
-        re.split(pattern="_+", string=name)[0][19:] for name in file_name
-    ]
-    # pattern_output = pattern_output.replace("\\", "")
-    # pattern_output = list(pattern_output)
-    return pattern_output_list  # check list content type
-
-
-# ----------------------------------------------------------------------------
-
-# ARRAYS
-
-
-def convert_dataframe_to_array(
-    dataframe: pd.DataFrame,
-    column_name: str
-) -> np.ndarray:
-    """Convert dataframe to array.
-
-    Note: the use of the present function could be avoided if the dataframe is
-    transformed using one of the transformer function of the 'scikit-learn'
-    library and its new parameter 'set_output(transform="pandas").
-    See 'standardise_features' function below for an example.
-
-    Args:
-        dataframe (_type_, optional): _description_. Defaults to dataframe.
-        column_name (_type_, optional): _description_. Defaults to column_name.
-
-    Returns:
-        _type_: _description_
-    """
-    array = dataframe[column_name].to_numpy()
-    return array
-
-
-def calculate_array_length(array: np.ndarray) -> int:
-    """Calculate the number of rows in the array.
-
-    Args:
-        array (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    array_length = array.shape[0]
-    print(f"The array contains {array_length} rows.")
-    return array_length
-
-
-def convert_array_to_series(array: np.ndarray, array_name: str) -> pd.Series:
-    """Convert the means of the array to a Pandas Series.
-
-    Args:
-        array (_type_, optional): _description_. Defaults to array.
-        array_name (_type_, optional): _description_. Defaults to array_name.
-    """
-    series = pd.Series(array).rename(array_name)
-    return series
-
-
-# ----------------------------------------------------------------------------
-
-# CONVERT OBJECTS
-
-
-def convert_dictionary_to_dataframe(dictionary_file: Dict) -> pd.DataFrame:
-    """Convert a dictionary into a dataframe.
-
-    First, the 'len()' function gets the number of items in the dictionary.
-    Second, 'range()' is used to set a range from 0 to length of dictionary.
-    Finally, 'list()' converts the items into NUMERIC index values.
-
-    Args:
-        dictionary_file (Dict): Dictionary containing data to be converted
-            to a dataframe.
-
-    Returns:
-        pd.DataFrame: Dataframe representing the data in the input dictionary.
-    """
-    dataframe = pd.DataFrame(
-        data=dictionary_file,
-        index=[list(range(len(dictionary_file)))]
-    )
-    return dataframe
-
-
-def convert_to_datetime_type(
-    dataframe: pd.DataFrame,
-    datetime_variable_list: List[str | datetime]
-) -> pd.DataFrame:
-    """convert_to_datetime_type _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        datetime_variable_list (List[str  |  datetime]): _description_
-
-    Returns:
-        pd.DataFrame: _description_
-    """
-    dataframe[datetime_variable_list] = (
-        dataframe[datetime_variable_list].astype(dtype="datetime64[ns]")
-    )
-    return dataframe
-
-
-def convert_to_category_type(
-    dataframe: pd.DataFrame,
-    category_variable_list: List[str]
-) -> pd.DataFrame:
-    """convert_to_category_type _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        category_variable_list (List[str]): _description_
-
-    Returns:
-        pd.DataFrame: _description_
-    """
-    dataframe[category_variable_list] = (
-        dataframe[category_variable_list].astype(dtype="category")
-    )
-    return dataframe
-
-
-def convert_to_number_type(
-    dataframe: pd.DataFrame,
-    numeric_variable_list: List[str]
-) -> pd.DataFrame:
-    """convert_to_number_type _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        numeric_variable_list (List[str]): _description_
-
-    Returns:
-        pd.DataFrame: _description_
-    """
-    dataframe[numeric_variable_list] = (
-        dataframe[numeric_variable_list].astype(dtype="number")
-    )
-    return dataframe
-
-
-def convert_to_integer_type(
-    dataframe: pd.DataFrame,
-    integer_variable_list: List[str]
-) -> pd.DataFrame:
-    """convert_to_integer_type _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        integer_variable_list (List[str]): _description_
-
-    Returns:
-        pd.DataFrame: _description_
-    """
-    dataframe[integer_variable_list] = (
-        dataframe[integer_variable_list].astype(dtype="int")
-    )
-    return dataframe
-
-
-def convert_to_float_type(
-    dataframe: pd.DataFrame,
-    float_variable_list: List[str]
-) -> pd.DataFrame:
-    """convert_to_float_type _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        float_variable_list (List[str]): _description_
-
-    Returns:
-        pd.DataFrame: _description_
-    """
-    dataframe[float_variable_list] = (
-        dataframe[float_variable_list].astype(dtype="float")
-    )
-    return dataframe
-
-
-def convert_to_string_type(
-    dataframe: pd.DataFrame,
-    string_variable_list: List[str]
-) -> pd.DataFrame:
-    """convert_to_string_type _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        string_variable_list (List[str]): _description_
-
-    Returns:
-        pd.DataFrame: _description_
-    """
-    dataframe[string_variable_list] = (
-        dataframe[string_variable_list].astype(dtype="string")
-    )
-    return dataframe
-
-
-def convert_variables_to_proper_type(
-    dataframe: pd.DataFrame,
-    datetime_variable_list: Optional[List[str | datetime]] = None,
-    category_variable_list: Optional[List[str]] = None,
-    numeric_variable_list: Optional[List[str]] = None,
-    integer_variable_list: Optional[List[str]] = None,
-    float_variable_list: Optional[List[str]] = None,
-    string_variable_list: Optional[List[str]] = None
-) -> pd.DataFrame:
-    """Convert variables in a Pandas DataFrame to their proper data type.
-
-    Apply the '.pipe()' method to the defined functions.
-
-    Args:
-        dataframe (pd.DataFrame): The DataFrame to convert variables to
-            proper data type.
-        datetime_variable_list (Optional[List[str  |  datetime]], optional):
-            List of variable names to convert to 'datetime' type.
-            Defaults to None.
-        category_variable_list (Optional[List[str]], optional):  List of
-            variable names to convert to 'category' type. Defaults to None.
-        integer_variable_list (Optional[List[str]], optional): List of
-            variable names to convert to 'integer' type. Defaults to None.
-        float_variable_list (Optional[List[str]], optional): List of
-            variable names to convert to 'float' type. Defaults to None.
-        string_variable_list (Optional[List[str]], optional): List of
-            variable names to convert to 'string' type. Defaults to None.
-
-    Returns:
-        pd.DataFrame: DataFrame with proper data types for selected variables.
-    """
-    if category_variable_list is None:
-        category_variable_list = []
-    if numeric_variable_list is None:
-        numeric_variable_list = []
-    if integer_variable_list is None:
-        integer_variable_list = []
-    if float_variable_list is None:
-        float_variable_list = []
-    if string_variable_list is None:
-        string_variable_list = []
-
-    processed_dataframe_pipe = dataframe.pipe(
-        func=convert_to_datetime_type,
-        datetime_variable_list=datetime_variable_list
-    ).pipe(
-        func=convert_to_category_type,
-        category_variable_list=category_variable_list
-    ).pipe(
-        func=convert_to_number_type,
-        numeric_variable_list=numeric_variable_list
-    ).pipe(
-        func=convert_to_integer_type,
-        integer_variable_list=integer_variable_list
-    ).pipe(
-        func=convert_to_float_type,
-        float_variable_list=float_variable_list
-    ).pipe(
-        func=convert_to_string_type,
-        string_variable_list=string_variable_list
-    )
-    return processed_dataframe_pipe
-
-
 # -----------------------------------------------------------------------------
 
 # DATA MANIPULATION
@@ -974,11 +830,7 @@ def concatenate_dataframes(
     return concatenated_dataframes
 
 
-def remove_column_based_on_list(
-    # column,  # delete ?
-    column_list: List[str],
-    column_to_remove: List[str],
-) -> List[str]:  # to be checked; not dataframe ?
+def remove_column_list(column, column_list, column_to_remove):
     """_summary_.
 
     Args:
@@ -1016,23 +868,18 @@ def remove_duplicated_rows(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Remove duplicated values row-wide and reset index.
 
     Args:
-        dataframe (pd.DataFrame): DataFrame containing duplicated rows to be
-            removed.
+        dataframe (pd.DataFrame): _description_
 
     Returns:
-        pd.DataFrame: DataFrame with all duplicated rows removed.
+        pd.DataFrame: _description_
     """
-    # Drop all duplicated rows and reset the index
     dataframe = (
         dataframe.drop_duplicates().reset_index(drop=True)
     )
     return dataframe
 
 
-def drop_column(
-    dataframe: pd.DataFrame,
-    column_list: List[str]
-) -> pd.DataFrame:
+def drop_column(dataframe, column_list):
     """Drop columns from the dataframe.
 
     Args:
@@ -1041,19 +888,11 @@ def drop_column(
     Returns:
         _type_: _description_
     """
-    dataframe_reduced = dataframe.drop(
-        labels=column_list,
-        axis=1,
-        # inplace=True,
-    )
+    dataframe_reduced = dataframe.drop(labels=column_list, axis=1)
     return dataframe_reduced
 
 
-def drop_row_by_value(
-        dataframe: pd.DataFrame,
-        column_name: str,
-        value: str | int | float,  # to be checked
-) -> pd.DataFrame:
+def drop_row_by_value(dataframe, column_name, value):
     """Drop rows from a column in the dataframe.
 
     A list a 'value_name' can be passed with a for-loop.
@@ -1073,14 +912,14 @@ def filter_dataframe(
     dataframe: pd.DataFrame,
     filter_content: str,
 ) -> pd.DataFrame:
-    """Filter a dataframe using the provided filter.
+    """filter_dataframe _summary_.
 
     Args:
-        dataframe (pd.DataFrame): Pandas dataframe to be filtered.
-        filter_content (str): Filter string to be applied on the dataframe.
+        dataframe (pd.DataFrame): _description_
+        filter_content (str): _description_
 
     Returns:
-        pd.DataFrame: The filtered pandas dataframe.
+        pd.DataFrame: _description_
     """
     print(f"\nThe following filter was applied:\n{filter_content}\n")
 
@@ -1092,10 +931,7 @@ def filter_dataframe(
     return filtered_dataframe
 
 
-def get_list_of_unique_values(
-        dataframe: pd.DataFrame,
-        column_name: str
-) -> List[str | int | float]:  # to be checked
+def get_list_of_unique_values(dataframe, column_name):
     """Get a list of unique values from a dataframe.
 
     Since an array is produced, the output is converted to a list.
@@ -1106,22 +942,18 @@ def get_list_of_unique_values(
     Returns:
         _type_: _description_
     """
-    column_unique_values = dataframe[column_name].unique()
-    unique_names = list(column_unique_values)
-    return unique_names
+    column_unique_value_list = dataframe[column_name].unique().tolist()
+    return column_unique_value_list
 
 
-def get_numeric_features(
-    dataframe: pd.DataFrame
-) -> Tuple[pd.DataFrame, List[str]]:
-    """Extract numeric features from a Pandas DataFrame.
+def get_numeric_features(dataframe):
+    """get_numeric_features _summary_.
 
     Args:
-        dataframe (pd.DataFrame): DataFrame to select numeric features from.
+        dataframe (_type_): _description_
 
     Returns:
-        Tuple (pd.Dataframe, List[str]): A tuple containing a pandas DataFrame
-            with only numeric features and a list of the feature names.
+        _type_: _description_
     """
     # Select numeric variables ONLY and make a list
     numeric_features = dataframe.select_dtypes(include=np.number)
@@ -1132,14 +964,13 @@ def get_numeric_features(
 
 
 def get_categorical_features(dataframe):
-    """Extract categorical features from a Pandas DataFrame.
+    """get_categorical_features _summary_.
 
     Args:
-        dataframe (pd.DataFrame): Df to select categorical features from.
+        dataframe (_type_): _description_
 
     Returns:
-        Tuple (pd.Dataframe, List[str]): A tuple containing a pandas DataFrame
-            with only categorical features and a list of the feature names.
+        _type_: _description_
     """
     # Select categorical variables ONLY and make a list
     categorical_features = dataframe.select_dtypes(include="category")
@@ -1153,7 +984,7 @@ def get_dictionary_key(
     dictionary: Dict[int, str],
     target_key_string: str
 ) -> int:
-    """Get the key (as an integer) from the dictionary based on its values.
+    """get_dictionary_key _summary_.
 
     Args:
         dictionary (_type_): _description_
@@ -1162,26 +993,10 @@ def get_dictionary_key(
     Returns:
         int: _description_
     """
-    key_list = list(dictionary.keys())
     value_list = list(dictionary.values())
     # print key based on its value
     target_key = value_list.index(target_key_string)
-    print(f"\nTarget key: {key_list[target_key_string]}\n")
     return target_key
-
-
-def get_missing_columns(dataframe: pd.DataFrame) -> pd.DataFrame | pd.Series:
-    """Get_missing_columns _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-
-    Returns:
-        [pd.DataFrame | pd.Series]: _description_
-    """
-    missing_columns = dataframe.columns[dataframe.isna().any()].values[0]
-    print(f"\nThe following columns have missing values: {missing_columns}\n")
-    return missing_columns
 
 
 def prepare_scaled_features_encoded_target(
@@ -1199,10 +1014,10 @@ def prepare_scaled_features_encoded_target(
     """
     features = dataframe.select_dtypes(include="number")
     features_scaled = standardise_features(features=features)
-    target = dataframe[target_name]
+    # target = dataframe[target_name]
     target_encoded, target_class_list = target_label_encoder(
         dataframe=dataframe,
-        target_name=target
+        target_name=target_name
     )
     return (
         features,
@@ -1217,81 +1032,13 @@ def prepare_scaled_features_encoded_target(
 # EXPLORATORY DATA ANALYSIS
 
 
-def run_exploratory_data_analysis(
-    dataframe: pd.DataFrame,
-    file_name: str,
-    output_directory: Path,
-) -> pd.DataFrame:
+def run_exploratory_data_analysis(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Print out the summary descriptive statistics from the dataset.
 
     Also includes a missing table summary.
 
     Args:
-        dataframe (pd.DataFrame): Input dataset.
-        file_name (str): File name.
-        output_directory (Path): Save directory.
-
-    Returns:
-        pd.DataFrame: Table with summary statistics.
-    """
-    print(
-        f"\nData Shape: {dataframe.shape}\n",
-        f"\nData Types:\n{dataframe.dtypes}\n",
-        # f"\nData Preview:\n{dataframe.sample(n=10)}\n",
-        f"\nList of DataFrame Columns:\n{dataframe.columns.to_list()}\n",
-    )
-    # Select "all" value in 'include' parameter to include non numeric data
-    # in the EDA
-    summary_stats = dataframe.describe(include="all").T
-
-    # Percent of variance (standard deviation actually) compared to mean value
-    pct_variation = (
-        dataframe.std() / dataframe.mean() * 100
-    ).rename("pct_var")
-
-    # Calculate mean absolute deviation (MAD)
-    mad = dataframe.mad().rename("mad")
-
-    # Kurtosis
-    kurtosis = dataframe.kurt().rename("kurt")
-
-    # Skewness
-    skewness = dataframe.skew().rename("skew")
-
-    # Concatenate the metrics into a dataframe
-    metrics_list = [
-        summary_stats,
-        pct_variation,
-        mad,
-        kurtosis,
-        skewness,
-    ]
-    summary_stats_table = pd.concat(
-        objs=metrics_list,
-        sort=False,
-        axis=1
-    )
-    print(f"\nExploratory Data Analysis:\n{summary_stats_table}\n")
-
-    # Save statistics summary to .csv file
-    save_csv_file(
-        dataframe=summary_stats_table,
-        file_name=file_name,
-        output_directory=output_directory,
-    )
-    return summary_stats_table
-
-
-# Trying to generate numeric and categorical subsets
-def run_exploratory_data_analysis_nums_cats(
-    dataframe: pd.DataFrame
-) -> pd.DataFrame:
-    """Print out the summary descriptive statistics from the dataset.
-
-    Also includes a missing table summary.
-
-    Args:
-        dataframe (_type_): _description_
+        dataframe (pd.DataFrame): _description_
 
     Returns:
         _type_: _description_
@@ -1307,9 +1054,15 @@ def run_exploratory_data_analysis_nums_cats(
     )
     # Select "all" value in 'include' parameter to include non numeric data
     # in the EDA
-    summary_stats_nums = dataframe.select_dtypes(
-        include="number"
-    ).describe(include="all").T
+    summary_stats = dataframe.describe(include="all").T
+
+    # # Mode
+    # mode = dataframe.mode(axis=0).T
+    # # Rename the mode column names
+    # mode_col_names = [
+    #     "mode" + str(col) for col in mode.columns
+    # ]
+    # mode.columns = mode_col_names
 
     # Percent of variance (standard deviation actually) compared to mean value
     pct_variation = (
@@ -1323,40 +1076,42 @@ def run_exploratory_data_analysis_nums_cats(
     skewness = dataframe.skew().rename("skew")
 
     dataframe_list = [
-        summary_stats_nums,
+        summary_stats,
         # mode,
         pct_variation,
         mad,
         kurtosis,
         skewness,
     ]
-    summary_stats_nums_table = pd.concat(
+    summary_stats_table = pd.concat(
         objs=dataframe_list,
         sort=False,
         axis=1
     )
-    print(f"\nExploratory Data Analysis:\n{summary_stats_nums_table}\n")
-    return summary_stats_nums_table
+    print(f"\nExploratory Data Analysis:\n{summary_stats_table}\n")
+    return summary_stats_table
 
 
 def produce_sweetviz_eda_report(
     dataframe: pd.DataFrame,
     eda_report_name: str,
-    output_directory: Path
+    output_directory: Path,
+    target_feature: str = None
 ) -> None:
     """Exploratory Data Analysis using the Sweetviz library.
 
-    Produce an '.html' file of the main steps of the EDA.
+    Produce an '.html' file of the main steps of the EDA
     """
     print("\nPreparing SweetViz Report:\n")
     sweetviz_eda_report = sv.analyze(
         source=dataframe,
+        target_feat=target_feature,
         pairwise_analysis="auto"
     )
     sweetviz_eda_report.show_html(
-        filepath=output_directory.joinpath(f"{eda_report_name}.html"),
+        filepath=output_directory.joinpath(eda_report_name + ".html"),
         open_browser=True,
-        layout="widescreen",
+        layout="widescreen"
     )
 
 
@@ -1378,22 +1133,10 @@ def compare_sweetviz_eda_report(
         [train_set, "Training Data"], [test_set, "Test Data"]
     )
     sweetviz_eda_report.show_html(
-        filepath=output_directory.joinpath(f"{eda_report_name}.html"),
+        filepath=output_directory.joinpath(eda_report_name + ".html"),
         open_browser=True,
-        layout="widescreen",
+        layout="widescreen"
     )
-
-
-def produce_dtale_eda_report(dataframe: pd.DataFrame) -> None:
-    """Exploratory Data Analysis using the Dtale library.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-    """
-    # Create a D-Tale instance
-    dtale_eda_report = dtale.show(data=dataframe)
-    # Launch the report in a web browser
-    dtale_eda_report.open_browser()
 
 
 def get_missing_values_table(dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -1403,11 +1146,10 @@ def get_missing_values_table(dataframe: pd.DataFrame) -> pd.DataFrame:
     Use parameter 'style=True' to style the display in the output table.
 
     Args:
-        dataframe (pd.DataFrame): The dataframe the metrics should be
-            calculated on.
+        dataframe (pd.DataFrame): _description_
 
     Returns:
-        pd.DataFrame: The metric table of missing values.
+        pd.DataFrame: _description_
     """
     # Produce a heatmap of missing values
     nan_table = dataframe.stb.missing(
@@ -1425,7 +1167,7 @@ def pivot_to_aggregate(
     index_list=None,
     column_list=None,
     aggfunc_list=None
-):
+) -> pd.DataFrame:
     """Use 'pivot_table' function to aggregate data.
 
     Args:
@@ -1436,7 +1178,7 @@ def pivot_to_aggregate(
         aggfunc_list (_type_, optional): _description_. Defaults to None.
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: _description_
     """
     pivot_table = pd.pivot_table(
         data=dataframe,
@@ -1468,12 +1210,8 @@ def group_by_columns_mean_std(dataframe, by_column_list, column_list):
     ).agg(
         mean=pd.NamedAgg(column=column_list, aggfunc="mean"),
         std=pd.NamedAgg(column=column_list, aggfunc="std"),
-        # mad_intensity=("intensity", "mad"),  # NOT working
-    ).dropna(
-        axis=0,
-        how="any",
-        # inplace=True,
-    )  # Drop rows with NA values to focus on columns with defects
+        # mad_intensity=("intensity", "mad"),  # BUG NOT working
+    ).dropna(axis=0, how="any")
     return dataframe_groups
 
 
@@ -1495,31 +1233,58 @@ def calculate_mahalanobis_distance(
     Returns:
         _type_: _description_
     """
-    var_minus_mu = var - np.mean(data)
+    var_minus_mu = var - np.mean(data.select_dtypes(include=np.number))
     if not cov:
-        cov = np.cov(data.values.T)
+        cov = np.cov(data.select_dtypes(include=np.number).values.T)
     inv_covmat = sp.linalg.inv(cov)
     left_term = np.dot(var_minus_mu, inv_covmat)
     mahalanobis = np.dot(left_term, var_minus_mu.T)
-    return mahalanobis.diagonal()
+    mahalanobis_diagonal = mahalanobis.diagonal()
+    print(type(mahalanobis_diagonal))
+    print(mahalanobis_diagonal)
+    return mahalanobis_diagonal
+
+
+def calculate_mahalanobis_distance_alt(dataframe: pd.DataFrame) -> List[float]:
+    """mahalanobis_distance _summary_.
+
+    Args:
+        dataframe (pd.DataFrame): _description_
+
+    Returns:
+        List[float]: _description_
+    """
+    # Compute the covariance matrix of the data
+    cov = np.cov(dataframe.select_dtypes(include=np.number).T)
+    # Compute the inverse covariance matrix of the data
+    inv_cov = np.linalg.inv(cov)
+    # Compute the Mahalanobis distance between each pair of rows
+    mahalanobis_distance_list = []
+    for i in range(dataframe.shape[0]):
+        for j in range(i + 1, dataframe.shape[0]):
+            mahalanobis_distance_list.append(
+                mahalanobis(dataframe.iloc[i], dataframe.iloc[j], inv_cov)
+            )
+    print(f"\n{mahalanobis_distance_list = }\n")
+    return mahalanobis_distance_list
 
 
 def apply_mahalanobis_test(
     dataframe: pd.DataFrame,
-    alpha: float = 0.01
+    alpha: float = 0.05
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Run the Mahalanobis test.
 
     Args:
         dataframe (_type_): _description_
-        alpha (float, optional): _description_. Defaults to 0.01.
+        alpha (float, optional): _description_. Defaults to 0.05.
 
     Returns:
         _type_: _description_
     """
     # Create a copy to enable row dropping within the loop instead of
     # overwriting the 'original' (here, reduced) dataframe
-    mahalanobis_dataframe = dataframe.copy()
+    mahalanobis_dataframe = copy.deepcopy(dataframe)
     mahalanobis_dataframe["mahalanobis_score"] = (
         calculate_mahalanobis_distance(
             var=mahalanobis_dataframe,
@@ -1547,8 +1312,8 @@ def apply_mahalanobis_test(
     mahalanobis_outlier_dataframe = mahalanobis_dataframe[
         mahalanobis_dataframe.mahalanobis_p_value < alpha
     ]
-    print("\nTable of Outliers based on Mahalanobis Distance:")
-    print(mahalanobis_outlier_dataframe)
+    # print("\nTable of outliers based on Mahalanobis distance:")
+    # print(mahalanobis_outlier_dataframe)
     return mahalanobis_dataframe, mahalanobis_outlier_dataframe
 
 
@@ -1565,9 +1330,7 @@ def remove_mahalanobis_outliers(
     Returns:
         pd.DataFrame: _description_
     """
-    # Make a list of outliers
     mahalanobis_outlier_list = mahalanobis_outlier_dataframe.index.to_list()
-
     # Select rows of outliers using 'isin' based on 'mahalanobis_outlier_list'
     # Then, take opposite rows (as it would be 'notin') using '~' on the df
     no_outlier_dataframe = (
@@ -1575,14 +1338,13 @@ def remove_mahalanobis_outliers(
             ~ mahalanobis_dataframe.index.isin(mahalanobis_outlier_list)
         ]
     )
-
     # Drop the mahalanobis column as not needed any more
     no_outlier_dataframe.drop(
         labels=["mahalanobis_score", "mahalanobis_p_value"],
         axis=1,
         inplace=True,
     )
-    print(f"\nData without outliers:\n{no_outlier_dataframe}\n")
+    # print(f"\nData without outliers:\n{no_outlier_dataframe}\n")
     return no_outlier_dataframe
 
 
@@ -1600,8 +1362,7 @@ def get_iqr_outliers(
         _type_: _description_
     """
     print("\n==============================================================\n")
-    print(f"\n{column_name.upper()}\n")
-
+    print(f"For {column_name}:")
     # Calculate Q1, Q3
     q_1, q_3 = np.percentile(
         a=dataframe[column_name],
@@ -1627,8 +1388,8 @@ def get_iqr_outliers(
     iqr_outlier_dataframe = iqr_outlier_dataframe[column_name]
     iqr_outlier_ratio = len(iqr_outlier_dataframe) / len(dataframe)
     print(
-        f"There are {len(iqr_outlier_dataframe)} "
-        f"({iqr_outlier_ratio:.1%}) IQR outliers."
+        f"There are {len(iqr_outlier_dataframe)} \
+({iqr_outlier_ratio:.1%}) IQR outliers."
     )
     # print(f"Table of outliers for {column_name} based on IQR value:")
     # print(iqr_outlier_dataframe)
@@ -1651,8 +1412,7 @@ def get_zscore_outliers(
         _type_: _description_
     """
     print("\n==============================================================\n")
-    print(f"\n{column_name.upper()}\n")
-
+    print(f"For {column_name}:")
     # Calculate Z-score
     z_score = np.abs(zscore(a=dataframe[column_name]))
 
@@ -1663,8 +1423,8 @@ def get_zscore_outliers(
     zscore_outlier_dataframe = zscore_outlier_dataframe[column_name]
     zscore_outlier_ratio = len(zscore_outlier_dataframe) / len(dataframe)
     print(
-        f"There are {len(zscore_outlier_dataframe)} "
-        f"({zscore_outlier_ratio:.1%}) Z-score outliers."
+        f"There are {len(zscore_outlier_dataframe)} \
+({zscore_outlier_ratio:.1%}) Z-score outliers."
     )
     # print(f"Table of outliers for {column_name} based on Z-score value:")
     # print(zscore_outlier_dataframe)
@@ -1685,8 +1445,7 @@ def get_mad_outliers(
         pd.DataFrame: _description_
     """
     print("\n==============================================================\n")
-    print(f"\n{column_name.upper()}\n")
-
+    print(f"For {column_name}:")
     # Reshape the target column to make it 2D
     column_2d = dataframe[column_name].values.reshape(-1, 1)
     # Fit to the target column
@@ -1706,168 +1465,25 @@ def get_mad_outliers(
     mad_outlier_dataframe["mad_score"] = mad_outliers
     mad_outlier_ratio = len(mad_outliers) / len(dataframe)
     print(
-        f"There are {len(mad_outliers)} "
-        f"({mad_outlier_ratio:.1%}) MAD outliers."
+        f"There are {len(mad_outliers)} \
+({mad_outlier_ratio:.1%}) MAD outliers."
     )
     # print(f"Table of outliers for {column_name} based on MAD value:")
     # print(mad_outlier_dataframe)
     return mad_outliers
 
 
-def concatenate_outliers_with_target_category_dataframe(
-    dataframe: pd.DataFrame,
-    target_category_list: List[str],
-    data_outliers: pd.DataFrame,
-    feature: str,
-    outlier_method: str,
-    output_directory: Path,
-) -> pd.DataFrame:
-    """Concatenate the outliers with their corresponding target categories.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        target_category_list (List[str]): _description_
-        data_outliers (pd.DataFrame): _description_
-        feature (str): _description_
-        outlier_method (str): _description_
-        output_directory (Path): _description_
-
-    Returns:
-        pd.DataFrame: _description_
-    """
-    outlier_dataframe = pd.merge(
-        left=dataframe.loc[:, target_category_list],
-        right=data_outliers,
-        on="file_name",
-        how="right"
-    )
-    print(
-        f"\nTable of outliers for {feature} based on {outlier_method} values:"
-    )
-    print(outlier_dataframe)
-
-    # Save output as a '.csv()' file
-    save_csv_file(
-        dataframe=outlier_dataframe,
-        file_name=f"{feature}_{outlier_method}_outliers",
-        output_directory=output_directory,
-    )
-    return outlier_dataframe
-
-
-def detect_univariate_outliers(
-    dataframe: pd.DataFrame,
-    target_category_list: List[str],
-    output_directory: Path
-) -> pd.DataFrame:
-    """detect_univariate_outliers _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        output_directory (Path): _description_
-
-    Returns:
-        pd.DataFrame: _description_
-    """
-    # Create a list of methods as tuples containing the method name and the
-    # 'getter' to the function definition
-    methods = [
-        ("iqr", get_iqr_outliers),
-        ("zscore", get_zscore_outliers),
-        ("mad", get_mad_outliers)
-    ]
-
-    # Get list of numeric features
-    selected_numeric_feature_list = (
-        dataframe.select_dtypes(include=np.number).columns.to_list()
-    )
-    # Run 'concatenate_outliers_with_target_category_dataframe' function on all
-    # methods
-    for method_name, method in methods:  # tuple unpacking
-        for feature in selected_numeric_feature_list:
-            outliers = method(dataframe=dataframe, column_name=feature)
-            concatenate_outliers_with_target_category_dataframe(
-                dataframe=dataframe,
-                target_category_list=target_category_list,
-                data_outliers=outliers,
-                feature=feature,
-                outlier_method=method_name,
-                output_directory=output_directory
-            )
-
-    # TODO Merge ALL outlier dataframes using only common file names (inner ?)
-    # return merged_outliers
-
-
-def detect_multivariate_outliers(
-    dataframe: pd.DataFrame,
-    target_category_list: List[str],
-    output_directory: Path
-) -> Tuple[pd.DataFrame]:
-    """detect_multivariate_outliers _summary_.
-
-    Args:
-        dataframe (pd.DataFrame): _description_
-        target_category_list (List[str]): _description_
-        output_directory (Path): _description_
-
-    Returns:
-        Tuple[pd.DataFrame]: _description_
-    """
-    # MAHALANOBIS TEST
-    # Perform Mahalanobis test and get outlier list
-    mahalanobis_dataframe, mahalanobis_outliers = apply_mahalanobis_test(
-        dataframe.select_dtypes(include=np.number),
-        alpha=0.01
-    )
-
-    # Concatenate the outliers with their corresponding target categories
-    mahalanobis_outlier_dataframe = pd.merge(
-        left=dataframe.loc[:, target_category_list],
-        right=mahalanobis_outliers,
-        on="file_name",
-        how="right"
-    )
-    print("\nTable of outliers based on Mahalanobis distance:")
-    print(mahalanobis_outlier_dataframe)
-
-    # Save output as a '.csv()' file
-    save_csv_file(
-        dataframe=mahalanobis_outlier_dataframe,
-        file_name="mahalanobis_outliers",
-        output_directory=output_directory,
-    )
-
-    # Compile final outlier-free dataframe
-    no_outlier_dataframe = remove_mahalanobis_outliers(
-        mahalanobis_dataframe=mahalanobis_dataframe,
-        mahalanobis_outlier_dataframe=mahalanobis_outlier_dataframe,
-    )
-    # print(f"\nData without outliers:\n{no_outlier_dataframe}\n")
-    return no_outlier_dataframe
-
-
-def standardise_features(features: pd.DataFrame) -> pd.DataFrame:
+def standardise_features(features):
     """Standardise the features to get them on the same scale.
 
     When used for Principal Component Analysis (PCA), this MUST be performed
     BEFORE applying PCA.
-
-    NOTE: since the 'StandardScaler()' function from scikit-learn library
-    produces a Numpy array, the 'convert_data_to_dataframe()' custom function
-    is applied to convert the array to a Pandas dataframe.
-    As a consequence, the column names must also be renamed using the selected
-    feature names.
 
     Args:
         feature_list (_type_): _description_
 
     Returns:
         _type_: _description_
-
-    TODO Why is '.set_output(transform="pandas")' not working ?!
-        Once fixed, 'features_scaled = convert_data_to_dataframe
-        (features_scaled)' can be deleted.
     """
     # Standardise the features
     scaler = StandardScaler()
@@ -1884,7 +1500,7 @@ def standardise_features(features: pd.DataFrame) -> pd.DataFrame:
 def remove_low_variance_features(
     features: pd.DataFrame,
     threshold: float,
-) -> pd.DataFrame | np.ndarray:
+) -> pd.DataFrame:
     """Remove variables with low variance.
 
     Args:
@@ -1901,7 +1517,7 @@ def remove_low_variance_features(
     # Subset the data
     features_reduced = features.loc[:, mask]
     print("\nThe following features were retained:")
-    print(f"{features_reduced.columns}")
+    print(f"{features_reduced.columns.to_list()}")
     return features_reduced
 
 
@@ -1934,8 +1550,8 @@ def identify_highly_correlated_features(
         if any(reduced_correlation_matrix[feature] > correlation_threshold)
     ]
     print(
-        f"\nThere are {len(features_to_drop)} features to drop due to high "
-        f"correlation:\n{features_to_drop}\n"
+        f"\nThere are {len(features_to_drop)} features to drop due to high \
+correlation:\n{features_to_drop}\n"
     )
     return features_to_drop
 
@@ -1971,6 +1587,8 @@ def apply_pca(
 ) -> Tuple[PCA, np.ndarray]:
     """Run a Principal Component Analysis (PCA) on scaled data.
 
+    The 'scikit-learn' library is used in this case.
+
     Args:
         n_components (int | float): If 0 < n_components < 1, the float value
         corresponds to the amount of variance that needs to be explained.
@@ -1985,12 +1603,6 @@ def apply_pca(
     """
     pca_model = PCA(n_components=n_components, random_state=42)
     pca_array = pca_model.fit_transform(features_scaled)
-
-    eigen_values = pca_model.explained_variance_
-    print(f"\nPCA Eigenvalues:\n{eigen_values}")
-
-    eigen_vectors = pca_model.components_
-    print(f"PCA Eigenvectors:\n{eigen_vectors}\n")
     return pca_model, pca_array
 
 
@@ -1999,15 +1611,17 @@ def explain_pca_variance(
     pca_model: PCA,
     pca_components: List[str]
 ) -> Tuple[pd.DataFrame]:
-    """explain_pca_variance _summary_.
+    """Build a dataframe of variance explained.
+
+    The variable dataframe 'variance_explained_df' is created and its index is
+    renamed for better comprehension of the output
 
     Args:
-        pca_eigen_values (np.ndarray): _description_
-        pca_model (PCA): _description_
-        pca_components (List[str]): _description_
+        pca_model (_type_): _description_
+        pca_components (_type_): _description_
 
     Returns:
-        Tuple[pd.DataFrame]: _description_
+        _type_: _description_
     """
     variance_explained = pca_model.explained_variance_ratio_ * 100
     variance_explained_cumulated = np.cumsum(
@@ -2026,15 +1640,22 @@ def explain_pca_variance(
             2: "Cumulated Variance (%)",
         }
     )
-    print(f"\nVariance Explained by the PCA:\n{variance_explained_df}")
+    print("\nVariance explained by the PCA:")
+    print(variance_explained_df)
+    # print(variance_explained_df.applymap(lambda x: "{:1%}".format(x)))
     return variance_explained_df
 
 
-def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
-    """find_best_pc_axes _summary_.
+def find_best_pc_axes(
+        variance_explained_df: pd.DataFrame,
+        percent_cut_off_threshold: int = 95,
+) -> Tuple[List[str], List[float]]:
+    """find_best_pc_axes.
 
     Args:
         variance_explained_df (pd.DataFrame): _description_
+        percent_cut_off_threshold (int, optional): _description_.
+        Defaults to 95.
 
     Returns:
         Tuple[List[str]]: _description_
@@ -2042,17 +1663,23 @@ def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
     # First, subset 'variance_explained_df' to keep cumulated values
     cumulative_values = variance_explained_df.loc["Cumulated Variance (%)", :]
 
-    # Then, find the index of the last element in the array that is < 0.95
-    index = np.searchsorted(cumulative_values, 95, side='right')
+    # Then, find the index of the last element in the array that
+    # is < 'percent_cut_off_threshold'
+    index = np.searchsorted(
+        cumulative_values,
+        percent_cut_off_threshold,
+        side="right"
+    )
 
     # Include the first element that is >= 0.95
-    if cumulative_values[index-1] < 95:
+    if cumulative_values[index-1] < percent_cut_off_threshold:
         # Add 1 to include the first element greater than or equal to 0.95
         index += 1
 
     # Slice the array to keep only the elements up to and including that index
     best_pc_axes = cumulative_values[:index]
-    print(f"\nThe following filtered values are kept:\n{best_pc_axes}\n")
+    print("\nThe best PC axes (based on cumulative variance) are:")
+    print(best_pc_axes)
 
     best_pc_axis_names = best_pc_axes.index.to_list()
     best_pc_axis_values = best_pc_axes.to_list()
@@ -2062,14 +1689,13 @@ def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
 def run_pc_analysis(
     features: pd.DataFrame,
     eda_report_name: str,
-    output_directory: Path
+    output_directory: str | Path
 ) -> Tuple[pd.DataFrame | np.ndarray, List[str]]:
     """run_pc_analysis _summary_.
 
     Args:
         features (pd.DataFrame): _description_
-        eda_report_name (str): _description_
-        output_directory (Path): _description_
+        output_directory (str | Path): _description_
 
     Returns:
         Tuple[pd.DataFrame | np.ndarray], List[str]: _description_
@@ -2082,6 +1708,14 @@ def run_pc_analysis(
 
     # Scale features data
     features_scaled = standardise_features(features=features)
+
+    # # Get eigenvalues and eigenvectors
+    # pca_eigen_values = get_pca_eigen_values_vectors(
+    #     # n_components=len(features_scaled.columns),
+    #     # n_components=0.95,  # set to keep PCs with cumulated variance of 95%
+    #     # features_scaled=features_scaled,
+    #     pca_model=pca_model
+    # )
 
     # Run the PC analysis
     pca_model, pca_array = apply_pca(
@@ -2104,8 +1738,7 @@ def run_pc_analysis(
 
     # Get PC axis labels and insert into the dataframe
     pca_components = [
-        # f"pc{str(col + 1)}" for col in pca_dataframe.columns.to_list()
-        f"pc{col + 1}" for col in pca_dataframe.columns.to_list()  # to test
+        "pc" + str(col+1) for col in pca_dataframe.columns.to_list()
     ]
     pca_dataframe.columns = pca_components
 
@@ -2118,7 +1751,7 @@ def run_pc_analysis(
         )
     )
     # Set index as dataframe
-    pca_dataframe = pca_dataframe.set_index(keys=[features.index])
+    pca_dataframe = pca_dataframe.set_index(keys=features.index)
 
     # Keep the PC axes that correspond to AT LEAST 95% of the cumulated
     # explained variance
@@ -2161,9 +1794,13 @@ def run_pc_analysis(
         color="blue",
         fontsize=12
     )
-    plt.title(label="Scree Plot PCA", fontsize=16)
+    plt.title(
+        label="Scree Plot PCA",
+        fontsize=16,
+        loc="center"
+    )
     plt.ylabel("Percentage of Variance Explained")
-    save_figure(file_name="pca_scree_plot", output_directory=output_directory)
+    save_figure(figure_name=output_directory/"pca_scree_plot.png")
 
     # -------------------------------------------------------------------------
 
@@ -2180,9 +1817,7 @@ def run_pc_analysis(
         fontsize=16,
         loc="center"
     )
-    save_figure(
-        file_name="pca_loading_table", output_directory=output_directory
-    )
+    save_figure(figure_name=output_directory/"pca_loading_table.png")
 
     return (
         pca_model,
@@ -2311,23 +1946,22 @@ def run_anova_check_assumptions(
     dependent_variable: pd.Series,
     independent_variable: pd.Series | str,
     group_variable: List[str],
-    output_directory: Path,
+    output_directory: str | Path,
     confidence_interval: float = 0.95,
 ) -> ols:
-    """AI is creating summary for run_anova_check_assumptions.
+    """run_anova_check_assumptions _summary_.
 
     Args:
-        dataframe (pd.DataFrame): [description]
-        dependent_variable (pd.Series): [description]
-        independent_variable (pd.Series): [description]
-        group_variable (List[str]): [description]
-        output_directory (Path): [description]
-        confidence_interval (float, optional): [description]. Defaults to 0.95.
+        dataframe (pd.DataFrame): _description_
+        dependent_variable (pd.Series): _description_
+        independent_variable (pd.Series): _description_
+        group_variable (List[str]): _description_
+        output_directory (str | Path): _description_
 
     Returns:
-        ols: [description]
+        _type_: _description_
     """
-    anova_model, tukey_results = run_anova_test(
+    anova_model = run_anova_test(
         dataframe=dataframe,
         dependent_variable=dependent_variable,
         independent_variable=independent_variable,
@@ -2362,9 +1996,9 @@ def run_anova_check_assumptions(
     # ---------------------------------------------------------------
 
     draw_tukeys_hsd_plot(
-        independent_variable=independent_variable,
+        dataframe=dataframe,
         dependent_variable=dependent_variable,
-        tukey_results=tukey_results,
+        independent_variable=independent_variable,
         output_directory=output_directory,
         confidence_interval=confidence_interval,
     )
@@ -2376,23 +2010,18 @@ def run_anova_test(
     dependent_variable: pd.Series,
     independent_variable: str,
     group_variable: str,
-    output_directory: Path,
+    output_directory: str | Path,
     confidence_interval: float = 0.95,
 ) -> None:
     """ANOVA test on numeric variables and calculate group confidence interval.
 
     Args:
-        dataframe (pd.DataFrame): [description]
-        dependent_variable (pd.Series): [description]
-        independent_variable (str): [description]
-        group_variable (str): [description]
-        output_directory (Path): [description]
-        confidence_interval (float, optional): [description]. Defaults to 0.95.
-
-    Returns:
-        [type]: [description]
+        dataframe (pd.DataFrame): _description_
+        dependent_variable (pd.Series): _description_
+        group_variable (str): _description_
+        confidence_interval (float, optional): _description_.
+        Defaults to 0.95.
     """
-    print("\n==============================================================\n")
     print(f"\n{dependent_variable.upper()}:")
 
     # Fit the OLS model
@@ -2416,17 +2045,72 @@ def run_anova_test(
     print(ci_table_target_categories)
     save_csv_file(
         dataframe=ci_table_target_categories,
-        file_name=f"ci_table_target_categories_{dependent_variable}",
-        output_directory=output_directory,
+        csv_path_name=output_directory /
+        f"ci_table_target_categories_{dependent_variable}.csv"
     )
 
     # Find group differences
-    tukey_results = perform_multicomparison(
+    perform_multicomparison(
         dataframe=dataframe[dependent_variable],
         groups=dataframe[group_variable],
         confidence_interval=confidence_interval
     )
-    return ols_model, tukey_results
+    return ols_model
+
+
+def run_pca_anova(
+        dataframe: pd.DataFrame,
+        target_category: str,
+        # sub_category: str,
+        pca_components: List[str],
+        output_directory: str | Path
+) -> None:
+    """run_pca_anova _summary_.
+
+    Args:
+        dataframe(pd.DataFrame): _description_
+        target_category(str): _description_
+        sub_category(str): _description_
+        pca_components(List[str]): _description_
+        output_directory(str | Path): _description_
+    """
+    # Calculate mean and standard deviation of PC axes
+    # aggregate_pc_axes_mean_std(
+    #     dataframe=dataframe.select_dtypes(include="number"),
+    #     category_list=dataframe[target_category],
+    #     pca_components=pca_components
+    # )
+    # Calculate mean and standard deviation of PC axes
+    pca_aggregation = pd.DataFrame()
+    for pc_axis in pca_components:
+        pca_pivot = pivot_to_aggregate(
+            dataframe=dataframe,
+            values=pc_axis,
+            index_list=dataframe[target_category],
+            aggfunc_list=["mean", "std", "mad"]
+        )
+        pca_aggregation = pd.concat([pca_aggregation, pca_pivot], axis=1)
+    print(f"\nAggregation of all PC axes:\n{pca_aggregation}\n")
+
+    # Return ANOVA & MANOVA results for EACH PC
+    for dimension in pca_components:
+        run_anova_test(
+            dataframe=dataframe,
+            dependent_variable=dimension,
+            independent_variable=target_category,
+            group_variable=target_category,
+            output_directory=output_directory,
+            confidence_interval=0.95,
+        )
+
+    # TODO Refactor formula to automate number of PC axes
+    # + add group effects/interactions ?
+    manova_test = apply_manova(
+        dataframe=dataframe,
+        formula=f"pc1 + pc2 + pc3 ~ {target_category}"
+    )
+    print(
+        f"\nMANOVA Test Table of PCs for {target_category}:\n{manova_test}\n")
 
 
 def perform_multicomparison(
@@ -2448,9 +2132,10 @@ def perform_multicomparison(
         data=dataframe,
         groups=groups
     )
-    tukey_results = multicomparison.tukeyhsd(alpha=1 - confidence_interval)
-    print(f"\nTukey's Multicomparison Test between groups:\n{tukey_results}\n")
-    return tukey_results
+    tukey_result = multicomparison.tukeyhsd(alpha=1 - confidence_interval)
+    print(f"\nTukey's Multicomparison Test between groups:\n{tukey_result}\n")
+    # print(f"Unique groups: {multicomparison.groupsunique}\n")
+    return tukey_result
 
 
 def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
@@ -2573,7 +2258,7 @@ def check_equal_variance_assumption_residuals(
 
     bartlett = pg.homoscedasticity(
         data=model_residuals_dataframe,
-        dv="residuals",
+        dv="Residuals",
         group=group_variable,
         method="bartlett",
         alpha=(1 - confidence_interval)
@@ -2586,7 +2271,7 @@ def check_equal_variance_assumption_residuals(
 
     levene = pg.homoscedasticity(
         data=model_residuals_dataframe,
-        dv="residuals",
+        dv="Residuals",
         group=group_variable,
         method="levene",
         alpha=(1 - confidence_interval)
@@ -2603,8 +2288,8 @@ def check_equal_variance_assumption_residuals(
         axis=0,
     )
     print(
-        f"\nEquality of Variance Tests Results - '{group_variable}' as group"
-        f"\n{equal_variance_tests}\n"
+        f"\nEquality of Variance Tests Results - '{group_variable}'"
+        f"as group\n{equal_variance_tests}\n"
     )
     # BUG It does not the difference between 'if' and 'else' output
     print("Equal Variance of Data Between Groups:")
@@ -2638,14 +2323,8 @@ def run_tukey_post_hoc_test(dataframe, dependent_variable, group_list):
     return tukey
 
 
-def perform_multicomparison_correction(
-    p_values,
-    method: str = "bonferroni"
-) -> pd.DataFrame:
+def perform_multicomparison_correction(p_values, method="bonferroni"):
     """Apply the Bonferroni correction method to the p-values.
-
-    This version of 'multicomparison_correction' uses the Pingouin library.
-    An equivalent version is also available from the 'statsmodels' library.
 
     Args:
         p_values (_type_): _description_
@@ -2660,7 +2339,7 @@ def perform_multicomparison_correction(
     )
     # Concatenate the two arrays together
     concatenate_arrays = np.column_stack((reject, p_values_corrected))
-    concatenate_arrays.astype(dtype=np.bool)
+    concatenate_arrays.astype(np.bool)
 
     correction_dataframe = pd.DataFrame(concatenate_arrays)
     correction_dataframe.rename(
@@ -2676,29 +2355,36 @@ def perform_multicomparison_correction(
 
 
 def create_missing_data_matrix(
-    dataframe: pd.DataFrame,
-    file_name: str,
-    output_directory: Path,
+        dataframe: pd.DataFrame,
+        output_directory: str | Path,
 ) -> None:
+    # fix type hints for the content of the 'object'
     """Display missing values status for each column in a matrix.
 
     Args:
-        dataframe (pd.DataFrame): Input dataframe.
-        file_name (str): Output file name to save matrix.
-        output_directory (Path): Output directory where figure will be saved.
+        dataframe (pd.DataFrame): _description_
+
+    Returns:
+        object: _description_
     """
     plt.figure(figsize=(15, 10))
     msno.matrix(
         dataframe,
         sort="descending",  # NOT working
+        # figsize=(10, 5),
         fontsize=8,
         sparkline=False,
-        color=(0.50, 0.50, 0.50),
     )
-    plt.title(label="Summary of Missing Data", fontsize=16)
+    plt.title(
+        label="Summary of Missing Data",
+        fontsize=16,
+        loc="center"
+    )
     plt.tight_layout()
-    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
+    save_figure(
+        figure_name=output_directory/"missing_data_matrix.png"
+    )
 
 
 def draw_scree_plot(x_axis, y_axis):
@@ -2721,28 +2407,6 @@ def draw_scree_plot(x_axis, y_axis):
         markersize=8,
     )
     return scree_plot
-
-
-def draw_lineplot(x_axis, y_axis):
-    """Draw scree plot following a PCA.
-
-    Args:
-        x (_type_): _description_
-        y (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    lineplot = sns.lineplot(
-        x=x_axis,
-        y=y_axis,
-        color='black',
-        linestyle='-',
-        linewidth=2,
-        marker='o',
-        markersize=8,
-    )
-    return lineplot
 
 
 def draw_scatterplot(
@@ -2792,7 +2456,7 @@ def draw_all_pca_pairs_scatterplot(
     pca_components: List[str],
     target_category: str,
     sub_category: str,
-    output_directory: Path
+    output_directory: str | Path
 ) -> None:
     """Draw the scatter plots for all selected PC axes.
 
@@ -2811,14 +2475,11 @@ def draw_all_pca_pairs_scatterplot(
         pca_components (List[str]): _description_
         target_category (str): _description_
         sub_category (str): _description_
-        output_directory (Path): _description_
+        output_directory (str | Path): _description_
 
     TODO Change the symbol shapes for the 'product' sub-category
     """
     # Generate all possible pairs of elements from the pc component list
-    # while keeping unique pairs of elements
-    # BUT keep the first four PC components only
-    # OR PC axes that are AT LEAST equal to 0.95
     pca_pair_combinations = itertools.combinations(pca_components, 2)
     pca_pair_combination_list = list(pca_pair_combinations)
     print(f"\nPairs of PC axes selected:\n{pca_pair_combination_list}\n")
@@ -2832,7 +2493,7 @@ def draw_all_pca_pairs_scatterplot(
         pc_x, pc_y = pair_list
         # Select the PC axes from the main explained variance dataframe
         # BUT select the individual variances, not the cumulated ones
-        variance_dataframe = variance_explained_df.iloc[0]
+        variance_dataframe = variance_explained_df.iloc[1]
         # Select the PC axes from the main explained variance dataframe
         variance_dataframe = variance_dataframe.loc[pair_list]
         # Extract the variance values
@@ -2861,19 +2522,19 @@ def draw_all_pca_pairs_scatterplot(
             markerscale=2
         )
         plt.title(
-            label=(
-                f"Représentation des effets des paramètres de détection des "
-                f"défauts {pc_x.upper()} vs. {pc_y.upper()}"
-            ),
+            label=f"""
+            Representation of the parameter effects on defect detection \
+            {pc_x.upper()} vs. {pc_y.upper()}
+            """,
             fontsize=16,
             loc="center"
         )
         plt.tight_layout()
-        save_figure(
-            file_name=f"scatterplot_pca_{target_category}_{pc_x}_vs_{pc_y}",
-            output_directory=output_directory
-        )
         # plt.show()
+        save_figure(
+            figure_name=output_directory /
+            f"pca_scatterplot_{target_category}_{pc_x}_vs_{pc_y}.png"
+        )
 
 
 def draw_heatmap(data, xticklabels, yticklabels):
@@ -3039,38 +2700,6 @@ def draw_kdeplot_subplots(
     return kdeplot_subplots
 
 
-# ! Compare function below with function above
-def draw_kde_plots(dataframe, columns, label):
-    """draw_kde_plots _summary_.
-
-    Args:
-        dataframe (_type_): _description_
-        columns (_type_): _description_
-        label (_type_): _description_
-    """
-    num_rows, num_cols = 4, 4
-    fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 12))
-    fig.suptitle(
-        f"Distribution of {label.capitalize()} Features (with Skewness)",
-        fontsize=20
-    )
-
-    for index, column in enumerate(dataframe[columns].columns):
-        i, j = (index // num_cols, index % num_cols)
-        graph = sns.kdeplot(
-            dataframe[column],
-            color="green",
-            shade=True,
-            label=f"{dataframe[column].skew():.2f}",
-            ax=axes[i, j],
-        )
-        graph.legend(loc="best")
-    fig.delaxes(axes[3, 2])
-    fig.delaxes(axes[3, 3])
-    plt.tight_layout()
-    plt.show()
-
-
 def draw_boxplot(
     dataframe: pd.DataFrame,
     x_axis: List[float],
@@ -3136,33 +2765,6 @@ def draw_barplot(
         palette=palette
     )
     return barplot
-
-
-def draw_box_plots(dataframe, columns, label):
-    """draw_box_plots _summary_.
-
-    Args:
-        dataframe (_type_): _description_
-        columns (_type_): _description_
-        label (_type_): _description_
-    """
-    num_rows, num_cols = 4, 4
-    fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 8))
-    fig.suptitle(f"Distribution of {label.capitalize()} Features", fontsize=20)
-
-    for index, column in enumerate(dataframe[columns].columns):
-        i, j = (index // num_cols, index % num_cols)
-        graph = sns.boxplot(
-            dataframe[column],
-            color="green",
-            orient="v",
-            ax=axes[i, j],
-        )
-        graph.legend(loc="best")
-    fig.delaxes(axes[3, 2])
-    fig.delaxes(axes[3, 3])
-    plt.tight_layout()
-    plt.show()
 
 
 def draw_barplot_subplots(
@@ -3255,34 +2857,6 @@ def draw_barplot_subplots(
     return barplot_subplots
 
 
-# ! Compare function below with function above
-def draw_bar_plots(dataframe, columns, label):
-    """draw_bar_plots _summary_.
-
-    Args:
-        dataframe (_type_): _description_
-        columns (_type_): _description_
-        label (_type_): _description_
-    """
-    num_rows, num_cols = 3, 4
-    fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 12))
-    fig.suptitle(f"{label.capitalize()} Features Count", fontsize=20)
-
-    for index, column in enumerate(dataframe[columns].columns):
-        i, j = (index // num_cols, index % num_cols)
-        graph = sns.countplot(
-            data=dataframe,
-            x=column,
-            color="red",
-            ax=axes[i, j],
-        )
-        graph.legend(loc="best")
-    fig.delaxes(axes[2, 2])
-    fig.delaxes(axes[2, 3])
-    plt.tight_layout()
-    plt.show()
-
-
 def draw_correlation_heatmap(dataframe, method="pearson"):
     """Draw a correlation matrix between variables.
 
@@ -3314,54 +2888,15 @@ def draw_correlation_heatmap(dataframe, method="pearson"):
         square=True,
         cbar=True,
         cmap="coolwarm",
-        center=0,
-        # linewidths=0.5,
-        # cbar_kws={"shrink": 0.5},
+        center=0
     )
     correlation_heatmap.set_xticklabels(
         labels=correlation_heatmap.get_xticklabels(),
         rotation=45,
-        horizontalalignment="right",
-        size=12,
-    )
-    correlation_heatmap.set_yticklabels(
-        labels=correlation_heatmap.get_yticklabels(),
-        rotation="horizontal",
-        size=12
+        ha="right"
     )
     correlation_heatmap.tick_params(left=True, bottom=True)
-    plt.title("Correlation Matrix Heatmap", fontsize=20)
-    plt.tight_layout()
-    plt.show()
-    return correlation_matrix, correlation_heatmap
-
-
-def draw_pair_plot(dataframe, hue=None):
-    """draw_pair_plot _summary_.
-
-    Args:
-        dataframe (_type_): _description_
-        hue (_type_, optional): _description_. Defaults to None.
-    """
-    fig, ax = plt.subplots(figsize=(16, 12))
-    graph = sns.pairplot(
-        dataframe,
-        kind="reg",
-        diag_kind="kde",
-        hue=hue,
-        # palette="husl",  # disabled to favour "colorblind" setting at start
-        corner=True,
-        dropna=False,
-        size=2.5,
-    )
-    # CANNOT change position of the legend
-    graph.legend(
-        #         title="Season",
-        loc="center right"
-    )  # or loc="upper right"
-    plt.tight_layout()
-    plt.suptitle("Features Relationships", y=1.05, fontsize=20)
-    plt.show()
+    return correlation_matrix
 
 
 def draw_qqplot(
@@ -3393,7 +2928,7 @@ def draw_anova_quality_checks(
     dependent_variable: str,
     independent_variable: str,
     model,
-    output_directory: Path,
+    output_directory: str | Path,
     confidence_interval: float = 0.95,
 ) -> None:
     """Draw Q-Q plots of the model dependent variable residuals.
@@ -3403,7 +2938,7 @@ def draw_anova_quality_checks(
         dependent_variable (str): _description_
         independent_variable (str): _description_
         model (_type_): _description_
-        output_directory (Path): _description_
+        output_directory (str | Path): _description_
         confidence_interval (float, optional): _description_. Defaults to 0.95.
     """
     draw_qqplot(
@@ -3411,25 +2946,30 @@ def draw_anova_quality_checks(
         confidence_interval=confidence_interval
     )
     plt.title(
-        label=f"Q-Q Plot of Model Residuals for {dependent_variable}",
+        label=(
+            f"Q-Q Plot of Model Residuals ({dependent_variable}"
+            f"vs. {independent_variable})"
+        ),
         fontsize=14,
         loc="center"
     )
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    save_figure(
-        file_name=f"qqplot_anova_{independent_variable}_{dependent_variable}",
-        output_directory=output_directory
-    )
     # plt.show()
+    save_figure(
+        figure_name=(
+            output_directory /
+            f"qqplot_anova_{independent_variable}_{dependent_variable}.png"
+        )
+    )
 
 
 def draw_tukeys_hsd_plot(
     dataframe: pd.DataFrame,
     dependent_variable: str,
     independent_variable: str,
-    output_directory: Path,
+    output_directory: str | Path,
     confidence_interval: float = 0.95,
 ) -> None:
     """draw_tukeys_hsd_plot _summary_.
@@ -3438,7 +2978,7 @@ def draw_tukeys_hsd_plot(
         dataframe (pd.DataFrame): _description_
         dependent_variable (str): _description_
         independent_variable (str): _description_
-        output_directory (Path): _description_
+        output_directory (str | Path): _description_
         confidence_interval (float, optional): _description_. Defaults to 0.95.
     """
     print("\nStats for Tukey's HSD Plots")
@@ -3455,17 +2995,22 @@ def draw_tukeys_hsd_plot(
         xlabel="Score Difference"
     )
     plt.suptitle(
-        t=f"Tukey's HSD Post-hoc Test on {dependent_variable}",
+        t=(
+            f"Tukey's HSD Post-hoc Test on {dependent_variable}"
+            f"for {independent_variable}"
+        ),
         fontsize=14
     )
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
-    save_figure(
-        file_name=f"tukey_anova_{independent_variable}_{dependent_variable}",
-        output_directory=output_directory
-    )
     # plt.show()
+    save_figure(
+        figure_name=(
+            output_directory /
+            f"tukey_anova_{independent_variable}_{dependent_variable}.png"
+        )
+    )
 
     # -------------------------------------------------------------------------
 
@@ -3549,8 +3094,8 @@ def draw_pca_outliers_biplot_3d(
     )
     plt.grid(False)
     plt.tight_layout()
-    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
+    save_figure(figure_name=output_directory.joinpath(file_name + ".png"))
 
 
 def draw_pca_outliers_biplot(
@@ -3590,6 +3135,7 @@ def draw_pca_outliers_biplot(
         hotellingt2=outlier_detection,
         legend=True,
         label=False,
+        # figsize=(20, 12),
         color_arrow="k",
         fontdict={
             "weight": "bold",
@@ -3608,8 +3154,8 @@ def draw_pca_outliers_biplot(
     )
     plt.grid(False)
     plt.tight_layout()
-    save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
+    save_figure(figure_name=output_directory.joinpath(file_name + ".png"))
 
 
 def draw_pca_biplot_3d(
@@ -3629,7 +3175,7 @@ def draw_pca_biplot_3d(
         features_scaled (pd.DataFrame): _description_
         target_encoded (pd.Series): _description_
         target_class_list (List[str]): _description_
-        output_directory (Path): _description_
+        output_directory (str | Path): _description_
     """
     # Define the colour scheme for identifying the target classes ?
     # target_class_colour_list, _ = colourmap.fromlist(target_class_list)
@@ -3670,11 +3216,11 @@ def draw_pca_biplot_3d(
         mode="markers",
         marker=dict(
             size=5,
-            # color=scatter_data.get_facecolors(),
-            color=[
-                target_class_colour_list[target_class]
-                for target_class in target_class_list
-            ],
+            color=scatter_data.get_facecolors(),
+            # color=[
+            #     target_class_colour_list[target_class]
+            #     for target_class in target_class_list
+            # ],
             # color=[colour_map[colour] for colour in pca_biplot_3d.y]  # BUG
         )
     )
@@ -3697,7 +3243,7 @@ def draw_pca_biplot_3d(
     fig = go.Figure(data=[trace], layout=layout)
     fig.show()
     # Save the Plotly figure as an HTML file
-    fig.write_html(output_directory.joinpath(f"{file_name}.html"))
+    fig.write_html(output_directory.joinpath(file_name + ".html"))
 
 
 def draw_pca_biplot(
@@ -3718,26 +3264,23 @@ def draw_pca_biplot(
         features_scaled (pd.DataFrame): _description_
         target_encoded (pd.Series): _description_
         target_class_list (List[str]): _description_
-        output_directory (Path): _description_
+        output_directory (str | Path): _description_
     """
     # Define the colour scheme for identifying the target classes
-
-    # Get a colour map
-    # cmap = plt.get_cmap('tab10')
-    # Create a list of colours based on the colour map and the number of
-    # colours, i.e. the number of target classes
-    # target_class_colour_list = [
-    #     cmap[colour] for colour in range(len(target_class_list))
-    # ]
-
-    # Define the colour scheme for identifying the target classes
-    target_class_colour_list, _ = colourmap.fromlist(target_class_list)
+    # target_class_colour_list, _ = colourmap.fromlist(target_class_list)
+    target_class_colour_list = colourmap.generate(
+        len(target_class_list),
+        method="seaborn"
+    )
 
     plt.figure(figsize=(15, 10))
     pca_biplot = yb_pca(
         scale=True,
         classes=target_class_list,
-        proj_features=True,
+        # proj_features=True,
+        colors=target_class_colour_list,
+        colormap="tab20",
+        # heatmap=True
     )
     pca_biplot.fit_transform(features_scaled, target_encoded)
     pca_biplot.finalize()
@@ -3763,20 +3306,27 @@ def draw_pca_biplot(
         fontsize=16,
         loc="center"
     )
+    plt.grid(False)
 
     # -------------------------------------------------------------------------
 
-    # Create ellipsis for 95% CI for each classe
+    # Create ellipsis for 95% CI for each target class
+    # # BUG Code below NOT working
+    # add_confidence_interval_ellipses(
+    #     pca_array=pca_array,
+    #     target_class_list=target_class_list,
+    #     confidence_interval=0.90,
+    # )
 
     # Define the confidence level and alpha value for the ellipse
     confidence_interval = 0.95
-    alpha = 0.3  # this is the transparency level of the ellipses
+    alpha = 0.2  # this is the transparency level of the ellipses
 
     # Iterate over each class in the dataset
     for target_class, colour in zip(
         range(len(target_class_list)), target_class_colour_list
     ):
-        # Select the data for the current class
+        # Select the data for the current target class
         pca_class = pca_array[target_encoded == target_class]
         # Calculate the mean and covariance matrix for the data
         mean = np.mean(pca_class, axis=0)
@@ -3806,7 +3356,7 @@ def draw_pca_biplot(
             alpha=alpha
         ))
     # pca_biplot.show()
-    save_figure(file_name=file_name, output_directory=output_directory)
+    save_figure(figure_name=output_directory.joinpath(file_name + ".png"))
 
 
 def add_confidence_interval_ellipses(
@@ -3871,6 +3421,50 @@ def add_confidence_interval_ellipses(
     plt.show()
 
 
+def draw_intercluster_distance(
+    features: pd.DataFrame | np.ndarray,
+    target: pd.Series | np.ndarray,
+    output_directory: str | Path,
+) -> pd.Series:
+    """draw_intercluster_distance _summary_.
+
+    Args:
+        features (pd.DataFrame | np.ndarray): _description_
+        output_directory (str | Path): _description_
+    """
+    print("\nKMeans Analysis of Intercluster Distance", end="\n")
+    # Instantiate the clustering model and visualizer
+    plt.figure(figsize=(15, 10))
+    model = KMeans(n_clusters=6, random_state=42)
+    visualizer = InterclusterDistance(
+        estimator=model,
+        legend=True,
+        legend_loc="upper right",
+    )
+    visualizer.fit(features, target)
+
+    cluster_centers = visualizer.cluster_centers_
+    print(f"\nKMeans Cluster Centers:\n{cluster_centers}\n")
+
+    cluster_scores = visualizer.scores_
+    print(f"\nKMeans Cluster Scores: {cluster_scores}\n")
+
+    # Extract the cluster labels from the model
+    labels = model.labels_
+    labels_series = pd.Series(
+        data=labels,
+        name="KMeans_cluster_labels",
+        index=target.index
+    )
+
+    visualizer.finalize()
+    # visualizer.show()
+    save_figure(
+        figure_name=output_directory/"intercluster_distance.png"
+    )
+    return labels_series
+
+
 # # RadViz with 'yellowbrick' library
 # plt.figure(dpi=120)
 # radviz = RadViz(classes=target_encoded_list)
@@ -3882,7 +3476,7 @@ def add_confidence_interval_ellipses(
 def draw_feature_rank(
     features: pd.DataFrame,
     target_encoded: pd.Series,
-    output_directory: Path,
+    output_directory: str | Path,
 ) -> None:
     """draw_feature_rank _summary_.
 
@@ -3893,7 +3487,7 @@ def draw_feature_rank(
     Args:
         features (pd.DataFrame): _description_
         target_encoded (pd.Series): _description_
-        output_directory (Path): _description_
+        output_directory (str | Path): _description_
     """
     plt.figure(figsize=(15, 10))
     # Instantiate the 1D visualiser with the Shapiro ranking algorithm
@@ -3905,25 +3499,29 @@ def draw_feature_rank(
     feature_rank.fit(features, target_encoded)
     feature_rank.transform(features)
 
-    plt.title(label="Ranking of Features", fontsize=16)
-    save_figure(file_name="feature_ranking", output_directory=output_directory)
+    plt.title(
+        label="Ranking of Features",
+        fontsize=16,
+        loc="center"
+    )
+    save_figure(
+        figure_name=output_directory/"feature_ranking.png"
+    )
 
 
 def show_items_per_category(
         data: pd.Series | pd.DataFrame,
         category_name: str,
 ) -> None:
-    """Show the number of items in each class of a given category.
+    """show_items_per_category _summary_.
 
     Args:
-        data (pd.Series | pd.DataFrame): The data containing the category to be
-            analysed.
-        category_name (str): The name of the category to be analysed.
+        data (pd.Series): _description_
     """
     # Show number of items in each class of the target
     data_class_count = data.value_counts()
     print(
-        f"\nNumber of items within each '{category_name}' class:\n"
+        f"\nItems number within each '{category_name}' class:\n"
         f"{data_class_count}\n"
     )
     plt.figure()
@@ -3938,52 +3536,38 @@ def show_items_per_category(
     )
 
 
-def generate_class_colour_list(class_list: List[str]) -> List[str]:
-    """AI is creating summary for generate_class_colour_list.
-
-    Args:
-        class_list (List[str]): [description]
-
-    Returns:
-        List[str]: [description]
-    """
-    colour_list = colourmap.generate(
-        len(class_list),
-        method="seaborn"
-    )
-    return colour_list
-
 # -----------------------------------------------------------------------------
 
 # DATA MODELLING (MACHINE LEARNING)
 
 
 def target_label_encoder(
-    data: pd.DataFrame | pd.Series,
+    dataframe: pd.DataFrame,
+    target_name: str
 ) -> Tuple[np.ndarray, List[str]]:
     """Encode the target labels (usually strings) into integers.
 
     Args:
-        data (pd.DataFrame | pd.Series): _description_
+        dataframe (pd.DataFrame): _description_
+        target_name (str): _description_
 
     Returns:
         Tuple[np.ndarray, List[str]]: _description_
     """
+    target = dataframe[target_name]
+    print(target)
     label_encoder = LabelEncoder()
-    target_encoded = label_encoder.fit_transform(data)
-
+    print(label_encoder)
+    target_encoded = label_encoder.fit_transform(target)
+    print(target_encoded)
     # Convert the encoded labels from a np.ndarray to a list
     target_class_list = label_encoder.classes_.tolist()
-
-    # Get the mapping dictionary of original labels to encoded labels
-    label_mapping_dictionary = dict(
-        zip(target_class_list, range(len(target_class_list)))
-    )
-    print("\nDictionary of the target encoded classes:")
-    print(label_mapping_dictionary)
-    return target_encoded, target_class_list
+    print(target_class_list)
+    print(f"\nList of the target encoded classes:\n{target_class_list}\n")
+    return target_encoded, target_class_list, label_encoder
 
 
+# Is it working ?
 def train_test_split_pipeline(
     feature_selection: pd.DataFrame,
     target_selection: List[str | int] | pd.Series,
@@ -4010,6 +3594,7 @@ def train_test_split_pipeline(
                 stratify=target_selection,
             )),
         ],
+        verbose=True
     )
     return train_test_split_pipe
 
@@ -4020,7 +3605,6 @@ def train_valid_test_split_fast(
     train_size: float = 0.6,
     valid_size: float = 0.2,
     test_size: float = 0.2,
-    random_state=42,
 ):
     """Split a dataframe into three sets for training, validation and testing.
 
@@ -4056,7 +3640,7 @@ def train_valid_test_split_fast(
         valid_size=valid_size,
         test_size=test_size,
         method="random",
-        random_state=random_state,
+        random_state=42,
     )
     return (
         features_train,
@@ -4068,171 +3652,169 @@ def train_valid_test_split_fast(
     )
 
 
-def remove_features_with_nans(
-    dataframe: pd.DataFrame,
-    nan_threshold: float = 0.7
-) -> pd.DataFrame:
-    """Remove features if there is a high proportion of NaN values.
-
-    Args:
-        dataframe (pd.DataFrame): The input DataFrame.
-        nan_threshold (float, optional): The threshold for removing features
-            with NaN values. Defaults to 0.7.
-
-    Returns:
-        pd.DataFrame: A DataFrame with the features removed.
-    """
-    # Get the percentage of missing values in each column
-    missing_percent = dataframe.isnull().mean()
-
-    # Get the indices of columns that have less than or equal to the threshold
-    # of missing values
-    column_indices = missing_percent[missing_percent <= nan_threshold].index
-
-    # Return the subset of dataframe with those columns
-    reduced_dataframe = dataframe[column_indices]
-
-    # List the variables removed due to a high proportion of NaN values
-    variable_list_before = dataframe.columns.to_list()
-    variable_list_after = reduced_dataframe.columns.to_list()
-
-    removed_column_list = [
-        feature for feature in variable_list_before
-        if feature not in variable_list_after
-    ]
-    print("\nColumns Removed due to a High Proportion of NaN Values:")
-    print(removed_column_list)
-    return reduced_dataframe
-
-
-def remove_features_with_nans_transformer(
-    nan_threshold: float
+def remove_nan_feature_transformer(
+    features: pd.DataFrame
 ) -> FunctionTransformer:
-    """Create a transformer to remove features with a high proportion of NaNs.
+    """Remove features for which all or some data are missing.
 
     Args:
-        nan_threshold (float): The threshold for removing features with NaNs.
+        features (pd.DataFrame): _description_
 
     Returns:
-        FunctionTransformer: A transformer object that can be fit and
-            transformed on a DataFrame.
+        FunctionTransformer: _description_
     """
     remove_nan_transformer = FunctionTransformer(
-        func=remove_features_with_nans,
-        kw_args={"nan_threshold": nan_threshold},
+        func=features.dropna(axis=1, how="any"),
         validate=False,
     )
+    print(f"\nNaN-Free Dataframe:\n{remove_nan_transformer}\n")
     return remove_nan_transformer
 
 
 def drop_feature_pipeline(
-    features: pd.DataFrame,
+    feature_selection: pd.DataFrame,
     features_to_keep: List[str],
-    nan_threshold: float = 0.7,
-    correlation_threshold: float = 0.8,
     variables_with_nan_values: List[str] = None,
-    variance_threshold: float = None,
+    variance_threshold: float = None,  # use a value of 0.01 or 0.03
 ) -> Pipeline:
-    """Create a pipeline to drop features from a DataFrame.
+    """drop_feature_pipeline _summary_.
 
-    Args:
-        features (pd.DataFrame): The input DataFrame.
-        features_to_keep (List[str]): A list of feature names to keep.
-        nan_threshold (float, optional): The threshold for removing features
-            with NaN values. Defaults to 0.7.
-        correlation_threshold (float, optional): The threshold for removing
-            correlated features. Defaults to 0.8.
-        variables_with_nan_values (List[str], optional): A list of variables
-            with NaN values. Defaults to None.
-        variance_threshold (float, optional): The threshold for removing low
-            variance features. Defaults to None.
-
-    Returns:
-        Pipeline: Object that can be fit and transformed on a DataFrame.
-
-    TODO Add a 'drop_low_variance' function to pipeline ?
-    TODO Compare vs. 'DropCorrelatedFeatures' class.
-    Try something like the code below:
-            var_thres = VarianceThreshold(threshold=threshold)
-            _ = var_thres.fit(features)
-            # Get a boolean mask
-            mask = var_thres.get_support()
-            # Subset the data
-            features_reduced = features.loc[:, mask]
-            print("The following features were retained:")
-            print(f"{features_reduced.columns}")
+    TODO Add a 'identify_highly_correlated_features' function to pipeline ?
     BUG Fix error message below when using 'VarianceThreshold' class.
         ValueError: make_column_selector can only be applied to pandas df
+    Args:
+        feature_selection (pd.DataFrame): _description_
+        features_to_keep (List[str]): _description_
+        variables (List[str], optional): _description_. Defaults to None.
+        threshold (float, optional): _description_. Defaults to 0.03.
+
+    Returns:
+        Pipeline: _description_
     """
-    steps = [
-        (
-            "Remove Features With NaN Values",
-            remove_features_with_nans_transformer(nan_threshold=nan_threshold)
-        ),
-        (
-            "Remove Rows With NaN Values",
-            DropMissingData(
+    drop_feature_pipe = Pipeline(
+        steps=[
+            # ("remove_nan_values", FunctionTransformer(
+            #     remove_nan_feature_transformer(features=feature_selection),
+            #     validate=False,
+            # )),  # BUG not working within the pipeline
+            ("remove_nan_values", DropMissingData(
                 variables=variables_with_nan_values,
                 missing_only=True,
-                threshold=0.03,  # variable with =< 0.3 variance removed
-                # threshold=None,  # rows with any NaNs will be removed
-            )
-        ),
-        (
-            "Drop Columns",
-            DropFeatures(
+                # threshold=0.1,  # variable with
+                # threshold=None,  # variable with all NaNs will be removed
+            )),  # BUG all data removed !!
+            ("drop_columns", DropFeatures(
                 features_to_drop=[
-                    feature for feature in features
+                    feature for feature in feature_selection
                     if feature not in features_to_keep
                 ]
-            )
-        ),
-        (
-            "Drop Constant Values",
-            DropConstantFeatures(tol=0.95, missing_values="ignore")
-        ),  # TODO to test vs. Scikit-learn 'VarianceThreshold()' (below)
-        (
-            "Drop Duplicates",
-            DropDuplicateFeatures(missing_values="ignore")
-        ),
-        (
-            "Drop Correlated Features",
-            DropCorrelatedFeatures(
-                method="pearson",
-                threshold=correlation_threshold,
+            )),
+            # ("drop_columns", FunctionTransformer(
+            #     func=drop_features(
+            #         feature_selection=feature_selection,
+            #         features_to_keep=features_to_keep,
+            #     ),
+            #     validate=False,
+            # )),  # BUG; better use the previous tuple
+            ("drop_constant_values", DropConstantFeatures(
+                tol=0.95,
                 missing_values="ignore"
-            )
-        ),
-    ]
-
-    if variance_threshold is not None:
-        steps.append(
-            (
-                "drop_low_variance",
-                VarianceThreshold(threshold=variance_threshold)
-            )
-        )
-
-    drop_feature_pipe = Pipeline(steps=steps, verbose=True)
+            )),
+            ("drop_duplicates", DropDuplicateFeatures(
+                missing_values="ignore"
+            )),
+            ("drop_correlated_features", DropCorrelatedFeatures(
+                method="pearson",
+                threshold=0.8,
+                missing_values="ignore"
+            )),
+            # ("drop_low_variance", VarianceThreshold(
+            #     threshold=variance_threshold,
+            # )),
+        ],
+        verbose=True
+    )
     print(f"\nDrop-Feature Pipeline Structure:\n{drop_feature_pipe}\n")
     return drop_feature_pipe
 
 
-def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
-    """Create a pipeline to preprocess numeric features.
-
-    Args:
-        scaler (str): The name of the scaler to use. Can be either
-            'standard_scaler', 'min_max_scaler' or 'robust_scaler'.
+def preprocess_robust_scaler_numeric_feature_pipeline() -> Pipeline:
+    """Preprocess numeric data using robust scaling.
 
     Returns:
-        Pipeline: An object that can be fit and transformed on a DataFrame.
+        Pipeline: _description_
+    """
+    numeric_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                missing_values=np.nan,
+                strategy="median",
+            )),
+            ("scaler", RobustScaler()),
+        ],
+        verbose=True,
+    )
+    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
+    return numeric_feature_pipeline
+
+
+def preprocess_minmax_scaler_numeric_feature_pipeline() -> Pipeline:
+    """Preprocess numeric data using min-max normalising.
+
+    Returns:
+        Pipeline: _description_
+    """
+    numeric_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                missing_values=np.nan,
+                strategy="median",
+            )),
+            ("scaler", MinMaxScaler()),
+        ],
+        verbose=True,
+    )
+    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
+    return numeric_feature_pipeline
+
+
+def preprocess_std_scaler_numeric_feature_pipeline() -> Pipeline:
+    """Preprocess numeric data using standard scaling.
+
+    Returns:
+        Pipeline: _description_
+    """
+    numeric_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                missing_values=np.nan,
+                strategy="median",
+            )),
+            ("scaler", StandardScaler()),
+        ],
+        verbose=True,
+    )
+    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
+    return numeric_feature_pipeline
+
+
+def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
+    """preprocess_numeric_feature_pipeline _summary_.
+
+    Args:
+        scaler (str): _description_
+
+    Returns:
+        Pipeline: _description_
     """
     # Set up the dictionary for the scaler functions
     scaler_dictionary = {
         "standard_scaler": StandardScaler(),
+        # "standard_scaler": StandardScaler(transform_output="pandas"),
         "min_max_scaler": MinMaxScaler(),
-        "robust_scaler": RobustScaler()
+        # "min_max_scaler": MinMaxScaler(transform_output="pandas"),
+        "robust_scaler": RobustScaler(),
+        # "robust_scaler": RobustScaler(transform_output="pandas")
     }
     scaler_class = scaler_dictionary.get(scaler)
 
@@ -4251,15 +3833,98 @@ def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
     return numeric_feature_pipeline
 
 
-def preprocess_categorical_feature_pipeline(encoder: str) -> Pipeline:
-    """Create a pipeline to preprocess categorical features.
+def preprocess_numeric_feature_pipeline_loop(
+    scaler_list: List[str]
+) -> Pipeline:
+    """preprocess_numeric_feature_pipeline _summary_.
 
     Args:
-        encoder (str): The name of the encoder to use. Can be either
-            'one_hot_encoder' or 'ordinal_encoder'.
+        scaler (str): _description_
 
     Returns:
-        Pipeline: An object that can be fit and transformed on a DataFrame.
+        Pipeline: _description_
+
+    TODO Refactor !!!
+    """
+    scaler_dictionary = {
+        "standard_scaler": StandardScaler(),
+        # "standard_scaler": StandardScaler(transform_output="pandas"),
+        "min_max_scaler": MinMaxScaler(),
+        # "min_max_scaler": MinMaxScaler(transform_output="pandas"),
+        "robust_scaler": RobustScaler(),
+        # "robust_scaler": RobustScaler(transform_output="pandas")
+    }
+    # scaler_class = scaler_dictionary.get(scaler)
+    scaler_tuple = tuple()
+    for scaler in scaler_list:
+        scaler, scaler_dictionary.get(scaler)
+        scaler_tuple.append(scaler)
+    print(scaler_tuple)
+    # Build the pipeline for the chosen scaler
+    numeric_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                missing_values=np.nan,
+                strategy="median",
+            )),
+            ("scaler", scaler_class),
+        ],
+        verbose=True,
+    )
+    print(f"\nNumeric Data Pipeline Structure:\n{numeric_feature_pipeline}\n")
+    return numeric_feature_pipeline
+
+
+def preprocess_ordinal_categorical_feature_pipeline() -> Pipeline:
+    """Preprocess categorical data using ordinal encoding.
+
+    Returns:
+        Pipeline: _description_
+    """
+    categorical_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                strategy="most_frequent",
+                fill_value="missing",
+            )),
+            ("encoder", OrdinalEncoder(handle_unknown="ignore")),
+        ],
+        verbose=True,
+    )
+    print("\nCategorical Data Pipeline Structure:")
+    print(categorical_feature_pipeline)
+    return categorical_feature_pipeline
+
+
+def preprocess_one_hot_categorical_feature_pipeline() -> Pipeline:
+    """Preprocess categorical data using one-hot encoding.
+
+    Returns:
+        Pipeline: _description_
+    """
+    categorical_feature_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(
+                strategy="most_frequent",
+                fill_value="missing",
+            )),
+            ("encoder", OneHotEncoder(handle_unknown="ignore")),
+        ],
+        verbose=True,
+    )
+    print("\nCategorical Data Pipeline Structure:")
+    print(categorical_feature_pipeline)
+    return categorical_feature_pipeline
+
+
+def preprocess_categorical_feature_pipeline(encoder: str) -> Pipeline:
+    """preprocess_categorical_feature_pipeline _summary_.
+
+    Args:
+        scaler (str): _description_
+
+    Returns:
+        Pipeline: _description_
     """
     # Set up the dictionary for the scaler functions
     encoder_dictionary = {
@@ -4293,32 +3958,29 @@ def transform_feature_pipeline(
     numeric_feature_pipeline: Pipeline,
     categorical_feature_pipeline: Pipeline,
 ) -> ColumnTransformer:
-    """Transform the selected features using the specified pipelines.
+    """Transform the selected features in the pipeline.
 
     For the 'transformers' parameters, the settings represent, respectively:
-    - the transformer name
-    - the transformer pipeline it represents
-    - the columns included in the transformer
+        - the transformer name
+        - the transformer pipeline it represents
+        - the columns included in the transformer
 
     Args:
-        numeric_feature_pipeline (Pipeline): Pipeline for transforming numeric
-            features.
-        categorical_feature_pipeline (Pipeline): Pipeline for transforming
-            categorical features.
+        numeric_feature_pipeline (Pipeline): _description_
+        categorical_feature_pipeline (Pipeline): _description_
 
     Returns:
-        ColumnTransformer: A column transformer object that applies the
-            specified transformers to the appropriate columns.
+        ColumnTransformer: _description_
     """
     feature_transformer = ColumnTransformer(
         transformers=[
             (
-                "Numeric Features",
+                "numeric features",
                 numeric_feature_pipeline,
                 selector(dtype_include="number")
             ),
             (
-                "Categorical Features",
+                "categorical features",
                 categorical_feature_pipeline,
                 selector(dtype_include="category")
             ),
@@ -4327,7 +3989,7 @@ def transform_feature_pipeline(
         remainder="drop",
         n_jobs=-1,
     )
-    print("\nModel Transformer Pipeline Structure ('ColumnTransformer'):")
+    print("\nFeature Transformer Pipeline Structure:")
     print(feature_transformer)
     return feature_transformer
 
@@ -4371,121 +4033,27 @@ def get_transformed_feature_pipeline(
     return preprocessed_df
 
 
-def get_dropped_features_from_pipeline(
-    model_pipeline: Pipeline,
-    model_features: pd.DataFrame
-) -> List[str]:
-    """get_dropped_features_from_pipeline _summary_.
+def test_multiple_model_pipeline(models_to_test: List[tuple]):
+    """AI is creating summary for test_multiple_model_pipeline.
+
+    Define the pipeline with the models to test (MUST use a list of tuples).
 
     Args:
-        model_pipeline (Pipeline): _description_
-
-    Returns:
-        List[str]: _description_
+        models_to_test (List[Tuple]): [description]
     """
-    # Make a list of features dropped through the pipeline model
-    drop_constant_features = list(
-        model_pipeline.named_steps["Drop Constant Values"].features_to_drop_
-    )
-    print(f"\nFeatures with Constant Values:\n{drop_constant_features}\n")
-
-    drop_duplicate_features = list(
-        model_pipeline.named_steps["Drop Duplicates"].features_to_drop_
-    )
-    print(f"\nFeatures Duplicated:\n{drop_duplicate_features}\n")
-
-    drop_correlated_features = list(
-        model_pipeline.named_steps[
-            "Drop Correlated Features"].features_to_drop_
-    )
-    # Get a list of correlated features
-    correlated_features = list(
-        model_pipeline.named_steps[
-            "Drop Correlated Features"].correlated_feature_sets_
-    )
-    print(f"\nFeatures Correlated:\n{correlated_features}\n", sep="\n")
-    # Display a correlation matrix
-    correlation_matrix = model_features.corr()
-    print(f"\nCorrelation Matrix of Model Features:\n{correlation_matrix}\n")
-
-    # Concatenate lists of dropped features
-    dropped_feature_list = (
-        *drop_constant_features,
-        *drop_duplicate_features,
-        *drop_correlated_features
-    )
-    print(f"\nFeatures Dropped:\n{dropped_feature_list}\n")
-    return dropped_feature_list
-
-
-def predict_target(
-    model: Pipeline,
-    features_test: pd.DataFrame | np.ndarray,
-    target_test: pd.Series | np.ndarray,
-) -> np.ndarray:
-    """Predict target using a model and create a dataframe of predictions.
-
-    Args:
-        model (Pipeline): The trained model for prediction.
-        features_test (pd.DataFrame | np.ndarray): The test set features.
-        target_test (pd.Series | np.ndarray): The true target values for
-            the test set.
-
-    Returns:
-        np.ndarray: The predicted target values.
-    """
-    # Predict the target on the test set
-    target_pred = model.predict(X=features_test)
-
-    # Build a dataframe of true/test values vs. prediction values
-    predictions_vs_test = pd.concat(
-        objs=[pd.Series(target_test), pd.Series(target_pred)],
-        keys=["test", "predictions"],
-        axis=1,
-    )
-    predictions_vs_test.set_index(
-        keys=features_test.index,
-        inplace=True
-    )
-    print(f"\nTest vs. Predictions:\n{predictions_vs_test}\n")
-    return target_pred
-
-
-def join_parallel_pipelines(
-    pipeline_one: Pipeline,
-    pipeline_two: Pipeline,
-) -> FeatureUnion:
-    """Join pipelines for parallel processing.
-
-    This approach is similar to that of the 'ColumnTransformer()' function.
-    There are some subtleties though:
-        -
-
-    Args:
-        pipeline_one (Pipeline): _description_
-        pipeline_two (Pipeline): _description_
-
-    Returns:
-        FeatureUnion: _description_
-    """
-    union_transformer = FeatureUnion(
-        transformer_list=[
-            ("Pipeline #1", pipeline_one),
-            ("Pipeline #2", pipeline_two)
-        ],
-        n_jobs=-1,
+    multiple_model_pipeline = Pipeline(
+        steps=[models_to_test],
         verbose=True
     )
-    print("\nModel Transformer Pipeline Structure ('FeatureUnion'):")
-    print(union_transformer)
-    return union_transformer
+    print("\nMultiple Model Test Pipeline Structure:")
+    print(multiple_model_pipeline)
 
 
 def calculate_cross_validation_scores(
     model,
-    features_test: pd.DataFrame,
-    target_test: pd.Series,
-    target_pred: pd.Series,
+    features_test: pd.DataFrame | np.ndarray,
+    target_test: pd.Series | np.ndarray,
+    target_pred: pd.Series | np.ndarray,
     target_label_list: List[str],
     cv: int = 5
 ) -> None:
@@ -4502,8 +4070,11 @@ def calculate_cross_validation_scores(
     balanced_accuracy_score_ = balanced_accuracy_score(
         y_true=target_test,
         y_pred=target_pred,
+        adjusted=True,
     )
     print(f"\nBalanced Accuracy Score = {balanced_accuracy_score_:.2%}\n")
+
+    print(f"\n{target_label_list = }\n")
 
     # Apply cross-validation to improve the variability of the score
     cv_accuracy_score = cross_val_score(
@@ -4511,15 +4082,18 @@ def calculate_cross_validation_scores(
         X=features_test,
         y=target_test,
         scoring="accuracy",
-        cv=cv,
+        cv=RepeatedStratifiedKFold(n_splits=cv, random_state=42),
         n_jobs=-1,
     )
+
     cv_accuracy_score_mean = cv_accuracy_score.mean()
     cv_accuracy_score_stdev = cv_accuracy_score.std()
     print(
         f"Cross-Validation Accuracy Score = {cv_accuracy_score_mean:.2%}"
         f" +/- {cv_accuracy_score_stdev.std():.2%}"
     )
+
+    print(f"\n{target_label_list = }\n")
 
     # Produce a classification report
     classification_report_ = classification_report(
@@ -4562,7 +4136,7 @@ def calculate_multiple_cross_validation_scores(
         y=target,
         # groups=group_list,
         scoring=scorer_list,
-        cv=cv,
+        cv=RepeatedStratifiedKFold(n_splits=cv, random_state=42),
         n_jobs=-1,
         verbose=1,
         return_train_score=False,
@@ -4585,18 +4159,18 @@ def calculate_multiple_cross_validation_scores(
     )
     print(f"\nModel Score Output*:\n{valid_scores_cv_means}\n")
     print("""
-        * Note: the scores calculated for the 'test' set are derived from the
-        'split' of the input data (i.e. the train set), hence the output values
-        should be very close to the ones calculated with the function
-        'calculate_cross_validation_prediction_scores', which uses the
-        'cross_val_predict' function from Scikit-learn library.
+    * Note: the scores calculated for the 'test' set are derived from the
+    'split' of the input data (i.e. the train set), hence the output values
+    should be very close to the ones calculated with the function
+    'calculate_cross_validation_prediction_scores', which uses the
+    'cross_val_predict' function from Scikit-learn library.
     """)
 
 
 def calculate_cross_validation_prediction_scores(
     model,
-    features: pd.DataFrame,
-    target: pd.Series,
+    features: pd.DataFrame | np.ndarray,
+    target: pd.Series | np.ndarray,
     # groups: np.ndarray,
     cv: int = 5
 ) -> None:
@@ -4608,7 +4182,7 @@ def calculate_cross_validation_prediction_scores(
         target (pd.Series): _description_
         cv (int, optional): _description_. Defaults to 5.
 
-    TODO code 'roc_auc_score' function
+    TODO code 'roc_auc_score' function BUT in a separate function.
     """
     target_pred_cv = cross_val_predict(
         estimator=model,
@@ -4631,14 +4205,14 @@ def calculate_cross_validation_prediction_scores(
     # TODO apply 'roc_curve' separately
 
     # Set a list of scoring methods to be applied (imported at top of script)
-    score_list = [precision_score, recall_score, f1_score]
+    scorer_list = [precision_score, recall_score, f1_score]
 
     # Create a dictionary of score means and standard deviations
     mean_scores = defaultdict(list)
     stdev_scores = defaultdict(list)
 
     # Apply each scoring method 'score' to a loop & append output to dictionary
-    for score in score_list:
+    for score in scorer_list:
         score_name = (
             score.__name__.replace("_", " ").replace(
                 "score", "").capitalize()
@@ -4669,13 +4243,173 @@ def calculate_cross_validation_prediction_scores(
     print(f"\nModel Prediction Scores:\n{prediction_scores_dataframe}\n")
 
 
+def draw_confusion_matrix_heatmap(
+    target_test: pd.Series,
+    target_pred: pd.Series,
+    target_label_list: List[str],
+    figure_name: str,
+    output_directory: Path,
+) -> None:
+    """_summary_.
+
+    Args:
+        target_test (pd.Series): _description_
+        target_pred (pd.Series): _description_
+        target_label_list (List[str]): _description_
+        figure_path_name (str): _description_
+    """
+    # Compute the confusion matrix
+    confusion_matrix_ = confusion_matrix(
+        y_true=target_test,
+        y_pred=target_pred,
+        labels=target_label_list,
+    )
+    print(f"\nConfusion Matrix (Test Set):\n{confusion_matrix_}\n")
+
+    # Show the confusion matrix as a heatmap
+    plt.figure()
+    sns.heatmap(
+        data=confusion_matrix_,
+        # Get % of predictions
+        # data=confusion_matrix_/np.sum(confusion_matrix_),
+        annot=True,
+        # fmt=".1%",
+        cmap="Greens",
+        cbar=False,
+        xticklabels=target_label_list,
+        yticklabels=target_label_list,
+    )
+    plt.ylabel("True label")
+    plt.xlabel("Predicted label")
+    plt.title(
+        label="Confusion matrix of predictions",
+        fontsize=16
+    )
+    plt.grid(visible=False)
+    # plt.axis("off")
+    plt.tight_layout()
+    # plt.show()
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+
+
+def get_feature_importance_scores(
+    model,
+    feature_name_list: List[str],
+    figure_name: str,
+    output_directory: Path,
+) -> pd.Series:
+    """get_feature_importance_scores _summary_.
+
+    Args:
+        model (_type_): _description_
+        feature_name_list (List[str]): _description_
+        figure_path_name (str | Path): _description_
+
+    Returns:
+        pd.Series: _description_
+    """
+    # Get feature importance scores the same way they are ordered in the
+    # source dataset
+    feature_importances = model.feature_importances_
+    # Sort the INDEX of the feature importance scores in descending order
+    feature_indices = np.argsort(feature_importances)[::-1]
+    # Reorder the feature names according to the previous step
+    feature_names = [
+        feature_name_list[index] for index in feature_indices
+    ]
+    # # Calculate the standard deviation of all estimators
+    # estimator_std = np.std(
+    #     [tree.feature_importances_ for tree in model.estimators_],
+    #     axis=0
+    # )
+    # Create a Pandas Series to plot the data
+    model_feature_importances = pd.Series(
+        data=feature_importances[feature_indices],
+        index=feature_names
+    )
+
+    # Create a bar plot
+    fig, ax = plt.subplots()
+    model_feature_importances.plot.barh(
+        # xerr=estimator_std,
+        align="center",
+        ax=ax
+    )
+    plt.ylabel("Parameters")
+    plt.xlabel("Mean decrease in Impurity")
+    plt.title(label=("Feature Importance in Predictions"), fontsize=16)
+    plt.grid(visible=False)
+    fig.tight_layout()
+    # plt.show()
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+    return model_feature_importances
+
+
+def get_feature_importance_scores_permutation(
+    model,
+    features_test: pd.DataFrame,
+    target_test: pd.Series,
+    feature_name_list: List[str],
+    figure_name: str,
+    output_directory: Path,
+    n_repeats=10,
+) -> pd.Series:
+    """Feature importance based on feature permutation.
+
+    This removes bias toward high-cardinality features.
+
+    Args:
+        model (_type_): _description_
+        features_test (pd.DataFrame): _description_
+        target_test (pd.Series): _description_
+        feature_name_list (List[str]): _description_
+        figure_path_name (str | Path): _description_
+        n_repeats (int, optional): _description_. Defaults to 10.
+
+    Returns:
+        pd.Series: _description_
+    """
+    permutation_result = permutation_importance(
+        estimator=model,
+        X=features_test,
+        y=target_test,
+        n_repeats=n_repeats,
+        random_state=42,
+        scoring="neg_mean_squared_error",
+        n_jobs=-1,
+    )
+    # Try below
+    print(f"\n{permutation_result.importances = }\n")
+
+    # Create a Pandas Series to plot the data
+    model_feature_importances_permutation = pd.Series(
+        data=permutation_result.importances_mean,
+        index=feature_name_list
+    )
+    fig, ax = plt.subplots()
+    model_feature_importances_permutation.plot.barh(
+        xerr=permutation_result.importances_std,
+        align="center",
+        ax=ax
+    )
+    plt.ylabel("Parameters")
+    plt.xlabel("Mean accuracy decrease")
+    plt.title(label=("Feature importance in predictions"), fontsize=16)
+    plt.grid(visible=False)
+    fig.tight_layout()
+    # plt.show()
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+    return model_feature_importances_permutation
+
+
 def train_tree_classifier(
-    features_train: pd.DataFrame | np.ndarray,
-    target_train: pd.Series | np.ndarray,
-    features_test: pd.DataFrame | np.ndarray,
-    target_test: pd.Series | np.ndarray,
-    target_pred: pd.Series | np.ndarray,
-    index_name: str
+    features_train: pd.DataFrame,
+    target_train: pd.Series,
+    features_test: pd.DataFrame,
+    target_test: pd.Series,
+    target_pred: pd.Series,
+    index_name: str,
+    max_depth: int = 3
 ) -> pd.DataFrame:
     """Train a tree classifier.
 
@@ -4692,8 +4426,9 @@ def train_tree_classifier(
     tree_classifier = DecisionTreeClassifier(
         criterion="gini",
         max_leaf_nodes=5,
-        # max_depth=3,
+        max_depth=max_depth,
         # max_features="sqrt",
+        # class_weight="balanced",
         random_state=42
     )
     tree_classifier.fit(X=features_train, y=target_train)
@@ -4721,13 +4456,124 @@ def train_tree_classifier(
     return tree_classifier, predictions_tree_classifier
 
 
+def draw_decision_tree(
+    tree_classifier,
+    feature_name_list: List[str],
+    target_label_list: List[str],
+    figure_name: str,
+    output_directory: Path,
+) -> None:
+    """_summary_.
+
+    Args:
+        tree_classifier (_type_): _description_
+        feature_name_list (List[str]): _description_
+        target_label_list (List[str]): _description_
+        figure_path_name (str | Path): _description_
+    """
+    # Define the tree classifier parameters
+    n_nodes = tree_classifier.tree_.node_count
+    children_left = tree_classifier.tree_.children_left
+    children_right = tree_classifier.tree_.children_right
+    feature = tree_classifier.tree_.feature
+    threshold_value = tree_classifier.tree_.threshold
+
+    node_depth = np.zeros(shape=n_nodes, dtype=np.int64)
+    is_leaves = np.zeros(shape=n_nodes, dtype=bool)
+    stack = [(0, 0)]  # start with the root node id (0) and its depth (0)
+    while len(stack) > 0:
+        # `pop` ensures each node is only visited once
+        node_id, depth = stack.pop()
+        node_depth[node_id] = depth
+
+        # If the left and right child of a node is not the same we have a split
+        # node
+        is_split_node = children_left[node_id] != children_right[node_id]
+        # If a split node, append left and right children and depth to `stack`
+        # so we can loop through them
+        if is_split_node:
+            stack.append((children_left[node_id], depth + 1))
+            stack.append((children_right[node_id], depth + 1))
+        else:
+            is_leaves[node_id] = True
+
+    print(
+        f"\nThe decision tree has {n_nodes} nodes "
+        f"and has the following structure:\n"
+    )
+    print("Feature order in the decision tree as described below:")
+    print(feature_name_list)
+    print(f"\n{target_label_list = }\n")
+
+    for index in range(n_nodes):
+        if is_leaves[index]:
+            print(f"node={index} is a leaf node.")
+        else:
+            print(
+                f"\nNode={index} is a split node: "
+                f"go to node {children_left[index]} "
+                f"if feature {feature[index]} <= {threshold_value[index]:.3f},"
+                f" else go to node {children_right[index]}."
+            )
+
+    # Display the tree structure
+    plt.subplots(figsize=(10, 10))
+    plot_tree(
+        decision_tree=tree_classifier,
+        feature_names=feature_name_list,
+        class_names=target_label_list,
+        filled=True,
+    )
+    plt.title(
+        label="Decision Tree for the Identification of Target Categories",
+        fontsize=20
+    )
+    plt.tight_layout()
+    plt.show()
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+
+
+def draw_random_forest_tree(
+    random_forest_classifier,
+    feature_name_list: List[str],
+    target_label_list: List[str],
+    figure_name: str,
+    output_directory: Path,
+    ranked_tree: int = None,
+) -> None:
+    """_summary_.
+
+    Args:
+        random_forest_classifier (_type_): _description_
+        feature_name_list (List[str]): _description_
+        target_label_list (List[str]): _description_
+        figure_path_name (str | Path): _description_
+    """
+    # plt.figure()
+    tree.plot(
+        model=random_forest_classifier,
+        featnames=feature_name_list,
+        num_trees=ranked_tree,
+        plottype="vertical",
+    )
+    plt.title(
+        label=(
+            "Random Forest Tree for the Identification of Target Categories"
+        ),
+        fontsize=16
+    )
+    plt.tight_layout()
+    plt.show()
+    save_figure(figure_name=output_directory.joinpath(figure_name + ".png"))
+
+
 def show_tree_classifier_feature_importances(
     tree_classifier,
     feature_name_list: List[str],
-    features_train: pd.DataFrame | np.ndarray,
-    target_train: pd.Series | np.ndarray,
-    features_test: pd.DataFrame | np.ndarray,
-    target_test: pd.Series | np.ndarray,
+    features_train: pd.DataFrame,
+    target_train: pd.Series,
+    features_test: pd.DataFrame,
+    target_test: pd.Series,
 ) -> None:
     """show_tree_classifier_feature_importances _summary_.
 
@@ -4770,306 +4616,123 @@ def show_tree_classifier_feature_importances(
         features_train, target_train
     )
     print(
-        f"\nDecision Tree Mean Accuracy Score for Train Set = \
-    {tree_classifiers_train_score:.1%}\n"
+        f"\nDecision Tree Mean Accuracy Score for Train Set = "
+        f"{tree_classifiers_train_score:.1%}"
     )
+
     tree_classifiers_test_score = tree_classifier.score(
         features_test, target_test
     )
     print(
-        f"\nDecision Tree Mean Accuracy Score for Test Set = \
-    {tree_classifiers_test_score:.1%}\n"
+        f"Decision Tree Mean Accuracy Score for Test Set = "
+        f"{tree_classifiers_test_score:.1%}\n"
     )
 
 
-def draw_decision_tree(
-    tree_classifier,
-    feature_name_list: List[str],
-    target_label_list: List[str],
-    file_name: str,
-    output_directory: Path,
-) -> None:
-    """_summary_.
-
-    Args:
-        tree_classifier (_type_): _description_
-        feature_name_list (List[str]): _description_
-        target_label_list (List[str]): _description_
-        file_name (str): _description_
-        output_directory (Path): _description_
-    """
-    # Define the tree classifier parameters
-    n_nodes = tree_classifier.tree_.node_count
-    children_left = tree_classifier.tree_.children_left
-    children_right = tree_classifier.tree_.children_right
-    feature = tree_classifier.tree_.feature
-    threshold_value = tree_classifier.tree_.threshold
-
-    node_depth = np.zeros(shape=n_nodes, dtype=np.int64)
-    is_leaves = np.zeros(shape=n_nodes, dtype=bool)
-    stack = [(0, 0)]  # start with the root node id (0) and its depth (0)
-    while stack:
-        # `pop` ensures each node is only visited once
-        node_id, depth = stack.pop()
-        node_depth[node_id] = depth
-
-        # If the left and right child of a node is not the same we have a split
-        # node
-        is_split_node = children_left[node_id] != children_right[node_id]
-        # If a split node, append left and right children and depth to `stack`
-        # so we can loop through them
-        if is_split_node:
-            # stack.append((children_left[node_id], depth + 1))
-            # stack.append((children_right[node_id], depth + 1))
-            stack.extend(
-                (children_right[node_id], depth + 1),
-                (children_right[node_id], depth + 1),
-            )  # use `.extend()` when appending multiple values to a list
-        else:
-            is_leaves[node_id] = True
-
-    print(
-        f"\nThe decision tree has {n_nodes} nodes "
-        f"and has the following structure:\n"
-    )
-    print("Feature order in the decision tree as described below:")
-    print(feature_name_list)
-    print(f"\n{target_label_list = }\n")
-
-    for index in range(n_nodes):
-        if is_leaves[index]:
-            print(f"node={index} is a leaf node.")
-        else:
-            print(
-                f"\nNode={index} is a split node: "
-                f"go to node {children_left[index]} "
-                f"if feature {feature[index]} <= {threshold_value[index]:.3f},"
-                f" else go to node {children_right[index]}."
-            )
-
-    # Display the tree structure
-    plt.subplots(figsize=(10, 10))
-    plot_tree(
-        decision_tree=tree_classifier,
-        feature_names=feature_name_list,
-        class_names=target_label_list,
-        filled=True,
-    )
-    plt.title(
-        label="Decision Tree for the Identification of Target Categories",
-        fontsize=20
-    )
-    plt.tight_layout()
-    save_figure(file_name=file_name, output_directory=output_directory)
-    # plt.show()
-
-
-def draw_random_forest_tree(
-    random_forest_classifier,
-    feature_name_list: List[str],
-    target_label_list: List[str],
-    file_name: str,
-    output_directory: Path,
-    ranked_tree: int = None,
-) -> None:
-    """_summary_.
-
-    Args:
-        random_forest_classifier (_type_): _description_
-        feature_name_list (List[str]): _description_
-        target_label_list (List[str]): _description_
-        file_name (str): _description_
-        output_directory (Path): _description_
-    """
-    # plt.figure()
-    tree.plot(
-        model=random_forest_classifier,
-        featnames=feature_name_list,
-        num_trees=ranked_tree,
-        plottype="vertical",
-    )
-    plt.title(
-        label=(
-            "Random Forest Tree for the Identification of Target Categories"
-        ),
-        fontsize=16
-    )
-    plt.tight_layout()
-    save_figure(file_name=file_name, output_directory=output_directory)
-    # plt.show()
-
-
-def draw_confusion_matrix_heatmap(
-    target_test: pd.Series,
-    target_pred: pd.Series,
-    target_label_list: List[str],
-    file_name: str,
-    output_directory: Path,
-) -> None:
-    """_summary_.
-
-    Args:
-        target_test (pd.Series): _description_
-        target_pred (pd.Series): _description_
-        target_label_list (List[str]): _description_
-        file_name (str): _description_
-        output_directory (Path): _description_
-    """
-    # Compute the confusion matrix
-    confusion_matrix_ = confusion_matrix(
-        y_true=target_test,
-        y_pred=target_pred,
-        labels=target_label_list,
-    )
-    print(f"\nConfusion Matrix (Test Set):\n{confusion_matrix_}\n")
-
-    # Show the confusion matrix as a heatmap
-    plt.figure()
-    sns.heatmap(
-        data=confusion_matrix_,
-        # Get % of predictions
-        # data=confusion_matrix_/np.sum(confusion_matrix_),
-        annot=True,
-        # fmt=".1%",
-        cmap="Greens",
-        cbar=False,
-        xticklabels=target_label_list,
-        yticklabels=target_label_list,
-    )
-    plt.ylabel("True label")
-    plt.xlabel("Predicted label")
-    plt.title(label="Confusion matrix of predictions", fontsize=16)
-    plt.grid(visible=False)
-    # plt.axis("off")
-    plt.tight_layout()
-    save_figure(file_name=file_name, output_directory=output_directory)
-    # plt.show()
-
-
-def get_feature_importance_scores(
+def explain_model_with_shap(
     model,
     feature_name_list: List[str],
-    file_name: str,
-    output_directory: Path,
-) -> pd.Series:
-    """get_feature_importance_scores _summary_.
+    features_test: pd.DataFrame,
+) -> None:
+    """_summary_.
 
     Args:
         model (_type_): _description_
         feature_name_list (List[str]): _description_
-        file_name (str): _description_
-        output_directory (Path): _description_
+        features_test (pd.DataFrame): _description_
+    """
+    explainer = shap.TreeExplainer(
+        model,
+        feature_name_list,
+    )
+    shap_values = explainer.shap_values(X=features_test)
+    print(f"\n{shap_values = }\n")
+
+    # Display the SHAP summary plot
+    shap_summary_plot = shap.summary_plot(
+        shap_values=shap_values,
+        features=feature_name_list,
+    )
+    print(f"\n{shap_summary_plot = }\n")
+
+    # Visualize the SHAP values for the first sample
+    shap_force_plot = shap.force_plot(
+        base_value=explainer.expected_value[0],
+        shap_values=shap_values[0],
+        features=features_test,
+        feature_names=feature_name_list,
+    )
+    print(f"\n{shap_force_plot = }\n")
+
+
+def read_excel_prelevement(
+    io,
+    sheet_name=None,
+    header=1,
+    regex="W[0-9]{2}",
+) -> pd.DataFrame:
+    """load xlsx file with defects observed by Rockwool tech and add a filename
+
+    Args:
+        io (_type_): _description_
+        sheet_name (_type_, optional): _description_. Defaults to None.
+        header (int, optional): _description_. Defaults to 1.
+        regex (str, optional): _description_. Defaults to "W[0-9]{2}".
 
     Returns:
-        pd.Series: _description_
+        pd.DataFrame: _description_
     """
-    # Get feature importance scores the same way they are ordered in the
-    # source dataset
-    feature_importances = model.feature_importances_
-    # Sort the INDEX of the feature importance scores in descending order
-    feature_indices = np.argsort(feature_importances)[::-1]
-    # Reorder the feature names according to the previous step
-    feature_names = [
-        feature_name_list[index] for index in feature_indices
+    # dictionary of dataframes for all week
+    dfs = pd.read_excel(
+        io=io,
+        sheet_name=sheet_name,
+        header=header
+    )
+    results = [v for k, v in dfs.items() if re.match(regex, k)]
+    # matching_keys = [k for k, v in dfs.items() if re.match(regex, k)]
+    df = pd.concat(results)
+    # The Date column contains Timestamp, datetime and str,
+    # Only Timestamp is kept
+    df = df[df.applymap(type).eq(pd.Timestamp)['Date']]
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df[df['Date'] > pd.to_datetime('2023-03-22')]
+    df['Tag Time'] = df['Tag Time'].astype(str)
+    df['Tag Time'] = df['Tag Time'].apply(lambda x: x.replace(':', '-'))
+    # files coming from Lest scanner are assumed to begin with "ok112013"
+    # Right <=> "ok112009"
+    conditions = [
+        (df['Scan (Left/Right)'] == 'Left'),
+        (df['Scan (Left/Right)'] == 'Right')
     ]
-    # Calculate the standard deviation of all estimators
-    estimator_std = np.std(
-        [tree.feature_importances_ for tree in model.estimators_],
-        axis=0
-    )
-    # Create a Pandas Series to plot the data
-    model_feature_importances = pd.Series(
-        data=feature_importances[feature_indices],
-        index=feature_names
-    )
-
-    # Create a bar plot
-    fig, ax = plt.subplots()
-    model_feature_importances.plot.barh(
-        xerr=estimator_std,
-        align="center",
-        ax=ax
-    )
-    plt.ylabel("Parameters")
-    plt.xlabel("Mean decrease in Impurity")
-    plt.title(label="Feature Importance in Predictions", fontsize=16)
-    plt.grid(visible=False)
-    fig.tight_layout()
-    save_figure(file_name=file_name, output_directory=output_directory)
-    # plt.show()
-    return model_feature_importances
+    values = [
+        ("ok112013" + "_" + df['Date'].astype(str) + "_" + df['Tag Time']),
+        ("ok112009" + "_" + df['Date'].astype(str) + "_" + df['Tag Time'])
+    ]
+    df['filename'] = np.select(conditions, values, None)
+    return df
 
 
-def apply_cross_validation_analysis(
-    model: Pipeline,
-    features_train: pd.DataFrame,
-    target_train: pd.Series,
-    features_test: pd.DataFrame,
-    target_test: pd.Series,
-    target_pred: pd.Series,
-    target_label_list: str,
-    cv: int,
-    file_name: str,
-    output_directory: Path
-) -> None:
-    """apply_cross_validation_analysis _summary_.
+def npz_filename_filter(
+    df: pd.DataFrame,
+    npz_file_names: List[str],
+    filename: str = 'filename'
+) -> list[Path]:
+    """restricts npz files to the ones present in df
 
     Args:
-        model (Pipeline): The model to be used for cross validation analysis.
-        features_train (pd.DataFrame): The training data features.
-        target_train (pd.Series): The training data target.
-        features_test (pd.DataFrame): The test data features.
-        target_test (pd.Series): The test data target.
-        target_pred (pd.Series): The predicted target values.
-        target_label_list (str): The list of target labels.
-        cv (int): The number of cross validation folds.
-        file_name (str): The name of the file to save the confusion matrix
-            heatmap to.
-        output_directory (Path): The directory to save the confusion matrix
-            heatmap to.
-    """
-    calculate_cross_validation_scores(
-        model=model,
-        features_test=features_test,
-        target_test=target_test,
-        target_pred=target_pred,
-        target_label_list=target_label_list,
-        cv=cv
-    )
-
-    draw_confusion_matrix_heatmap(
-        target_test=target_test,
-        target_pred=target_pred,
-        # target_test=label_encoder.inverse_transform(target_test),
-        # target_pred=label_encoder.inverse_transform(target_pred),
-        target_label_list=target_label_list,
-        file_name=file_name,
-        output_directory=output_directory,
-    )
-
-    calculate_multiple_cross_validation_scores(
-        model=model,
-        features=features_train,
-        target=target_train,
-    )
-
-
-def perform_roc_auc_analysis(
-    target_test: pd.Series,
-    target_pred: pd.Series,
-) -> float:
-    """Compute the ROC curve and AUC score.
-
-    This is NOT suitable for multi-class classification.
-
-    Args:
-        target_test (pd.Series): _description_
-        target_pred (pd.Series): _description_
+        df (pd.DataFrame): Dataframe containing the filenames
+        to search for.
+        npz_file_names (List[str]): list of path names of
+        every npz file
+        filename (str): name of the file to search
 
     Returns:
-        float: _description_
+        list[Path]: a list of path names for npz files in df only
     """
-    fpr, tpr, thresholds = roc_curve(y_true=target_test, y_score=target_pred)
-    roc_auc_score_ = roc_auc_score(y_true=target_test, y_score=target_pred)
-    print(f"\nArea Under the Curve Score:\n{roc_auc_score_}\n")
-    return roc_auc_score_
+    substrings = df[filename].to_list()
+    npz_file_names_filtered = [
+        s for s in npz_file_names if any(i in s for i in substrings)
+        ]
+
+    npz_file_names_filtered = list(map(Path, npz_file_names_filtered))
+    return npz_file_names_filtered
