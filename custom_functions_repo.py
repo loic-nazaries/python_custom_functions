@@ -4014,6 +4014,13 @@ def show_items_per_category(
         fontsize=16,
         loc="center"
     )
+    # plt.axis("off")
+    plt.tight_layout()
+    save_figure(
+        file_name="item_count_barchart",
+        output_directory=OUTPUT_DIR_FIGURES
+    )
+    plt.show()
 
 
 def generate_class_colour_list(class_list: List[str]) -> List[str]:
