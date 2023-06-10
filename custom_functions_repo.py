@@ -1674,7 +1674,7 @@ def get_iqr_outliers(
     dataframe: pd.DataFrame,
     column_name: str
 ) -> pd.DataFrame:
-    """Get IQR (InterQuantile Range) outliers for a column in the dataframe.
+    """Get IQR (Inter Quantile Range) outliers for a column in the dataframe.
 
     Args:
         dataframe (pd.DataFrame): Input dataframe.
@@ -2607,7 +2607,7 @@ def check_normality_assumption_residuals(
         columns={"W": "Statistic", "pval": "p-value"},
         inplace=True
     )
-    print(f"Normality Tests Results:\n{normality_tests}\n")
+    print(f"\nNormality Tests Results:\n{normality_tests}\n")
 
     # # BUG Below NOT working
     # # Print a message depending on the value ('True' or 'False') of the

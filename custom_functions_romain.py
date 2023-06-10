@@ -974,10 +974,10 @@ def get_categorical_features(dataframe):
     """
     # Select categorical variables ONLY and make a list
     categorical_features = dataframe.select_dtypes(include="category")
-    categorical_features_list = categorical_features.columns.to_list()
-    print(f"\nList of Categorical Features:\n{categorical_features_list}\n")
+    categorical_feature_list = categorical_features.columns.to_list()
+    print(f"\nList of Categorical Features:\n{categorical_feature_list}\n")
     print(f"\nSummary Statistics:\n{categorical_features.describe()}\n")
-    return categorical_features, categorical_features_list
+    return categorical_features, categorical_feature_list
 
 
 def get_dictionary_key(
@@ -4732,7 +4732,7 @@ def npz_filename_filter(
     substrings = df[filename].to_list()
     npz_file_names_filtered = [
         s for s in npz_file_names if any(i in s for i in substrings)
-        ]
+    ]
 
     npz_file_names_filtered = list(map(Path, npz_file_names_filtered))
     return npz_file_names_filtered
