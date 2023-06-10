@@ -62,8 +62,15 @@ from feature_engine.selection import (
     DropFeatures,
     DropMissingData,
 )
-# from imblearn.over_sampling import SMOTE
-# from imblearn.under_sampling import RandomUnderSampler
+from imblearn.combine import SMOTEENN
+from imblearn.over_sampling import (
+    BorderlineSMOTE,
+    KMeansSMOTE,
+    RandomOverSampler,
+    SMOTE,
+    SVMSMOTE,
+)
+from imblearn.under_sampling import RandomUnderSampler
 from pyod.models.mad import MAD
 from scipy.io import loadmat
 from scipy.stats import chi2, zscore
@@ -86,6 +93,7 @@ from sklearn.metrics import (
     classification_report,
     confusion_matrix,
     f1_score,
+    make_scorer,
     precision_score,
     recall_score,
     roc_auc_score,
@@ -94,7 +102,8 @@ from sklearn.metrics import (
 from sklearn.model_selection import (
     # GridSearchCV,
     cross_validate,
-    # RandomizedSearchCV,
+    RandomizedSearchCV,
+    StratifiedKFold,
     # RepeatedStratifiedKFold,
     # StratifiedShuffleSplit,
     cross_val_predict,
@@ -115,6 +124,7 @@ from sklearn.tree import (
     DecisionTreeClassifier,
     plot_tree
 )
+from skopt import BayesSearchCV, space
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
 from statsmodels.stats.multicomp import MultiComparison
@@ -354,6 +364,9 @@ def save_csv_file(
         dataframe (pd.DataFrame): Pandas DataFrame to be saved to CSV.
         file_name (str): File name of the CSV file. Without extension.
         output_directory (Path): Folder where the data is saved to.
+
+    Returns:
+        None.
     """
     dataframe.to_csv(
         path_or_buf=output_directory.joinpath(f"{file_name}.csv"),
@@ -375,6 +388,9 @@ def save_excel_file(
         dataframe (pd.DataFrame): Pandas DataFrame to be saved to Excel.
         file_name (str): File name of the Excel file. Without extension.
         output_directory (Path): Folder where the data is saved to.
+
+    Returns:
+        None.
     """
     dataframe.to_excel(
         excel_writer=output_directory.joinpath(f"{file_name}.xlsx"),
@@ -417,12 +433,16 @@ def save_figure(file_name: str, output_directory: Path) -> None:
     Args:
         file_name (str): File name of the image file. Without extension.
         output_directory (Path): Folder where the image is saved to.
+
+    Returns:
+        None.
     """
     plt.savefig(
         fname=output_directory.joinpath(f"{file_name}.png"),
         bbox_inches="tight",
         dpi=300
     )
+    return None
 
 
 def save_image_show(
@@ -491,6 +511,9 @@ def save_pickle_file(
     Args:
         dataframe (pd.DataFrame): _description_
         file_path_name (str): _description_
+
+    Returns:
+        None. Saves the dataframe as a pickle file.
     """
     dataframe.to_pickle(
         path=output_directory.joinpath(f"{file_name}.pkl"),
@@ -1133,7 +1156,7 @@ def get_numeric_features(
         dataframe (pd.DataFrame): DataFrame to select numeric features from.
 
     Returns:
-        Tuple (pd.Dataframe, List[str]): A tuple containing a pandas DataFrame
+        Tuple[pd.Dataframe, List[str]]: A tuple containing a pandas DataFrame
             with only numeric features and a list of the feature names.
     """
     # Select numeric variables ONLY and make a list
@@ -1357,9 +1380,18 @@ def produce_sweetviz_eda_report(
     eda_report_name: str,
     output_directory: Path
 ) -> None:
-    """Exploratory Data Analysis using the Sweetviz library.
+    """Generate an exploratory data analysis (EDA) report.
 
-    Produce an '.html' file of the main steps of the EDA.
+    The Sweetviz library is used.
+
+    Args:
+        train_set (pd.DataFrame): The training dataset as a Pandas DataFrame.
+        test_set (pd.DataFrame): The testing dataset as a Pandas DataFrame.
+        eda_report_name (str): The name of the EDA report.
+        output_directory (Path): Directory where the EDA report will be saved.
+
+    Returns:
+        None. Produces an '.html' file of the main steps of the EDA.
     """
     print("\nPreparing SweetViz Report:\n")
     sweetviz_eda_report = sv.analyze(
@@ -1379,12 +1411,21 @@ def compare_sweetviz_eda_report(
     eda_report_name: str,
     output_directory: Path,
 ) -> None:
-    """Exploratory Data Analysis using the Sweetviz library.
+    """Generate an exploratory data analysis (EDA) report.
+
+    The Sweetviz library is used.
 
     Particularly, this report compares the data split between the training
     and testing sets.
 
-    Produce an '.html' file of the main steps of the EDA
+    Args:
+        train_set (pd.DataFrame): The training dataset as a Pandas DataFrame.
+        test_set (pd.DataFrame): The testing dataset as a Pandas DataFrame.
+        eda_report_name (str): The name of the EDA report.
+        output_directory (Path): Directory where the EDA report will be saved.
+
+    Returns:
+        None. Produces an '.html' file of the main steps of the EDA.
     """
     print("\nPreparing SweetViz Report:\n")
     sweetviz_eda_report = sv.compare(
@@ -2766,6 +2807,9 @@ def create_missing_data_matrix(
         dataframe (pd.DataFrame): Input dataframe.
         file_name (str): Output file name to save matrix.
         output_directory (Path): Output directory where figure will be saved.
+
+    Returns:
+        None. Saves the matrix as an image file.
     """
     plt.figure(figsize=(15, 10))
     msno.matrix(
@@ -3030,14 +3074,11 @@ def draw_kdeplot(
 
 def draw_kdeplot_subplots(
     dataframe: pd.DataFrame,
-    x_axis: List[float],
-    x_label: str,
-    y_label: str,
-    item_list: List[str],
+    feature_list: List[str],
     nb_columns: int,
     hue: List[str] = None,
     palette: str | List[str] | Dict[str, str] = None,
-):
+) -> None:
     """Draw several bar plots on the same image using an iterable.
 
     This means the figure will contains m rows and n columns of barplots.
@@ -3057,22 +3098,18 @@ def draw_kdeplot_subplots(
     hence their will be 4 rows by 2 columns (that is 8 plots), plus a 5th row
     with only 1 plot and 1 more 'blank'.
 
-    NOTE: This function calls the function 'draw_barplot()' function defined
-    earlier.
-
     Args:
-        dataframe (pd.DataFrame): _description_
-        x_axis (List[float]): _description_
-        x_label (str): _description_
-        y_label (str): _description_
-        item_list (List[str]): _description_
-        nb_columns (int): _description_
-        hue (List[str], optional): _description_. Defaults to None.
-        palette (str | List[str] | Dict[str, str], optional): _description_.
-        Defaults to None.
+        dataframe (pd.DataFrame): The input dataframe.
+        feature_list (List[str]): The list of features to plot.
+        nb_columns (int): The number of columns for subplots.
+        hue (List[str], optional): The variable to differentiate the KDE plots.
+            Defaults to None.
+        palette (str | List[str] | Dict[str, str], optional): The color palette
+            for the KDE plots. Defaults to None.
 
     Returns:
-        _type_: _description_
+        None: Returns a template to draw subplots. See function
+        'run_exploratory_data_visualisation' for an example.
     """
     plt.subplots_adjust(wspace=0.3, hspace=0.5)
 
@@ -3080,10 +3117,10 @@ def draw_kdeplot_subplots(
     ncols = nb_columns
 
     # calculate number of corresponding rows
-    nrows = len(item_list) // ncols + (len(item_list) % ncols > 0)
+    nrows = len(feature_list) // ncols + (len(feature_list) % ncols > 0)
 
     # loop through the length of tickers and keep track of index
-    for index, item in enumerate(item_list):
+    for index, feature in enumerate(feature_list):
         # add a new subplot iteratively using nrows and cols
         axis = plt.subplot(
             nrows,
@@ -3093,29 +3130,33 @@ def draw_kdeplot_subplots(
         )
         # fig.tight_layout(pad=2)
 
-        # filter df and plot ticker on the new subplot axis
-        kdeplot_subplots = draw_kdeplot(
-            dataframe=dataframe,
-            x_axis=x_axis,
-            x_label=x_label,
-            y_label="Density",
+        kdeplot_subplots = sns.kdeplot(
+            data=dataframe,
+            x=feature,
             hue=hue,
-            palette=palette
+            palette=palette,
+            legend=True,
         )
-        axis.set_title(label=item.upper(), fontsize=20),
         axis.set_xticklabels(
             labels=kdeplot_subplots.get_xticklabels(),
             size=14,
         ),
         axis.set_xlabel(
-            xlabel=x_label,
+            # Split the feature name on '_' and capitalize each word
+            xlabel=(
+                ' '.join([word.capitalize() for word in feature.split('_')])
+            ),
             fontsize=18
         )
         axis.set_ylabel(
-            ylabel=y_label,
+            ylabel="Density",
             fontsize=18
         )
-    return kdeplot_subplots
+        # # BUG below NOT working
+        # plt.legend(
+        #     title=' '.join([word.capitalize() for word in hue.split('_')])
+        # )
+    return None
 
 
 # ! Compare function below with function above
@@ -3217,43 +3258,17 @@ def draw_barplot(
     return barplot
 
 
-def draw_box_plots(dataframe, columns, label):
-    """draw_box_plots _summary_.
-
-    Args:
-        dataframe (_type_): _description_
-        columns (_type_): _description_
-        label (_type_): _description_
-    """
-    num_rows, num_cols = 4, 4
-    fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 8))
-    fig.suptitle(f"Distribution of {label.capitalize()} Features", fontsize=20)
-
-    for index, column in enumerate(dataframe[columns].columns):
-        i, j = (index // num_cols, index % num_cols)
-        graph = sns.boxplot(
-            dataframe[column],
-            color="green",
-            orient="v",
-            ax=axes[i, j],
-        )
-        graph.legend(loc="best")
-    fig.delaxes(axes[3, 2])
-    fig.delaxes(axes[3, 3])
-    plt.tight_layout()
-    plt.show()
-
-
 def draw_barplot_subplots(
-    dataframe,
+    dataframe: pd.DataFrame,
     x_axis: List[float],
-    y_label: str,
-    item_list: List[str],
+    y_label: str | List[float],
+    feature_list: List[str],
     nb_columns: int,
     errorbar: str = "ci",
+    orient: str = "vertical",
     hue: List[str] = None,
     palette: str | List[str] | Dict[str, str] = None,
-):
+) -> None:
     """Draw several bar plots on the same image using an iterable.
 
     This means the figure will contains m rows and n columns of barplots.
@@ -3273,22 +3288,24 @@ def draw_barplot_subplots(
     hence their will be 4 rows by 2 columns (that is 8 plots), plus a 5th row
     with only 1 plot and 1 more 'blank'.
 
-    NOTE: This function calls the function 'draw_barplot()' function defined
-    earlier.
-
     Args:
-        dataframe (_type_): _description_
-        x_axis (List[float]): _description_
-        y_label (str): _description_
-        item_list (List[str]): _description_
-        nb_columns (int): _description_
-        errorbar (str, optional): _description_. Defaults to "ci".
-        hue (List[str], optional): _description_. Defaults to None.
-        palette (str | List[str] | Dict[str, str], optional): _description_.
-        Defaults to None.
+        dataframe (pd.DataFrame): The input dataframe.
+        x_axis (List[float]): The x-axis values.
+        y_label (str | List[float]): The y-axis label.
+        feature_list (List[str]): The list of features to plot.
+        nb_columns (int): The number of columns for subplots.
+        errorbar (str, optional): The type of error bar to display.
+            Defaults to "ci".
+        orient(str, optional): The orientation of the bar plots.
+            Defaults to 'vertical'.
+        hue (List[str], optional): The variable to differentiate the bar plots.
+            Defaults to None.
+        palette (str | List[str] | Dict[str, str], optional): The color palette
+            for the bar plots. Defaults to None.
 
     Returns:
-        _type_: _description_
+        None: Returns a template to draw subplots. See function
+        'run_exploratory_data_visualisation' for an example.
     """
     plt.subplots_adjust(wspace=0.3, hspace=0.5)
 
@@ -3296,10 +3313,10 @@ def draw_barplot_subplots(
     ncols = nb_columns
 
     # calculate number of corresponding rows
-    nrows = len(item_list) // ncols + (len(item_list) % ncols > 0)
+    nrows = len(feature_list) // ncols + (len(feature_list) % ncols > 0)
 
     # loop through the length of tickers and keep track of index
-    for index, item in enumerate(item_list):
+    for index, feature in enumerate(feature_list):
         # add a new subplot iteratively using nrows and cols
         axis = plt.subplot(
             nrows,
@@ -3309,16 +3326,20 @@ def draw_barplot_subplots(
         )
         # fig.tight_layout(pad=2)
 
-        # filter df and plot ticker on the new subplot axis
-        barplot_subplots = draw_barplot(
-            dataframe=dataframe,
-            x_axis=x_axis,
-            y_axis=item,
+        barplot_subplots = sns.barplot(
+            data=dataframe,
+            x=x_axis,
+            y=feature,
             hue=hue,
             errorbar=errorbar,
+            orient=orient,
             palette=palette
         )
-        axis.set_title(label=item.upper(), fontsize=20),
+        axis.set_title(
+            # Split the feature name on '_' and capitalise each word
+            label=' '.join([word.capitalize() for word in feature.split('_')]),
+            fontsize=16
+        ),
         axis.set_xticklabels(
             labels=barplot_subplots.get_xticklabels(),
             size=14,
@@ -3330,7 +3351,7 @@ def draw_barplot_subplots(
             ylabel=y_label,
             fontsize=18
         )
-    return barplot_subplots
+    return None
 
 
 # ! Compare function below with function above
@@ -3361,17 +3382,21 @@ def draw_bar_plots(dataframe, columns, label):
     plt.show()
 
 
-def draw_correlation_heatmap(dataframe, method="pearson"):
-    """Draw a correlation matrix between variables.
+def draw_correlation_heatmap(
+    dataframe, method="pearson"
+) -> Tuple[pd.DataFrame, sns.matrix.ClusterGrid]:
+    """Draw a correlation matrix between numeric variables.
 
     Also, add a mask to be applied to the 'upper triangle'.
 
     Args:
-        dataframe (_type_): _description_
-        method (str, optional): _description_. Defaults to "pearson".
+        dataframe (_type_): The input dataframe.
+        method (str, optional): The correlation method to use.
+            Defaults to "pearson".
 
     Returns:
-        _type_: _description_
+        Tuple[pd.DataFrame, sns.matrix.ClusterGrid]: A tuple containing the
+            correlation matrix and the correlation heatmap.
     """
     correlation_matrix = dataframe.corr(method=method)
 
@@ -3414,6 +3439,137 @@ def draw_correlation_heatmap(dataframe, method="pearson"):
     return correlation_matrix, correlation_heatmap
 
 
+def run_exploratory_data_visualisation(
+        dataframe: pd.DataFrame,
+        numeric_features: pd.DataFrame,
+        numeric_feature_list: List[str],
+        group_variable: str,
+        nb_columns: int,
+        output_directory: Path,
+        palette: str | List[str] | Dict[str, str] = None
+) -> None:
+    """Produce data visualisation to observe target and features behaviour.
+
+    Draw bar plots and kde plots for ALL variables for EACH category.
+
+    The results are presented as a series of subplots.
+
+    Args:
+        dataframe (pd.DataFrame): The input dataframe.
+        numeric_features (pd.DataFrame): The dataframe containing only numeric
+            features.
+        numeric_feature_list (List[str]): The list of numeric feature names.
+        group_variable (str): The variable used for grouping in visualizations.
+        nb_columns (int): The number of columns for subplots.
+        output_directory (Path): The directory to save the output figures.
+        palette (str | List[str] | Dict[str, str], optional): The color palette
+            to use in the visualizations. Defaults to None.
+    """
+    # BAR PLOTS
+
+    # Produce a BIG bar plot image with MANY subplots
+    plt.figure(figsize=(25, 30))
+    draw_barplot_subplots(
+        dataframe=dataframe,
+        x_axis=group_variable,
+        y_label="Transmissivity \u03C4 (-)",
+        feature_list=numeric_feature_list,
+        nb_columns=nb_columns,
+    )
+    plt.suptitle(
+        t=f"Effects of {group_variable} on detection parameters",
+        fontsize=28,
+        y=0.92
+    )
+    save_figure(
+        file_name=f"barplot_num_vars_{group_variable}",
+        output_directory=output_directory
+    )
+    # plt.show()
+
+    # ---------------------------------------------------------------------
+
+    # DENSITY PLOTS
+
+    # Produce a BIG kde plot image with MANY subplots
+    plt.figure(figsize=(25, 30))
+    draw_kdeplot_subplots(
+        dataframe=dataframe,
+        feature_list=numeric_feature_list,
+        nb_columns=nb_columns,
+        hue=group_variable
+    )
+    plt.suptitle(
+        t=f"Distribution of detection parameters for each {group_variable}",
+        fontsize=28,
+        y=0.92
+    )
+    save_figure(
+        file_name=f"kdeplot_num_vars_{group_variable}",
+        output_directory=output_directory
+    )
+    # plt.show()
+
+    # -------------------------------------------------------------------------
+
+    # ! Below NOT working any more...
+    # # Produce an '.html' file of the main steps of the EDA
+    # produce_sweetviz_eda_report(
+    #     dataframe=dataframe,
+    #     eda_report_name="clean_data_sweetviz_eda_report",
+    #     output_directory=output_directory
+    # )
+
+    # -------------------------------------------------------------------------
+
+    print("\nGenerating Pair Plots...\n")
+
+    # Display pair plots for EACH target
+    plt.figure(figsize=(30, 30))
+    sns.pairplot(
+        data=dataframe,
+        kind="reg",
+        hue=group_variable,
+        diag_kind="kde",
+    )
+    plt.suptitle(
+        t=f"Correlogram of detection features for each {group_variable}",
+        fontsize=36,
+        # y=1.12
+    )
+    plt.subplots_adjust(top=0.95)
+    save_figure(
+        file_name=f"pairplot_between_parameters_{group_variable}",
+        output_directory=output_directory
+    )
+    # plt.show()
+
+    # -------------------------------------------------------------------------
+
+    # # Correlation analysis
+    # # ! Below NOT working any more...
+    # # Display output as a table AND a figure
+    # plt.figure(figsize=(25, 20))
+    # features_correlation_matrix = draw_correlation_heatmap(
+    #     dataframe=numeric_features,
+    #     method="pearson"
+    # )
+    # plt.title(
+    #     label="Correlation analysis between engineered features\n",
+    #     fontsize=16,
+    #     loc="left"
+    # )
+    # print("\nFeatures Correlation Matrix:")
+    # print(features_correlation_matrix)
+
+    # save_figure(
+    #     file_name="correlation_matrix_feat_engineering",
+    #     output_directory=output_directory
+    # )
+    # # plt.show()
+    return None
+
+
 def draw_pair_plot(dataframe, hue=None):
     """draw_pair_plot _summary_.
 
@@ -3427,7 +3583,7 @@ def draw_pair_plot(dataframe, hue=None):
         kind="reg",
         diag_kind="kde",
         hue=hue,
-        # palette="husl",  # disabled to favour "colorblind" setting at start
+        # palette="husl",  # disabled to favour "colour-blind" setting at start
         corner=True,
         dropna=False,
         size=2.5,
@@ -3483,6 +3639,9 @@ def draw_anova_quality_checks(
         model (_type_): _description_
         output_directory (Path): _description_
         confidence_interval (float, optional): _description_. Defaults to 0.95.
+
+    Returns:
+        None. Saves the plot as an image file.
     """
     draw_qqplot(
         dataframe=model.resid,
@@ -3501,6 +3660,7 @@ def draw_anova_quality_checks(
         output_directory=output_directory
     )
     # plt.show()
+    return None
 
 
 def draw_tukeys_hsd_plot(
@@ -3518,6 +3678,9 @@ def draw_tukeys_hsd_plot(
         independent_variable (str): _description_
         output_directory (Path): _description_
         confidence_interval (float, optional): _description_. Defaults to 0.95.
+
+    Returns:
+        None. Saves the plot as an image file.
     """
     print("\nStats for Tukey's HSD Plots")
     # Run post-hoc test
@@ -3569,6 +3732,7 @@ def draw_tukeys_hsd_plot(
     #     f"\nTukey's Multicomparison Test Version 2:\n"
     #     f"{corrected_tukey_post_hoc_test}\n"
     # )
+    return None
 
 
 def draw_pca_outliers_biplot_3d(
@@ -3997,6 +4161,9 @@ def show_items_per_category(
         data (pd.Series | pd.DataFrame): The data containing the category to be
             analysed.
         category_name (str): The name of the category to be analysed.
+
+    Returns:
+        None. Saves a bar chart image for counts of each defect class.
     """
     # Show number of items in each class of the target
     data_class_count = data.value_counts()
@@ -4014,6 +4181,13 @@ def show_items_per_category(
         fontsize=16,
         loc="center"
     )
+    # plt.axis("off")
+    plt.tight_layout()
+    save_figure(
+        file_name="item_count_barchart",
+        output_directory=OUTPUT_DIR_FIGURES
+    )
+    plt.show()
 
 
 def generate_class_colour_list(class_list: List[str]) -> List[str]:
@@ -4042,10 +4216,13 @@ def target_label_encoder(
     """Encode the target labels (usually strings) into integers.
 
     Args:
-        data (pd.DataFrame | pd.Series): _description_
+        data (pd.DataFrame | pd.Series): The data containing the target labels
+            to be encoded.
 
     Returns:
-        Tuple[np.ndarray, List[str]]: _description_
+        Tuple[np.ndarray, List[str], LabelEncoder]: A tuple containing the
+            encoded target labels, the list of target classes and the label
+            encoder object.
     """
     label_encoder = LabelEncoder()
     target_encoded = label_encoder.fit_transform(data)
@@ -4244,7 +4421,7 @@ def drop_feature_pipeline(
     """
     steps = [
         (
-            "Remove Features With NaN Values",
+            "Remove Rows With NaN Values",
             remove_features_with_nans_transformer(nan_threshold=nan_threshold)
         ),
         (
@@ -4294,6 +4471,61 @@ def drop_feature_pipeline(
     drop_feature_pipe = Pipeline(steps=steps, verbose=True)
     print(f"\nDrop-Feature Pipeline Structure:\n{drop_feature_pipe}\n")
     return drop_feature_pipe
+
+
+def get_dropped_features_from_pipeline(
+    pipeline: Pipeline,
+    features: pd.DataFrame
+) -> List[str]:
+    """Retrieve the list of features dropped by a Scikit-learn pipeline.
+
+    NOTE: The 'named_steps[]' attributes allows accessing the various steps of
+    the pipeline by calling its name, as described in the list of tuples (see
+    'drop_feature_pipeline' function). This can be used to ANY scikit-learn (or
+    scikit-learn like class/function) pipeline.
+
+    Args:
+        pipeline (Pipeline): The pipeline object.
+        features (pd.DataFrame): The dataframe containing the features.
+
+    Returns:
+        List[str]: The list of dropped features.
+    """
+    # Make a list of features dropped through the pipeline model
+    drop_constant_features = list(
+        pipeline.named_steps["Drop Constant Values"].features_to_drop_
+    )
+    print(f"\nFeatures with Constant Values:\n{drop_constant_features}\n")
+
+    drop_duplicate_features = list(
+        pipeline.named_steps["Drop Duplicates"].features_to_drop_
+    )
+    print(f"\nFeatures Duplicated:\n{drop_duplicate_features}\n")
+
+    drop_correlated_features = list(
+        pipeline.named_steps[
+            "Drop Correlated Features"].features_to_drop_
+    )
+
+    # Get a list of correlated features
+    correlated_features = list(
+        pipeline.named_steps[
+            "Drop Correlated Features"].correlated_feature_sets_
+    )
+    print(f"\nFeatures Correlated:\n{correlated_features}\n", sep="\n")
+
+    # Display a correlation matrix
+    correlation_matrix = features.corr()
+    print(f"\nCorrelation Matrix of Model Features:\n{correlation_matrix}\n")
+
+    # Concatenate lists of dropped features
+    dropped_feature_list = (
+        *drop_constant_features,
+        *drop_duplicate_features,
+        *drop_correlated_features
+    )
+    print(f"\nFeatures Dropped:\n{dropped_feature_list}\n")
+    return dropped_feature_list
 
 
 def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
@@ -4360,6 +4592,97 @@ def preprocess_categorical_feature_pipeline(encoder: str) -> Pipeline:
     print("\nCategorical Data Pipeline Structure:")
     print(categorical_feature_pipeline)
     return categorical_feature_pipeline
+
+
+def run_machine_learning_pipeline(
+    features: pd.DataFrame,
+    features_to_keep: List[str],
+    label_encoder: LabelEncoder,
+    model: Dict[str, object],
+    resampling: bool = True,
+    nan_threshold=0.70,
+    correlation_threshold=0.80,
+) -> Pipeline:
+    """Perform a machine learning analysis based on several key steps.
+
+    The model parameter is defined as a dictionary where the key represents the
+    name (as a string) of the model/pipeline and the value represents the
+    'definition' of the model, that is, for example, the pipeline object that
+    is created outside the function.
+
+    Args:
+        features (pd.DataFrame): The dataframe containing the features.
+        features_to_keep (List[str]): A list of feature names to keep.
+        label_encoder (LabelEncoder): The instance of the label encoder.
+        model (_type_): _description_
+        resampling (bool, optional): Whether to integrate or not a resampler
+            tool to the pipeline. Defaults to True.
+        nan_threshold (float, optional): The threshold for removing features
+            with NaN values. Defaults to 0.7.
+        correlation_threshold (float, optional): The threshold for removing
+            correlated features. Defaults to 0.8.
+
+    Returns:
+        Pipeline: The final pipeline structure/step.
+    """
+    # Step 1: Drop irrelevant columns/features
+
+    drop_feature_pipe = drop_feature_pipeline(
+        features=features,
+        features_to_keep=features_to_keep,
+        nan_threshold=nan_threshold,
+        correlation_threshold=correlation_threshold,
+    )
+
+    # ------------------------------------------------------------------------
+
+    # Step 2: Preprocess numeric and categorical features
+
+    # Impute and encode categorical features  # TODO Test the 'one2hot' library
+    categorical_feature_pipeline = (
+        preprocess_categorical_feature_pipeline(encoder="one_hot_encoder")
+    )
+
+    # Impute and scale numeric features
+    numeric_feature_pipeline = (
+        preprocess_numeric_feature_pipeline(scaler="robust_scaler")
+    )
+
+    # Create a column transformer with both numeric and categorical pipelines
+    preprocess_feature_pipeline = transform_feature_pipeline(
+        categorical_feature_pipeline=categorical_feature_pipeline,
+        numeric_feature_pipeline=numeric_feature_pipeline,
+    )
+
+    # ------------------------------------------------------------------------
+
+    # Step 3: Resampling dataset to deal with class imbalance of TARGET only
+
+    if resampling:
+        smote_resampler = SMOTE(random_state=42)
+
+    # ------------------------------------------------------------------------
+
+    # Step 4: Set up the final pipeline
+    # NOTE: this is not a 'scikit-learn' pipeline but a 'imblearn' pipeline.
+
+    pipeline = Pipeline(
+        steps=[
+            # ! Pipeline class from imblearn library not support nested class
+            # ("Drop Features", drop_feature_pipeline),
+            # ! Unpacking the steps of the 'drop features' pipeline is required
+            *drop_feature_pipe.steps,
+            ("Transform Features", preprocess_feature_pipeline),
+            ("Resampler", smote_resampler),
+            (model["model_name"], model["model_definition"]),
+        ],
+        verbose=False,
+    )
+    # Set the config pipeline output to a (dense, not sparse) Numpy array
+    # pipeline.set_output(transform="default")
+    # print("\nDisplay Analytic Pipeline:")
+    # print(pipeline)
+    return pipeline
 
 
 def select_best_features():
@@ -4449,86 +4772,6 @@ def get_transformed_feature_pipeline(
     return preprocessed_df
 
 
-def get_dropped_features_from_pipeline(
-    model_pipeline: Pipeline,
-    model_features: pd.DataFrame
-) -> List[str]:
-    """get_dropped_features_from_pipeline _summary_.
-
-    Args:
-        model_pipeline (Pipeline): _description_
-
-    Returns:
-        List[str]: _description_
-    """
-    # Make a list of features dropped through the pipeline model
-    drop_constant_features = list(
-        model_pipeline.named_steps["Drop Constant Values"].features_to_drop_
-    )
-    print(f"\nFeatures with Constant Values:\n{drop_constant_features}\n")
-
-    drop_duplicate_features = list(
-        model_pipeline.named_steps["Drop Duplicates"].features_to_drop_
-    )
-    print(f"\nFeatures Duplicated:\n{drop_duplicate_features}\n")
-
-    drop_correlated_features = list(
-        model_pipeline.named_steps[
-            "Drop Correlated Features"].features_to_drop_
-    )
-    # Get a list of correlated features
-    correlated_features = list(
-        model_pipeline.named_steps[
-            "Drop Correlated Features"].correlated_feature_sets_
-    )
-    print(f"\nFeatures Correlated:\n{correlated_features}\n", sep="\n")
-    # Display a correlation matrix
-    correlation_matrix = model_features.corr()
-    print(f"\nCorrelation Matrix of Model Features:\n{correlation_matrix}\n")
-
-    # Concatenate lists of dropped features
-    dropped_feature_list = (
-        *drop_constant_features,
-        *drop_duplicate_features,
-        *drop_correlated_features
-    )
-    print(f"\nFeatures Dropped:\n{dropped_feature_list}\n")
-    return dropped_feature_list
-
-
-def predict_target(
-    model: Pipeline,
-    features_test: pd.DataFrame | np.ndarray,
-    target_test: pd.Series | np.ndarray,
-) -> np.ndarray:
-    """Predict target using a model and create a dataframe of predictions.
-
-    Args:
-        model (Pipeline): The trained model for prediction.
-        features_test (pd.DataFrame | np.ndarray): The test set features.
-        target_test (pd.Series | np.ndarray): The true target values for
-            the test set.
-
-    Returns:
-        np.ndarray: The predicted target values.
-    """
-    # Predict the target on the test set
-    target_pred = model.predict(X=features_test)
-
-    # Build a dataframe of true/test values vs. prediction values
-    predictions_vs_test = pd.concat(
-        objs=[pd.Series(target_test), pd.Series(target_pred)],
-        keys=["test", "predictions"],
-        axis=1,
-    )
-    predictions_vs_test.set_index(
-        keys=features_test.index,
-        inplace=True
-    )
-    print(f"\nTest vs. Predictions:\n{predictions_vs_test}\n")
-    return target_pred
-
-
 def join_parallel_pipelines(
     pipeline_one: Pipeline,
     pipeline_two: Pipeline,
@@ -4559,22 +4802,124 @@ def join_parallel_pipelines(
     return union_transformer
 
 
+def predict_target(
+    model: Pipeline,
+    features_test: pd.DataFrame | np.ndarray,
+    target_test: pd.Series | np.ndarray,
+) -> np.ndarray:
+    """Predict target using a model and create a dataframe of predictions.
+
+    Args:
+        model (Pipeline): The trained model for prediction.
+        features_test (pd.DataFrame | np.ndarray): The test set features.
+        target_test (pd.Series | np.ndarray): The true target values for
+            the test set.
+        label_encoder (LabelEncoder): The instance of the label encoder.
+
+    Returns:
+        np.ndarray: The predicted target values.
+    """
+    # Predict the target on the test set
+    target_pred = model.predict(X=features_test)
+
+    # Build a dataframe of true/test values vs. prediction values
+    predictions_vs_test = pd.concat(
+        objs=[pd.Series(target_test), pd.Series(target_pred)],
+        keys=["test", "predictions"],
+        axis=1,
+    )
+    predictions_vs_test.set_index(
+        keys=features_test.index,
+        inplace=True
+    )
+    print(f"\nTest vs. Predictions:\n{predictions_vs_test}\n")
+    return target_pred
+
+
+def predict_defect_class(
+        data: np.ndarray,
+        model: Pipeline,
+        defect_class_dictionary: Dict[int, str],
+) -> str:
+    """Predict the defect class based on the input data using a trained model.
+
+    The class can be a type of defect (e.g. CGGros, Melt, etc.) or a family of
+    defect (e.g. CG or Melt).
+
+    NOTE: As opposed to the previous function ('predict_target'), this function
+    allows for prediction of a single sample at the time.
+
+    Args:
+        data (np.ndarray): The input data for prediction
+        model (Pipeline): The trained model used for prediction. The model
+        could also be a whole process pipeline as with Scikit-learn.
+        defect_class_dictionary (Dict[int, str]): A dictionary mapping class
+        numbers to defect names.
+
+    Returns:
+        str: Prints the predicted defect type or family.
+    """
+    target_pred = model.predict(X=data)
+
+    # Convert the output array (a single score) to an integer of the defect
+    # type class. This is necessary since a numpy array is unhashable which
+    # will prevent the scaler to be used in a dictionary.
+    target_pred = int(target_pred)
+
+    # Get the defect name from its class number
+    defect_predicted = defect_class_dictionary.get(target_pred)
+    print(f"\nPredicted Defect Type or Family: {defect_predicted}\n")
+
+
+def save_pipeline_model_joblib(
+    pipeline_name: Pipeline,
+    file_name: str,
+    output_directory: Path,
+) -> Pipeline:
+    """Save a pipeline model using joblib.
+
+    To load the pipeline, use the following command:
+    pipeline_name = joblib.load(filename="pipeline_file_name.joblib")
+
+    Args:
+        pipeline_name (Pipeline): The pipeline model to be saved.
+        file_name (str): The name of the output file.
+        output_directory (Path): The directory to save the output file.
+
+    Returns:
+        Pipeline: The pipeline model that has been saved.
+    """
+    pipeline_model_file = joblib.dump(
+        value=pipeline_name,
+        filename=output_directory.joinpath(f"{file_name}.joblib"),
+    )
+    return pipeline_model_file
+
+
 def calculate_cross_validation_scores(
-    model,
+    model: object,
     features_test: pd.DataFrame,
     target_test: pd.Series,
     target_pred: pd.Series,
     target_label_list: List[str],
     cv: int = 5
 ) -> None:
-    """calculate_cross_validation_score _summary_.
+    """Calculate cross-validation scores.
+
+    It includes the balanced accuracy score and production of a classification
+    report that displays the model metrics for the different classes of the
+    target.
 
     Args:
-        model (_type_): _description_
-        features_test (pd.DataFrame): _description_
-        target_test (pd.Series): _description_
-        target_pred (pd.Series): _description_
-        target_label_list (List[str]): _description_
+        features_test (pd.DataFrame): The test features data.
+        target_test (pd.Series): The true target values.
+        target_pred (pd.Series): The predicted target values.
+        target_label_list (List[str]): A list of target labels for
+        classification report.
+        cv (int): Number of cross-validation folds. Defaults to 5).
+
+    Returns:
+        None. Prints the balanced accuracy score and classification report.
     """
     # Use below function when there is an imbalance in each target class
     balanced_accuracy_score_ = balanced_accuracy_score(
@@ -4611,22 +4956,26 @@ def calculate_cross_validation_scores(
 
 
 def calculate_multiple_cross_validation_scores(
-    model,
+    model: object,
     features: pd.DataFrame | np.ndarray,
     target: pd.Series | np.ndarray,
     cv: int = 5
 ) -> None:
-    """calculate_multiple_cross_validation_scores _summary_.
+    """Calculate multiple cross-validation scores using the provided model.
 
     Use the 'cross_validate()' function to calculate multiple model scores for
     EACH train and test sets.
-    NOTE: to print out the train scores, the parameter 'return_train_score'
+    NOTE: To print out the train scores, the parameter 'return_train_score'
     must be set to 'True'.
 
     Args:
-        model (_type_): _description_
-        features (pd.DataFrame | np.ndarray): _description_
-        target (pd.Series | np.ndarray): _description_
+        model (object): The model used for cross-validation.
+        features (pd.DataFrame | np.ndarray): The input features data.
+        target (pd.Series | np.ndarray): The target values.
+        cv (int, optional): Number of cross-validation folds. Defaults to 5.
+
+    Returns:
+        None. Prints the model score output.
     """
     scorer_list = [
         "balanced_accuracy",
@@ -4950,14 +5299,18 @@ def draw_random_forest_tree(
     output_directory: Path,
     ranked_tree: int = None,
 ) -> None:
-    """_summary_.
+    """Draw a random forest tree for visualization.
 
     Args:
-        random_forest_classifier (_type_): _description_
-        feature_name_list (List[str]): _description_
-        target_label_list (List[str]): _description_
-        file_name (str): _description_
-        output_directory (Path): _description_
+        random_forest_classifier (_type_): The random forest classifier model.
+        feature_name_list (List[str]): The list of feature names.
+        target_label_list (List[str]): The list of target label names.
+        file_name (str): The name of the output file.
+        output_directory (Path): Directory where the output file will be saved.
+        ranked_tree (int, optional): The index of the tree to draw.
+
+    Returns:
+        None. Saves a figure of the decision tree.
     """
     # plt.figure()
     tree.plot(
@@ -4984,14 +5337,18 @@ def draw_confusion_matrix_heatmap(
     file_name: str,
     output_directory: Path,
 ) -> None:
-    """_summary_.
+    """
+    Draw a heatmap of confusion matrix based on predicted & true target values.
 
     Args:
-        target_test (pd.Series): _description_
-        target_pred (pd.Series): _description_
-        target_label_list (List[str]): _description_
-        file_name (str): _description_
-        output_directory (Path): _description_
+        target_test (pd.Series): The true target values.
+        target_pred (pd.Series): The predicted target values.
+        target_label_list (List[str]): A list of target labels.
+        file_name (str): The name of the output file.
+        output_directory (Path): The directory to save the output file.
+
+    Returns:
+        None. Saves the heatmap as an image file.
     """
     # Compute the confusion matrix
     confusion_matrix_ = confusion_matrix(
@@ -5025,46 +5382,52 @@ def draw_confusion_matrix_heatmap(
 
 
 def get_feature_importance_scores(
-    model,
+    model: object,
     feature_name_list: List[str],
     file_name: str,
     output_directory: Path,
 ) -> pd.Series:
-    """get_feature_importance_scores _summary_.
+    """
+    Retrieve the feature importance scores from a model & generates a bar plot.
 
     Args:
-        model (_type_): _description_
-        feature_name_list (List[str]): _description_
-        file_name (str): _description_
-        output_directory (Path): _description_
+        model (object): The trained model.
+        feature_name_list (List[str]): The list of feature names.
+        file_name (str): The name of the output file.
+        output_directory (Path): The directory to save the output file.
 
     Returns:
-        pd.Series: _description_
+        pd.Series: A Pandas Series containing the feature importance scores.
     """
     # Get feature importance scores the same way they are ordered in the
     # source dataset
     feature_importances = model.feature_importances_
+
     # Sort the INDEX of the feature importance scores in descending order
     feature_indices = np.argsort(feature_importances)[::-1]
+
     # Reorder the feature names according to the previous step
     feature_names = [
         feature_name_list[index] for index in feature_indices
     ]
-    # Calculate the standard deviation of all estimators
-    estimator_std = np.std(
-        [tree.feature_importances_ for tree in model.estimators_],
-        axis=0
-    )
+
+    # # Calculate the standard deviation of all estimators
+    # estimator_std = np.std(
+    #     [tree.feature_importances_ for tree in model.estimators_],
+    #     axis=0
+    # )
+
     # Create a Pandas Series to plot the data
     model_feature_importances = pd.Series(
         data=feature_importances[feature_indices],
         index=feature_names
     )
+    print(f"\nModel Features Importance:\n{model_feature_importances}\n")
 
     # Create a bar plot
     fig, ax = plt.subplots()
     model_feature_importances.plot.barh(
-        xerr=estimator_std,
+        # xerr=estimator_std,  # remove error bars
         align="center",
         ax=ax
     )
@@ -5079,7 +5442,7 @@ def get_feature_importance_scores(
 
 
 def apply_cross_validation_analysis(
-    model: Pipeline,
+    model: object,
     features_train: pd.DataFrame,
     target_train: pd.Series,
     features_test: pd.DataFrame,
@@ -5090,24 +5453,24 @@ def apply_cross_validation_analysis(
     file_name: str,
     output_directory: Path
 ) -> None:
-    """apply_cross_validation_analysis _summary_.
+    """
+    Apply cross-validation on train & test data to evaluate model performance.
 
     Args:
-        model (Pipeline): The model to be used for cross validation analysis.
+        model (object): The model to be used for cross validation analysis.
         features_train (pd.DataFrame): The training data features.
         target_train (pd.Series): The training data target.
         features_test (pd.DataFrame): The test data features.
         target_test (pd.Series): The test data target.
         target_pred (pd.Series): The predicted target values.
         target_label_list (str): The list of target labels.
-        cv (int): The number of cross validation folds.
         file_name (str): The name of the file to save the confusion matrix
             heatmap to.
         output_directory (Path): The directory to save the confusion matrix
             heatmap to.
+        cv (int): The number of cross validation folds. Defaults to 5.
     """
     calculate_cross_validation_scores(
-        model=model,
         features_test=features_test,
         target_test=target_test,
         target_pred=target_pred,
@@ -5118,8 +5481,6 @@ def apply_cross_validation_analysis(
     draw_confusion_matrix_heatmap(
         target_test=target_test,
         target_pred=target_pred,
-        # target_test=label_encoder.inverse_transform(target_test),
-        # target_pred=label_encoder.inverse_transform(target_pred),
         target_label_list=target_label_list,
         file_name=file_name,
         output_directory=output_directory,
@@ -5151,3 +5512,271 @@ def perform_roc_auc_analysis(
     roc_auc_score_ = roc_auc_score(y_true=target_test, y_score=target_pred)
     print(f"\nArea Under the Curve Score:\n{roc_auc_score_}\n")
     return roc_auc_score_
+
+
+def get_best_parameters_ensemble(
+    pipeline: Pipeline,
+    model: Dict[str, object],
+) -> pd.DataFrame:
+    """Retrieve the best parameters and scores from a pipeline.
+
+    It also returns the parameters and metrics as a DataFrame.
+
+    The model parameter is defined as a dictionary where the key represents the
+    name (as a string) of the model/pipeline and the value represents the
+    'definition' of the model, that is, for example, the pipeline object that
+    is created outside the function.
+
+    NOTE: This function is specific to the optimisation of the 'Ensemble
+    Classifier' through the use of the 'VotingClassifier()' class of the
+    'scikit-learn' package.
+
+    Args:
+        pipeline (Pipeline): The pipeline object.
+        model (Dict[str, object]): A dictionary containing the model name.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the best parameters and scores.
+    """
+    # Get best score
+    pipeline_best_score = pipeline.best_score_
+    print(f"\nBest Score: {pipeline_best_score:.1%}\n")
+
+    # Generate the dictionary of best parameters
+    pipeline_best_parameters = pipeline.best_params_
+    print(f"\nBest Parameters:\n{pipeline_best_parameters}\n")
+
+    # Extract cross-validation results and convert to dataframe
+    cv_results = pipeline.cv_results_
+    cv_results_dataframe = pd.DataFrame(data=cv_results)
+    cv_results_dataframe = cv_results_dataframe.sort_values(
+        by=["mean_test_score"], ascending=False
+    )
+
+    # Get the optimised parameters of the Top 5 Ensemble Classifiers
+    # First, reorder the columns
+    cv_results_best_5 = cv_results_dataframe[[
+        "mean_test_score",
+        "std_test_score",
+        "rank_test_score",
+
+        "param_Transform Features__Numeric Features__scaler",
+
+        "param_Resampler",
+
+        f"param_{model['model_name']}__voting",
+
+        # f"param_{model['model_name']}__Decision Tree Classifier__criterion",
+        # f"param_{model['model_name']}__Decision Tree Classifier__max_depth",
+        # f"param_{model['model_name']}__Decision Tree \
+        #     Classifier__min_samples_leaf",
+
+        # f"param_{model['model_name']}__Gaussian Naive Bayes__var_smoothing",
+        # f"param_{model['model_name']}__Linear Discriminant Analysis__solver",
+
+        f"param_{model['model_name']}__Random Forest Classifier__max_depth",
+        f"param_{model['model_name']}__Random Forest "
+        f"Classifier__max_leaf_nodes",
+        f"param_{model['model_name']}__Random Forest "
+        f"Classifier__min_samples_leaf",
+        f"param_{model['model_name']}__Random Forest "
+        f"Classifier__min_samples_split",
+        f"param_{model['model_name']}__Random Forest Classifier__n_estimators",
+
+        f"param_{model['model_name']}__Support Vector Machine Classifier__C",
+        f"param_{model['model_name']}__Support Vector Machine "
+        f"Classifier__gamma",
+        f"param_{model['model_name']}__Support Vector Machine "
+        f"Classifier__kernel",
+
+        f"param_{model['model_name']}__XGBoost Classifier__gamma",
+        f"param_{model['model_name']}__XGBoost Classifier__learning_rate",
+        f"param_{model['model_name']}__XGBoost Classifier__max_depth",
+    ]].head(5)
+
+    # Set the column 'mean_test_score' to a percentage with one decimal
+    cv_results_best_5["mean_test_score"] = (
+        cv_results_best_5["mean_test_score"].apply(
+            lambda percent: f"{percent:.1%}"
+        )
+    )
+    print("\nTable of Top 5 Best Models:")
+    print(cv_results_best_5)
+    return cv_results_best_5
+
+
+def random_search_cv_optimisation_ensemble(
+    pipeline: Pipeline,
+    model: Dict[str, object],
+    cv: int = 5
+) -> RandomizedSearchCV:
+    """Perform random search cross-validation.
+
+    This is to optimise the hyper-parameters of pipeline (e.g. here an ensemble
+    model).
+
+    Different steps of the pipeline are optimised:
+        - Transformation of the numeric data via three types of transformation:
+        'StandardScaler', MinMaxScaler' and 'RobustScaler'.
+        - Several over- and under-resampling algorithms are tested, as well as
+        NO resampling.
+        - Various model parameters and range values are tested.
+        NOTE: Not all parameters could be tested due to limitations of Python
+        computing power.
+
+    The model parameter is defined as a dictionary where the key represents the
+    name (as a string) of the model/pipeline and the value represents the
+    'definition' of the model, that is, for example, the pipeline object that
+    is created outside the function.
+
+    Args:
+        pipeline (Pipeline): The pipeline object.
+        model (Dict[str, object]): A dictionary containing the model name.
+        cv (int, optional): The number of cross-validation folds. Defaults to 5
+
+    Returns:
+        RandomizedSearchCV: The optimised model.
+    """
+    # Set of optimisation options
+    parameter_search = {
+        "Transform Features__Numeric Features__scaler":
+        [StandardScaler(), MinMaxScaler(), RobustScaler()],
+
+        "Resampler": [
+            None,
+            BorderlineSMOTE(random_state=42),
+            KMeansSMOTE(random_state=42),
+            RandomOverSampler(random_state=42),
+            RandomUnderSampler(random_state=42),
+            SMOTE(random_state=42),
+            SMOTEENN(random_state=42),  # combination of over- & under-sampling
+            SVMSMOTE(random_state=42),
+        ],
+
+        f"{model['model_name']}__voting": ["soft", "hard"],
+
+        # f"{model['model_name']}__Gaussian Naive Bayes__var_smoothing": \
+        # [0, 1e-9, 0.01, 0.1, 0.2, 0.5, 1],
+        # f"{model['model_name']}__Linear Discriminant Analysis__solver": \
+        # ["svd", "lsqr", "eigen"],
+
+        f"{model['model_name']}__Random Forest Classifier__max_depth": \
+        [2, 3, 5, 7, 10],
+        f"{model['model_name']}__Random Forest Classifier__max_leaf_nodes": \
+        [2, 5, 7, 10],
+        f"{model['model_name']}__Random Forest Classifier__min_samples_leaf": \
+        [2, 3, 5, 7, 10],
+        f"{model['model_name']}__Random Forest Classifier__min_samples_split":\
+        [2, 5, 7],
+        f"{model['model_name']}__Random Forest Classifier__n_estimators": \
+        [100, 200, 500, 700],
+
+        f"{model['model_name']}__Support Vector Machine Classifier__C": \
+        [1, 10, 100, 500, 1000],
+        f"{model['model_name']}__Support Vector Machine Classifier__gamma": \
+        ["auto", "scale", 1, 0.1, 0.01, 0.001, 0.0001],
+        f"{model['model_name']}__Support Vector Machine Classifier__kernel": \
+        ["rbf", "linear"],
+
+        f"{model['model_name']}__XGBoost Classifier__learning_rate": \
+        [0.01, 0.05, 0.1, 0.2, 0.3],
+        f"{model['model_name']}__XGBoost Classifier__max_depth": \
+        [2, 5, 10, 15],
+        f"{model['model_name']}__XGBoost Classifier__gamma": [0, 1, 2,  5, 10],
+        # f"{model['model_name']}__XGBoost Classifier__min_child_weight": \
+        # [10, 15, 20, 25],
+        # f"{model['model_name']}__XGBoost Classifier__colsample_bytree": \
+        # [0.8, 0.9, 1],
+        # f"{model['model_name']}__XGBoost Classifier__n_estimators": \
+        # [300, 400, 500, 600],
+        # f"{model['model_name']}__XGBoost Classifier__reg_alpha": \
+        # [0.5, 0.2, 1],
+        # f"{model['model_name']}__XGBoost Classifier__reg_lambda": [2, 3, 5],
+    }
+
+    # Model optimisation using 'RandomizedSearchCV()'
+    random_search_cv = RandomizedSearchCV(
+        estimator=pipeline,
+        param_distributions=parameter_search,
+        # scoring="roc_auc",  # TODO Test on multi-class labelling ?
+        scoring="accuracy",
+        # verbose=True,
+        cv=StratifiedKFold(n_splits=cv, shuffle=True, random_state=42),
+        random_state=42,
+        n_jobs=-1
+    )
+    print("\nRandom Search CV Pipeline:")
+    print(random_search_cv)
+    return random_search_cv
+
+
+def bayes_search_cv_optimisation(
+    pipeline: Pipeline,
+    model: Dict[str, object],
+    cv: int = 5
+) -> BayesSearchCV:
+    """Perform random search cross-validation.
+
+    This is to optimize the hyper-parameters of pipeline (e.g. here an LightGBM
+    Classifier model).
+
+    The model parameter is defined as a dictionary where the key represents the
+    name (as a string) of the model/pipeline and the value represents the
+    'definition' of the model, that is, for example, the pipeline object that
+    is created outside the function.
+
+    Different steps of the pipeline are optimised:
+        - Transformation of the numeric data via three types of transformation:
+        'StandardScaler', MinMaxScaler' and 'RobustScaler'.
+        - Several over- and under-resampling algorithms are tested, as well as
+        NO resampling.
+        - Various model parameters and range values are tested.
+        NOTE: Not all parameters could be tested due to limitations of Python
+        computing power.
+
+    Args:
+        pipeline (Pipeline): The pipeline object.
+        model (Dict[str, object]): A dictionary containing the model name.
+        cv (int, optional): The number of cross-validation folds. Defaults to 5
+
+    Returns:
+        RandomizedSearchCV: The optimised model.
+    """
+    parameter_search = {
+        "Transform Features__Numeric Features__scaler":
+        [StandardScaler(), MinMaxScaler(), RobustScaler()],
+
+        "Resampler": [
+            None,
+            BorderlineSMOTE(random_state=42),
+            KMeansSMOTE(random_state=42),
+            RandomOverSampler(random_state=42),
+            RandomUnderSampler(random_state=42),
+            SMOTE(random_state=42),
+            SMOTEENN(random_state=42),  # combination of over- & under-sampling
+            SVMSMOTE(random_state=42),
+        ],
+
+        f"{model['model_name']}__num_leaves": space.Integer(20, 200),
+        f"{model['model_name']}__min_data_in_leaf": space.Integer(20, 50),
+        # f"{model['model_name']}__boosting_type": ['gbdt',  'dart',  'rf'],
+        f"{model['model_name']}__learning_rate": \
+        space.Real(0.005, 1, prior='log-uniform'),
+        f"{model['model_name']}__n_estimators": space.Integer(100, 500),
+        f"{model['model_name']}__max_depth": space.Integer(4, 10)
+    }
+
+    bayes_search_cv = BayesSearchCV(
+        estimator=pipeline,
+        search_spaces=[(parameter_search, 100)],
+        cv=StratifiedKFold(n_splits=cv, shuffle=True, random_state=42),
+        scoring=make_scorer(
+            score_func=recall_score,
+            average="weighted",
+        ),
+        random_state=42,
+        n_jobs=-1,
+    )
+    print("\nBayes Search CV Pipeline:")
+    print(bayes_search_cv)
+    return bayes_search_cv
