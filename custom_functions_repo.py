@@ -126,6 +126,7 @@ from sklearn.preprocessing import (
     MinMaxScaler,
     OneHotEncoder,
     OrdinalEncoder,
+    PowerTransform,
     RobustScaler,
     StandardScaler,
 )
@@ -551,7 +552,9 @@ def convert_text_file_to_docx(file_name: str, output_directory: Path) -> None:
     """
     # Open the text file and read its contents
     with open(
-        file=output_directory.joinpath(f"{file_name}.txt"), mode="r", encoding="utf-8"
+        file=output_directory.joinpath(f"{file_name}.txt"),
+        mode="r",
+        encoding="utf-8",
     ) as output_file:
         # output_text = output_file.read()  # works fine
         output_text = Path(output_file).read_text(...)  # to be tested
@@ -574,7 +577,9 @@ def convert_text_file_to_pdf(file_name: str, output_directory: Path) -> None:
     """
     # Open the text file and read its contents
     with open(
-        file=output_directory.joinpath(f"{file_name}.txt"), mode="r", encoding="utf-8"
+        file=output_directory.joinpath(f"{file_name}.txt"),
+        mode="r",
+        encoding="utf-8",
     ) as output_file:
         # output_text = output_file.read()  # works fine
         output_text = Path(output_file).read_text(...)  # to be tested
@@ -705,7 +710,9 @@ def extract_pattern_from_file_name_2(file_name):
 # ARRAYS
 
 
-def convert_dataframe_to_array(dataframe: pd.DataFrame, column_name: str) -> np.ndarray:
+def convert_dataframe_to_array(
+    dataframe: pd.DataFrame, column_name: str
+) -> np.ndarray:
     """Convert dataframe to array.
 
     Note: the use of the present function could be avoided if the dataframe is
@@ -788,8 +795,8 @@ def convert_to_datetime_type(
         pd.DataFrame: The DataFrame with specified columns converted to
             datetime type.
     """
-    dataframe[datetime_variable_list] = dataframe[datetime_variable_list].astype(
-        dtype="datetime64[ns]"
+    dataframe[datetime_variable_list] = (
+        dataframe[datetime_variable_list].astype(dtype="datetime64[ns]")
     )
     return dataframe
 
@@ -808,8 +815,8 @@ def convert_to_category_type(
         pd.DataFrame: The DataFrame with specified columns converted to
             category type.
     """
-    dataframe[category_variable_list] = dataframe[category_variable_list].astype(
-        dtype="category"
+    dataframe[category_variable_list] = (
+        dataframe[category_variable_list].astype(dtype="category")
     )
     return dataframe
 
@@ -938,15 +945,29 @@ def convert_variables_to_proper_type(
 
     processed_dataframe_pipe = (
         dataframe.pipe(
-            func=convert_to_datetime_type, datetime_variable_list=datetime_variable_list
+            func=convert_to_datetime_type,
+            datetime_variable_list=datetime_variable_list,
         )
         .pipe(
-            func=convert_to_category_type, category_variable_list=category_variable_list
+            func=convert_to_category_type,
+            category_variable_list=category_variable_list,
         )
-        .pipe(func=convert_to_number_type, numeric_variable_list=numeric_variable_list)
-        .pipe(func=convert_to_integer_type, integer_variable_list=integer_variable_list)
-        .pipe(func=convert_to_float_type, float_variable_list=float_variable_list)
-        .pipe(func=convert_to_string_type, string_variable_list=string_variable_list)
+        .pipe(
+            func=convert_to_number_type,
+            numeric_variable_list=numeric_variable_list,
+        )
+        .pipe(
+            func=convert_to_integer_type,
+            integer_variable_list=integer_variable_list,
+        )
+        .pipe(
+            func=convert_to_float_type,
+            float_variable_list=float_variable_list,
+        )
+        .pipe(
+            func=convert_to_string_type,
+            string_variable_list=string_variable_list,
+        )
     )
     return processed_dataframe_pipe
 
@@ -1027,7 +1048,9 @@ def remove_duplicated_rows(dataframe: pd.DataFrame) -> pd.DataFrame:
     return dataframe
 
 
-def drop_column(dataframe: pd.DataFrame, column_list: List[str]) -> pd.DataFrame:
+def drop_column(
+    dataframe: pd.DataFrame, column_list: List[str]
+) -> pd.DataFrame:
     """Drop columns from the dataframe.
 
     Args:
@@ -1103,7 +1126,9 @@ def get_list_of_unique_values(
     return unique_names
 
 
-def get_numeric_features(dataframe: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+def get_numeric_features(
+    dataframe: pd.DataFrame
+) -> Tuple[pd.DataFrame, List[str]]:
     """Extract numeric features from a Pandas DataFrame.
 
     Args:
@@ -1139,7 +1164,9 @@ def get_categorical_features(dataframe):
     return categorical_features, categorical_feature_list
 
 
-def get_dictionary_key(dictionary: Dict[int, str], target_key_string: str) -> int:
+def get_dictionary_key(
+    dictionary: Dict[int, str], target_key_string: str
+) -> int:
     """Get the key (as an integer) from the dictionary based on its values.
 
     Args:
@@ -1422,7 +1449,10 @@ def get_missing_values_table(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 
 def pivot_to_aggregate(
-    dataframe, values=None, index_list=None, column_list=None, aggfunc_list=None
+    dataframe, values=None,
+    index_list=None,
+    column_list=None,
+    aggfunc_list=None,
 ):
     """Use 'pivot_table' function to aggregate data.
 
@@ -1479,7 +1509,11 @@ def group_by_columns_mean_std(dataframe, by_column_list, column_list):
     return dataframe_groups
 
 
-def calculate_mahalanobis_distance(var: np.ndarray, data: pd.DataFrame, cov=None):
+def calculate_mahalanobis_distance(
+    var: np.ndarray,
+    data: pd.DataFrame,
+    cov=None,
+):
     """Compute the Mahalanobis Distance between each row of x and the data.
 
     Args:
@@ -1544,8 +1578,11 @@ def apply_mahalanobis_test(
     # Create a copy to enable row dropping within the loop instead of
     # overwriting the 'original' (here, reduced) dataframe
     mahalanobis_dataframe = dataframe.copy()
-    mahalanobis_dataframe["mahalanobis_score"] = calculate_mahalanobis_distance(
-        var=mahalanobis_dataframe, data=mahalanobis_dataframe
+    mahalanobis_dataframe["mahalanobis_score"] = (
+        calculate_mahalanobis_distance(
+            var=mahalanobis_dataframe,
+            data=mahalanobis_dataframe,
+        )
     )
 
     # Get the critical value for the test
@@ -1573,7 +1610,8 @@ def apply_mahalanobis_test(
 
 
 def remove_mahalanobis_outliers(
-    mahalanobis_dataframe: pd.DataFrame, mahalanobis_outlier_dataframe: pd.DataFrame
+    mahalanobis_dataframe: pd.DataFrame,
+    mahalanobis_outlier_dataframe: pd.DataFrame,
 ) -> pd.DataFrame:
     """Drop the outliers from the 'mahalanobis_dataframe'.
 
@@ -1645,7 +1683,10 @@ def concatenate_outliers_with_target_category_dataframe(
     return outlier_dataframe
 
 
-def get_iqr_outliers(dataframe: pd.DataFrame, column_name: str) -> pd.DataFrame:
+def get_iqr_outliers(
+    dataframe: pd.DataFrame,
+    column_name: str,
+) -> pd.DataFrame:
     """Get IQR (Inter Quantile Range) outliers for a column in the dataframe.
 
     Args:
@@ -1706,8 +1747,9 @@ def get_zscore_outliers(
     z_score = np.abs(zscore(a=dataframe[column_name]))
 
     # Find outliers based on Z-score threshold value
-    zscore_outlier_dataframe = dataframe[z_score >
-                                         zscore_threshold][column_name]
+    zscore_outlier_dataframe = (
+        dataframe[z_score > zscore_threshold][column_name]
+    )
 
     # Calculate the ratio of outliers
     zscore_outlier_ratio = len(zscore_outlier_dataframe) / len(dataframe)
@@ -1761,7 +1803,9 @@ def get_mad_outliers(
 
 
 def detect_univariate_outliers(
-    dataframe: pd.DataFrame, target_category_list: List[str], output_directory: Path
+    dataframe: pd.DataFrame,
+    target_category_list: List[str],
+    output_directory: Path,
 ) -> pd.DataFrame:
     """Detect outliers using several methods: IQR, Z-score and MAD.
 
@@ -1808,7 +1852,9 @@ def detect_univariate_outliers(
 
 
 def detect_multivariate_outliers(
-    dataframe: pd.DataFrame, target_category_list: List[str], output_directory: Path
+    dataframe: pd.DataFrame,
+    target_category_list: List[str],
+    output_directory: Path,
 ) -> Tuple[pd.DataFrame]:
     """detect_multivariate_outliers _summary_.
 
@@ -2014,8 +2060,11 @@ def explain_pca_variance(
     variance_explained_cumulated = np.cumsum(
         pca_model.explained_variance_ratio_) * 100
     variance_explained_df = pd.DataFrame(
-        data=[pca_eigen_values, variance_explained,
-              variance_explained_cumulated],
+        data=[
+            pca_eigen_values,
+            variance_explained,
+            variance_explained_cumulated,
+        ],
         columns=pca_components,
     ).rename(
         index={
@@ -2117,7 +2166,8 @@ def run_pc_analysis(
     # Keep the PC axes that correspond to AT LEAST 95% of the cumulated
     # explained variance
     best_pc_axis_names, best_pc_axis_values = find_best_pc_axes(
-        variance_explained_df=variance_explained_df, percent_cut_off_threshold=95
+        variance_explained_df=variance_explained_df,
+        percent_cut_off_threshold=95,
     )
 
     # Subset the PCA dataframe to include ONLY the best PC axes
@@ -2147,8 +2197,13 @@ def run_pc_analysis(
         color="blue",
         linestyle="--",
     )
-    plt.text(x=0.05, y=96, s="95% Cut-off Threshold",
-             color="blue", fontsize=12)
+    plt.text(
+        x=0.05,
+        y=96,
+        s="95% Cut-off Threshold",
+        color="blue",
+        fontsize=12,
+    )
     plt.title(label="Scree Plot PCA", fontsize=16)
     plt.ylabel("Percentage of Variance Explained")
     save_figure(file_name="pca_scree_plot", output_directory=output_directory)
@@ -2378,7 +2433,8 @@ def run_anova_test(
 
     # Fit the OLS model
     ols_model = ols(
-        formula=f"{dependent_variable} ~ C({independent_variable})", data=dataframe
+        formula=f"{dependent_variable} ~ C({independent_variable})",
+        data=dataframe,
     ).fit()
 
     # Display ANOVA table
@@ -2601,7 +2657,9 @@ def check_equal_variance_assumption_residuals(
     print("Equal Variance of Data Between Groups:")
     if levene.iloc[0]["equal_var"] is False:
         print(
-            f"Data do NOT have equal variance between {group_variable} groups.")
+            f"Data do NOT have equal variance between "
+            f"{group_variable} groups."
+        )
     else:
         print(f"Data have equal variance between {group_variable} groups.\n")
     return equal_variance_tests
@@ -2821,8 +2879,9 @@ def draw_all_pca_pairs_scatterplot(
         # Select the PC axes from the main explained variance dataframe
         variance_dataframe = variance_dataframe.loc[pair_list]
         # Extract the variance values
-        variance_list = [variance for pc,
-                         variance in variance_dataframe.iteritems()]
+        variance_list = [
+            variance for pc, variance in variance_dataframe.iteritems()
+        ]
 
         plt.figure(figsize=(15, 10))
         pca_scatter_plot = draw_scatterplot(
@@ -3020,7 +3079,8 @@ def draw_kde_plots(dataframe, columns, label):
     num_rows, num_cols = 4, 4
     fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 12))
     fig.suptitle(
-        f"Distribution of {label.title()} Features (with Skewness)", fontsize=20
+        f"Distribution of {label.title()} Features (with Skewness)",
+        fontsize=20,
     )
 
     for index, column in enumerate(dataframe[columns].columns):
@@ -3189,7 +3249,10 @@ def draw_barplot_subplots(
             fontsize=16,
         ),
         axis.set_xticklabels(
-            labels=barplot_subplots.get_xticklabels(), size=14, rotation=45, ha="right"
+            labels=barplot_subplots.get_xticklabels(),
+            size=14,
+            rotation=45,
+            ha="right",
         ),
         axis.set_xlabel(""),
         axis.set_ylabel(ylabel=y_label, fontsize=18)
@@ -3460,7 +3523,10 @@ def draw_pair_plot(dataframe, hue=None):
     plt.show()
 
 
-def draw_qqplot(dataframe: pd.DataFrame, confidence_interval: float = 0.95) -> None:
+def draw_qqplot(
+    dataframe: pd.DataFrame,
+    confidence_interval: float = 0.95,
+) -> None:
     """Draw the Q-Q plot using the residuals of fitted model, for example.
 
     The parameter 'data' can take a 1D-array (e.g. model output) or a
@@ -3474,8 +3540,11 @@ def draw_qqplot(dataframe: pd.DataFrame, confidence_interval: float = 0.95) -> N
         _type_: _description_
     """
     plt.figure()
-    qqplot = pg.qqplot(x=dataframe, dist="norm",
-                       confidence=confidence_interval)
+    qqplot = pg.qqplot(
+        x=dataframe,
+        dist="norm",
+        confidence=confidence_interval,
+    )
     return qqplot
 
 
@@ -3779,7 +3848,8 @@ def draw_pca_biplot_3d(
             aspectmode="data",
         ),
         title=dict(
-            text="Table of parameter effects on defect detection", font=dict(size=24)
+            text="Table of parameter effects on defect detection",
+            font=dict(size=24),
         ),
     )
 
@@ -4028,7 +4098,9 @@ def show_items_per_category(
     ax.set(xlabel="Number of items", ylabel=category_name)
     plt.title(
         label=(
-            f"Number of items for each class of the category '{category_name}'"),
+            f"Number of items for each class of the category "
+            f"'{category_name}'"
+        ),
         fontsize=16,
         loc="center",
     )
@@ -4210,7 +4282,9 @@ def remove_features_with_nans(
     return reduced_dataframe
 
 
-def remove_features_with_nans_transformer(nan_threshold: float) -> FunctionTransformer:
+def remove_features_with_nans_transformer(
+    nan_threshold: float
+) -> FunctionTransformer:
     """Create a transformer to remove features with a high proportion of NaNs.
 
     Args:
@@ -4285,7 +4359,8 @@ def drop_feature_pipeline(
             "Drop Columns",
             DropFeatures(
                 features_to_drop=[
-                    feature for feature in features if feature not in features_to_keep
+                    feature for feature in features
+                    if feature not in features_to_keep
                 ]
             ),
         ),
@@ -4306,7 +4381,10 @@ def drop_feature_pipeline(
 
     if variance_threshold is not None:
         steps.append(
-            ("drop_low_variance", VarianceThreshold(threshold=variance_threshold))
+            (
+                "drop_low_variance",
+                VarianceThreshold(threshold=variance_threshold)
+            )
         )
 
     drop_feature_pipe = Pipeline(steps=steps, verbose=True)
@@ -4348,7 +4426,8 @@ def get_dropped_features_from_pipeline(
 
     # Get a list of correlated features
     correlated_features = list(
-        pipeline.named_steps["Drop Correlated Features"].correlated_feature_sets_
+        pipeline.named_steps["Drop Correlated Features"]
+        .correlated_feature_sets_
     )
     print(f"\nFeatures Correlated:\n{correlated_features}\n", sep="\n")
 
@@ -4381,6 +4460,7 @@ def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
         "standard_scaler": StandardScaler(),
         "min_max_scaler": MinMaxScaler(),
         "robust_scaler": RobustScaler(),
+        "power_transform": PowerTransform(),
     }
     scaler_class = scaler_dictionary.get(scaler)
 
@@ -4429,7 +4509,10 @@ def preprocess_categorical_feature_pipeline(encoder: str) -> Pipeline:
                     fill_value="missing",
                 ),
             ),
-            ("encoder", encoder_class),
+            (
+                "encoder",
+                encoder_class,
+            ),
         ],
         verbose=True,
     )
@@ -4603,8 +4686,9 @@ def get_transformed_feature_pipeline(
     feature_names_from_pipe = pipeline[:-1].get_feature_names_out().tolist()
 
     # Similarly, we can extract the preprocessed (transformed) array data
-    transformed_features_from_pipeline = pipeline[:-
-                                                  1].fit_transform(features_data)
+    transformed_features_from_pipeline = (
+        pipeline[:-1].fit_transform(features_data)
+    )
     # Convert the array into a dataframe
     preprocessed_df = pd.DataFrame(
         data=transformed_features_from_pipeline,
@@ -4633,8 +4717,10 @@ def join_parallel_pipelines(
         FeatureUnion: _description_
     """
     union_transformer = FeatureUnion(
-        transformer_list=[("Pipeline #1", pipeline_one),
-                          ("Pipeline #2", pipeline_two)],
+        transformer_list=[
+            ("Pipeline #1", pipeline_one),
+            ("Pipeline #2", pipeline_two),
+        ],
         n_jobs=-1,
         verbose=True,
     )
@@ -5114,7 +5200,8 @@ def draw_decision_tree(
         filled=True,
     )
     plt.title(
-        label="Decision Tree for the Identification of Target Categories", fontsize=20
+        label="Decision Tree for the Identification of Target Categories",
+        fontsize=20,
     )
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
@@ -5150,7 +5237,9 @@ def draw_random_forest_tree(
         plottype="vertical",
     )
     plt.title(
-        label=("Random Forest Tree for the Identification of Target Categories"),
+        label=(
+            "Random Forest Tree for the Identification of Target Categories"
+        ),
         fontsize=16,
     )
     plt.tight_layout()
@@ -5387,22 +5476,32 @@ def get_best_parameters_ensemble(
             "rank_test_score",
             "param_Transform Features__Numeric Features__scaler",
             "param_Resampler",
+
             f"param_{model['model_name']}__voting",
-            # f"param_{model['model_name']}__Decision Tree Classifier__criterion",
-            # f"param_{model['model_name']}__Decision Tree Classifier__max_depth",
-            # f"param_{model['model_name']}__Decision Tree \
-            #     Classifier__min_samples_leaf",
-            # f"param_{model['model_name']}__Gaussian Naive Bayes__var_smoothing",
-            # f"param_{model['model_name']}__Linear Discriminant Analysis__solver",
-            f"param_{model['model_name']}__Random Forest Classifier__max_depth",
+
+            # f"param_{model['model_name']}__Decision Tree "
+            # f"Classifier__criterion",
+            # f"param_{model['model_name']}__Decision Tree "
+            # f"Classifier__max_depth",
+            # f"param_{model['model_name']}__Decision Tree "
+            # f"Classifier__min_samples_leaf",
+            # f"param_{model['model_name']}__Gaussian Naive "
+            # f"Bayes__var_smoothing",
+            # f"param_{model['model_name']}__Linear Discriminant "
+            # f"Analysis__solver",
+
+            f"param_{model['model_name']}__Random Forest "
+            f"Classifier__max_depth",
             f"param_{model['model_name']}__Random Forest "
             f"Classifier__max_leaf_nodes",
             f"param_{model['model_name']}__Random Forest "
             f"Classifier__min_samples_leaf",
             f"param_{model['model_name']}__Random Forest "
             f"Classifier__min_samples_split",
-            f"param_{model['model_name']}__Random Forest Classifier__n_estimators",
-            f"param_{model['model_name']}__Support Vector Machine Classifier__C",
+            f"param_{model['model_name']}__Random Forest "
+            f"Classifier__n_estimators",
+            f"param_{model['model_name']}__Support Vector Machine "
+            f"Classifier__C",
             f"param_{model['model_name']}__Support Vector Machine "
             f"Classifier__gamma",
             f"param_{model['model_name']}__Support Vector Machine "
@@ -5414,8 +5513,10 @@ def get_best_parameters_ensemble(
     ].head(5)
 
     # Set the column 'mean_test_score' to a percentage with one decimal
-    cv_results_best_5["mean_test_score"] = cv_results_best_5["mean_test_score"].apply(
-        lambda percent: f"{percent:.1%}"
+    cv_results_best_5["mean_test_score"] = (
+        cv_results_best_5["mean_test_score"].apply(
+            lambda percent: f"{percent:.1%}"
+        )
     )
     print("\nTable of Top 5 Best Models:")
     print(cv_results_best_5)
@@ -5470,11 +5571,29 @@ def random_search_cv_optimisation_ensemble(
             SVMSMOTE(random_state=42),
         ],
         f"{model['model_name']}__voting": ["soft", "hard"],
-        # f"{model['model_name']}__Gaussian Naive Bayes__var_smoothing": \
-        # [0, 1e-9, 0.01, 0.1, 0.2, 0.5, 1],
-        # f"{model['model_name']}__Linear Discriminant Analysis__solver": \
-        # ["svd", "lsqr", "eigen"],
-        f"{model['model_name']}__Random Forest Classifier__max_depth": [2, 3, 5, 7, 10],
+
+        # f"{model['model_name']}__Gaussian Naive Bayes__var_smoothing": [
+        #     0,
+        #     1e-9,
+        #     0.01,
+        #     0.1,
+        #     0.2,
+        #     0.5,
+        #     1,
+        # ],
+        # f"{model['model_name']}__Linear Discriminant Analysis__solver": [
+        #     "svd",
+        #     "lsqr",
+        #     "eigen",
+        # ],
+
+        f"{model['model_name']}__Random Forest Classifier__max_depth": [
+            2,
+            3,
+            5,
+            7,
+            10,
+        ],
         f"{model['model_name']}__Random Forest Classifier__max_leaf_nodes": [
             2,
             5,
@@ -5488,7 +5607,8 @@ def random_search_cv_optimisation_ensemble(
             7,
             10,
         ],
-        f"{model['model_name']}__Random Forest Classifier__min_samples_split": [
+        f"{model['model_name']}__Random Forest "
+        f"Classifier__min_samples_split": [
             2,
             5,
             7,
@@ -5526,16 +5646,35 @@ def random_search_cv_optimisation_ensemble(
             0.2,
             0.3,
         ],
-        f"{model['model_name']}__XGBoost Classifier__max_depth": [2, 5, 10, 15],
+        f"{model['model_name']}__XGBoost Classifier__max_depth": [
+            2,
+            5,
+            10,
+            15,
+        ],
         f"{model['model_name']}__XGBoost Classifier__gamma": [0, 1, 2, 5, 10],
-        # f"{model['model_name']}__XGBoost Classifier__min_child_weight": \
-        # [10, 15, 20, 25],
-        # f"{model['model_name']}__XGBoost Classifier__colsample_bytree": \
-        # [0.8, 0.9, 1],
-        # f"{model['model_name']}__XGBoost Classifier__n_estimators": \
-        # [300, 400, 500, 600],
-        # f"{model['model_name']}__XGBoost Classifier__reg_alpha": \
-        # [0.5, 0.2, 1],
+        # f"{model['model_name']}__XGBoost Classifier__min_child_weight": [
+        #     10,
+        #     15,
+        #     20,
+        #     25,
+        # ],
+        # f"{model['model_name']}__XGBoost Classifier__colsample_bytree": [
+        #     0.8,
+        #     0.9,
+        #     1,
+        # ],
+        # f"{model['model_name']}__XGBoost Classifier__n_estimators": [
+        #     300,
+        #     400,
+        #     500,
+        #     600,
+        # ],
+        # f"{model['model_name']}__XGBoost Classifier__reg_alpha": [
+        #     0.5,
+        #     0.2,
+        #     1,
+        # ],
         # f"{model['model_name']}__XGBoost Classifier__reg_lambda": [2, 3, 5],
     }
 
@@ -5603,7 +5742,7 @@ def bayes_search_cv_optimisation(
         ],
         f"{model['model_name']}__num_leaves": space.Integer(20, 200),
         f"{model['model_name']}__min_data_in_leaf": space.Integer(20, 50),
-        # f"{model['model_name']}__boosting_type": ['gbdt',  'dart',  'rf'],
+        # f"{model['model_name']}__boosting_type": ["gbdt",  "dart",  "rf"],
         f"{model['model_name']}__learning_rate": space.Real(
             0.005, 1, prior="log-uniform"
         ),
