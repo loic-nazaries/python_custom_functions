@@ -512,7 +512,8 @@ def save_pickle_file(
     Returns:
         None. Saves the dataframe as a pickle file.
     """
-    dataframe.to_pickle(path=output_directory.joinpath(f"{file_name}.pkl"), protocol=-1)
+    dataframe.to_pickle(path=output_directory.joinpath(
+        f"{file_name}.pkl"), protocol=-1)
 
 
 def save_console_output(file_name: str) -> None:
@@ -1196,6 +1197,26 @@ def prepare_scaled_features_encoded_target(
     )
 
 
+def format_dataframe_index(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Format the dataframe index column.
+
+    It removes the underscore between the words of a variable and replaces
+    them by space. Then, the first letter of a word is capitalised.
+
+    Args:
+        dataframe (pd.DataFrame): Input dataframe.
+
+    Returns:
+        pd.DataFrame: Dataframe with formatted index column.
+    """
+    dataframe_index = dataframe.index.to_list()
+    dataframe_index_formatted = [
+        index.replace("_", " ").title() for index in dataframe_index
+    ]
+    dataframe.index = dataframe_index_formatted
+    return dataframe
+
+
 # -----------------------------------------------------------------------------
 
 # EXPLORATORY DATA ANALYSIS
@@ -1206,14 +1227,15 @@ def run_exploratory_data_analysis(
     file_name: str,
     output_directory: Path,
 ) -> pd.DataFrame:
-    """Print out the summary descriptive statistics from the dataset.
+    """Run exploratory data analysis on a DataFrame and save the results.
 
     Also includes a missing table summary.
 
     Args:
-        dataframe (pd.DataFrame): Input dataset.
-        file_name (str): File name.
-        output_directory (Path): Save directory.
+        dataframe (pd.DataFrame): The input DataFrame.
+        file_name (str): The name of the output file.
+        output_directory (Path): The directory where the output file will be
+            saved.
 
     Returns:
         pd.DataFrame: Table with summary statistics.
@@ -1221,35 +1243,55 @@ def run_exploratory_data_analysis(
     print(
         f"\nData Shape: {dataframe.shape}\n",
         f"\nData Types:\n{dataframe.dtypes}\n",
-        # f"\nData Preview:\n{dataframe.sample(n=10)}\n",
-        f"\nList of DataFrame Columns:\n{dataframe.columns.to_list()}\n",
+        f"\nData Preview:\n{dataframe.sample(n=5)}\n",
     )
-    # Select "all" value in 'include' parameter to include non numeric data
-    # in the EDA
-    summary_stats = dataframe.describe(include="all").T
 
-    # Percent of variance (standard deviation actually) compared to mean value
-    pct_variation = (dataframe.std() / dataframe.mean() * 100).rename("pct_var")
+    # Numeric features statistics
+    (
+        numeric_features,
+        numeric_feature_list,
+        numeric_summary_stats
+    ) = get_numeric_features(dataframe)
 
-    # Calculate mean absolute deviation (MAD)
-    mad = dataframe.mad().rename("mad")
+    # Percent of variation of standard deviation compared to mean value
+    pct_variation = (
+        numeric_features.std() / numeric_features.mean() * 100
+    ).rename("pct_var")
 
-    # Kurtosis
-    kurtosis = dataframe.kurt().rename("kurt")
-
-    # Skewness
-    skewness = dataframe.skew().rename("skew")
+    # Calculate mean absolute deviation (MAD) and other statistics
+    # Apply 'mean_absolute_deviation()' function to each column using 'apply()'
+    mad = numeric_features.apply(
+        calculate_mean_absolute_deviation).rename("mad")
+    kurtosis = numeric_features.kurt().rename("kurt")
+    skewness = numeric_features.skew().rename("skew")
 
     # Concatenate the metrics into a dataframe
     metrics_list = [
-        summary_stats,
+        numeric_summary_stats,
         pct_variation,
         mad,
         kurtosis,
         skewness,
     ]
     summary_stats_table = pd.concat(objs=metrics_list, sort=False, axis=1)
-    print(f"\nExploratory Data Analysis:\n{summary_stats_table}\n")
+
+    # Format the dataframe index column
+    summary_stats_table = format_dataframe_index(
+        dataframe=summary_stats_table)
+    print("\nSummary Statistics for Numeric Features:")
+    print(summary_stats_table)
+
+    # Categorical features statistics
+    (
+        categorical_features,
+        categorical_feature_list,
+        categorical_summary_stats
+    ) = get_categorical_features(dataframe)
+    # Format the dataframe index column
+    categorical_summary_stats = format_dataframe_index(
+        dataframe=categorical_summary_stats)
+    print("\nSummary Statistics for Categorical Features:")
+    print(categorical_summary_stats)
 
     # Save statistics summary to .csv file
     save_csv_file(
@@ -1257,56 +1299,29 @@ def run_exploratory_data_analysis(
         file_name=file_name,
         output_directory=output_directory,
     )
-    return summary_stats_table
+    return (
+        numeric_features,
+        numeric_feature_list,
+        categorical_features,
+        categorical_feature_list
+    )
 
 
-# Trying to generate numeric and categorical subsets
-def run_exploratory_data_analysis_nums_cats(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """Print out the summary descriptive statistics from the dataset.
-
-    Also includes a missing table summary.
+def calculate_mean_absolute_deviation(
+    data: pd.Series | List[float],
+) -> pd.Series | List[float]:
+    """Calculate the mean absolute deviation(MAD) of a given dataset.
 
     Args:
-        dataframe (_type_): _description_
+        data (pd.Series | List[float]): The input dataset as a 1-dimensional
+            array or list.
 
     Returns:
-        _type_: _description_
-
-    TODO Include the 'mode' function to analyse the existence of a bimodal
-    distribution within the transmissivity variables.
+        pd.Series | List[float]: Mean absolute deviation (MAD) of the dataset.
     """
-    print(
-        f"\nData Shape: {dataframe.shape}\n",
-        f"\nData Types:\n{dataframe.dtypes}\n",
-        # f"\nData Preview:\n{dataframe.sample(n=10)}\n",
-        f"\nList of DataFrame Columns:\n{dataframe.columns.to_list()}\n",
-    )
-    # Select "all" value in 'include' parameter to include non numeric data
-    # in the EDA
-    summary_stats_nums = (
-        dataframe.select_dtypes(include="number").describe(include="all").T
-    )
-
-    # Percent of variance (standard deviation actually) compared to mean value
-    pct_variation = (dataframe.std() / dataframe.mean() * 100).rename("pct_var")
-    # Calculate mean absolute deviation (MAD)
-    mad = dataframe.mad().rename("mad")
-    # Kurtosis
-    kurtosis = dataframe.kurt().rename("kurt")
-    # Skewness
-    skewness = dataframe.skew().rename("skew")
-
-    dataframe_list = [
-        summary_stats_nums,
-        # mode,
-        pct_variation,
-        mad,
-        kurtosis,
-        skewness,
-    ]
-    summary_stats_nums_table = pd.concat(objs=dataframe_list, sort=False, axis=1)
-    print(f"\nExploratory Data Analysis:\n{summary_stats_nums_table}\n")
-    return summary_stats_nums_table
+    median = np.median(data)
+    mad = sm.robust.scale.mad(data - median)
+    return mad
 
 
 def produce_sweetviz_eda_report(
@@ -1326,7 +1341,8 @@ def produce_sweetviz_eda_report(
         None. Produces an '.html' file of the main steps of the EDA.
     """
     print("\nPreparing SweetViz Report:\n")
-    sweetviz_eda_report = sv.analyze(source=dataframe, pairwise_analysis="auto")
+    sweetviz_eda_report = sv.analyze(
+        source=dataframe, pairwise_analysis="auto")
     sweetviz_eda_report.show_html(
         filepath=output_directory.joinpath(f"{eda_report_name}.html"),
         open_browser=True,
@@ -1394,11 +1410,14 @@ def get_missing_values_table(dataframe: pd.DataFrame) -> pd.DataFrame:
     """
     # Produce a heatmap of missing values
     nan_table = dataframe.stb.missing(
-        clip_0=True,
-        # # BUG Below NOT working
-        # style=True
+        clip_0=True,  # when False, display variables with missing values only
+        # style=True  # bug when the dataframe does NOT have missing values
     )
-    print(f"\nPercentage of Missing Values:\n{nan_table}\n")
+    if nan_table.empty:
+        print("\nThere are no missing values.\n")
+    else:
+        print("\nPercentage of Missing Values:")
+        print(nan_table)
     return nan_table
 
 
@@ -1613,7 +1632,8 @@ def concatenate_outliers_with_target_category_dataframe(
         on="file_name",
         how="right",
     )
-    print(f"\nTable of outliers for {feature} based on {outlier_method} values:")
+    print(
+        f"\nTable of outliers for {feature} based on {outlier_method} values:")
     print(outlier_dataframe)
 
     # Save output as a '.csv()' file
@@ -1650,7 +1670,8 @@ def get_iqr_outliers(dataframe: pd.DataFrame, column_name: str) -> pd.DataFrame:
 
     # Find outliers based on upper and lower limit values
     iqr_outlier_dataframe = dataframe[
-        (dataframe[column_name] > upper_limit) | (dataframe[column_name] < lower_limit)
+        (dataframe[column_name] > upper_limit) | (
+            dataframe[column_name] < lower_limit)
     ][column_name]
 
     # Calculate the ratio of outliers
@@ -1685,7 +1706,8 @@ def get_zscore_outliers(
     z_score = np.abs(zscore(a=dataframe[column_name]))
 
     # Find outliers based on Z-score threshold value
-    zscore_outlier_dataframe = dataframe[z_score > zscore_threshold][column_name]
+    zscore_outlier_dataframe = dataframe[z_score >
+                                         zscore_threshold][column_name]
 
     # Calculate the ratio of outliers
     zscore_outlier_ratio = len(zscore_outlier_dataframe) / len(dataframe)
@@ -1857,7 +1879,8 @@ def standardise_features(features: pd.DataFrame) -> pd.DataFrame:
     features_scaled = scaler.fit_transform(features)
 
     # Convert the Numpy array to a Pandas dataframe
-    features_scaled = pd.DataFrame(data=features_scaled, columns=features.columns)
+    features_scaled = pd.DataFrame(
+        data=features_scaled, columns=features.columns)
     return features_scaled
 
 
@@ -1988,9 +2011,11 @@ def explain_pca_variance(
         Tuple[pd.DataFrame]: _description_
     """
     variance_explained = pca_model.explained_variance_ratio_ * 100
-    variance_explained_cumulated = np.cumsum(pca_model.explained_variance_ratio_) * 100
+    variance_explained_cumulated = np.cumsum(
+        pca_model.explained_variance_ratio_) * 100
     variance_explained_df = pd.DataFrame(
-        data=[pca_eigen_values, variance_explained, variance_explained_cumulated],
+        data=[pca_eigen_values, variance_explained,
+              variance_explained_cumulated],
         columns=pca_components,
     ).rename(
         index={
@@ -2046,7 +2071,8 @@ def run_pc_analysis(
         Tuple[pd.DataFrame | np.ndarray], List[str]: _description_
     """
     # Select only the numeric input variables, i.e. not mahalanobis variables
-    numeric_feature_list = features.select_dtypes(include="number").columns.to_list()
+    numeric_feature_list = features.select_dtypes(
+        include="number").columns.to_list()
     print(f"\nSelected (Numeric) Features for PCA:\n{numeric_feature_list}\n")
 
     # Scale features data
@@ -2121,7 +2147,8 @@ def run_pc_analysis(
         color="blue",
         linestyle="--",
     )
-    plt.text(x=0.05, y=96, s="95% Cut-off Threshold", color="blue", fontsize=12)
+    plt.text(x=0.05, y=96, s="95% Cut-off Threshold",
+             color="blue", fontsize=12)
     plt.title(label="Scree Plot PCA", fontsize=16)
     plt.ylabel("Percentage of Variance Explained")
     save_figure(file_name="pca_scree_plot", output_directory=output_directory)
@@ -2141,7 +2168,8 @@ def run_pc_analysis(
         fontsize=16,
         loc="center",
     )
-    save_figure(file_name="pca_loading_table", output_directory=output_directory)
+    save_figure(file_name="pca_loading_table",
+                output_directory=output_directory)
 
     return (
         pca_model,
@@ -2231,7 +2259,8 @@ def get_outliers_from_pca(
         dataframe=pca_results["outliers"],
         filter_content="y_bool == True",
     )
-    print(f"\nList of Outliers using Hotellings T2:\n{outliers_ht2_filtered}\n")
+    print(
+        f"\nList of Outliers using Hotellings T2:\n{outliers_ht2_filtered}\n")
 
     # outlier_ht2_category_count = outliers_ht2.value_counts()
     # print(
@@ -2358,7 +2387,8 @@ def run_anova_test(
 
     # Build confidence interval
     ci_table_target_categories = rp.summary_cont(
-        group1=dataframe[dependent_variable].groupby(dataframe[group_variable]),
+        group1=dataframe[dependent_variable].groupby(
+            dataframe[group_variable]),
         conf=confidence_interval,
     )
     print("One-way ANOVA and confidence intervals:")
@@ -2486,7 +2516,8 @@ def check_normality_assumption_residuals(
         objs=[shapiro_wilk, normality, jarque_bera],
         axis=0,
     )
-    normality_tests.rename(columns={"W": "Statistic", "pval": "p-value"}, inplace=True)
+    normality_tests.rename(
+        columns={"W": "Statistic", "pval": "p-value"}, inplace=True)
     print(f"\nNormality Tests Results:\n{normality_tests}\n")
 
     # # BUG Below NOT working
@@ -2569,7 +2600,8 @@ def check_equal_variance_assumption_residuals(
     # BUG It does not the difference between 'if' and 'else' output
     print("Equal Variance of Data Between Groups:")
     if levene.iloc[0]["equal_var"] is False:
-        print(f"Data do NOT have equal variance between {group_variable} groups.")
+        print(
+            f"Data do NOT have equal variance between {group_variable} groups.")
     else:
         print(f"Data have equal variance between {group_variable} groups.\n")
     return equal_variance_tests
@@ -2588,7 +2620,8 @@ def run_tukey_post_hoc_test(dataframe, dependent_variable, group_list):
     Returns:
         _type_: _description_
     """
-    tukey = pg.pairwise_tukey(data=dataframe, dv=dependent_variable, between=group_list)
+    tukey = pg.pairwise_tukey(
+        data=dataframe, dv=dependent_variable, between=group_list)
     return tukey
 
 
@@ -2788,7 +2821,8 @@ def draw_all_pca_pairs_scatterplot(
         # Select the PC axes from the main explained variance dataframe
         variance_dataframe = variance_dataframe.loc[pair_list]
         # Extract the variance values
-        variance_list = [variance for pc, variance in variance_dataframe.iteritems()]
+        variance_list = [variance for pc,
+                         variance in variance_dataframe.iteritems()]
 
         plt.figure(figsize=(15, 10))
         pca_scatter_plot = draw_scatterplot(
@@ -2851,7 +2885,8 @@ def draw_heatmap(data, xticklabels, yticklabels):
         cbar_kws={"orientation": "vertical", "shrink": 0.8},
         cmap="YlGnBu",
     )
-    heatmap.set_xticklabels(labels=heatmap.get_xticklabels(), rotation=45, ha="right")
+    heatmap.set_xticklabels(
+        labels=heatmap.get_xticklabels(), rotation=45, ha="right")
     return heatmap
 
 
@@ -3246,7 +3281,8 @@ def draw_correlation_heatmap(
         size=12,
     )
 
-    correlation_heatmap.set_yticklabels(labels=y_labels, rotation="horizontal", size=12)
+    correlation_heatmap.set_yticklabels(
+        labels=y_labels, rotation="horizontal", size=12)
     correlation_heatmap.tick_params(left=True, bottom=True)
     plt.title("Correlation Matrix Heatmap", fontsize=20)
     plt.tight_layout()
@@ -3438,7 +3474,8 @@ def draw_qqplot(dataframe: pd.DataFrame, confidence_interval: float = 0.95) -> N
         _type_: _description_
     """
     plt.figure()
-    qqplot = pg.qqplot(x=dataframe, dist="norm", confidence=confidence_interval)
+    qqplot = pg.qqplot(x=dataframe, dist="norm",
+                       confidence=confidence_interval)
     return qqplot
 
 
@@ -3510,7 +3547,8 @@ def draw_tukeys_hsd_plot(
     tukey_result.plot_simultaneous(
         ylabel="Target Categories", xlabel="Score Difference"
     )
-    plt.suptitle(t=f"Tukey's HSD Post-hoc Test on {dependent_variable}", fontsize=14)
+    plt.suptitle(
+        t=f"Tukey's HSD Post-hoc Test on {dependent_variable}", fontsize=14)
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
@@ -3839,10 +3877,12 @@ def draw_pca_biplot(
             xy=mean,
             width=2
             * np.sqrt(cov[0, 0])
-            * stats.t.ppf(q=(1 + confidence_interval) / 2, df=pca_class.shape[0] - 1),
+            * stats.t.ppf(q=(1 + confidence_interval) /
+                          2, df=pca_class.shape[0] - 1),
             height=2
             * np.sqrt(cov[1, 1])
-            * stats.t.ppf(q=(1 + confidence_interval) / 2, df=pca_class.shape[0] - 1),
+            * stats.t.ppf(q=(1 + confidence_interval) /
+                          2, df=pca_class.shape[0] - 1),
         )
         width, height = ellipse.get_width(), ellipse.get_height()
 
@@ -3900,10 +3940,12 @@ def add_confidence_interval_ellipses(
             xy=mean,
             width=2
             * np.sqrt(cov[0, 0])
-            * stats.t.ppf(q=(1 + confidence_interval) / 2, df=pca_class.shape[0] - 1),
+            * stats.t.ppf(q=(1 + confidence_interval) /
+                          2, df=pca_class.shape[0] - 1),
             height=2
             * np.sqrt(cov[1, 1])
-            * stats.t.ppf(q=(1 + confidence_interval) / 2, df=pca_class.shape[0] - 1),
+            * stats.t.ppf(q=(1 + confidence_interval) /
+                          2, df=pca_class.shape[0] - 1),
         )
         width, height = ellipse.get_width(), ellipse.get_height()
         # print(width, height)
@@ -3985,13 +4027,15 @@ def show_items_per_category(
     ax = data_class_count.sort_values().plot.barh()
     ax.set(xlabel="Number of items", ylabel=category_name)
     plt.title(
-        label=(f"Number of items for each class of the category '{category_name}'"),
+        label=(
+            f"Number of items for each class of the category '{category_name}'"),
         fontsize=16,
         loc="center",
     )
     # plt.axis("off")
     plt.tight_layout()
-    save_figure(file_name="item_count_barchart", output_directory=OUTPUT_DIR_FIGURES)
+    save_figure(file_name="item_count_barchart",
+                output_directory=OUTPUT_DIR_FIGURES)
     plt.show()
 
 
@@ -4559,7 +4603,8 @@ def get_transformed_feature_pipeline(
     feature_names_from_pipe = pipeline[:-1].get_feature_names_out().tolist()
 
     # Similarly, we can extract the preprocessed (transformed) array data
-    transformed_features_from_pipeline = pipeline[:-1].fit_transform(features_data)
+    transformed_features_from_pipeline = pipeline[:-
+                                                  1].fit_transform(features_data)
     # Convert the array into a dataframe
     preprocessed_df = pd.DataFrame(
         data=transformed_features_from_pipeline,
@@ -4588,7 +4633,8 @@ def join_parallel_pipelines(
         FeatureUnion: _description_
     """
     union_transformer = FeatureUnion(
-        transformer_list=[("Pipeline #1", pipeline_one), ("Pipeline #2", pipeline_two)],
+        transformer_list=[("Pipeline #1", pipeline_one),
+                          ("Pipeline #2", pipeline_two)],
         n_jobs=-1,
         verbose=True,
     )
@@ -4860,7 +4906,8 @@ def calculate_cross_validation_prediction_scores(
 
     # Apply each scoring method 'score' to a loop & append output to dictionary
     for score in score_list:
-        score_name = score.__name__.replace("_", " ").replace("score", "").title()
+        score_name = score.__name__.replace(
+            "_", " ").replace("score", "").title()
         score_aggregation = score(
             y_true=target,
             y_pred=target_pred_cv,
@@ -4957,7 +5004,8 @@ def show_tree_classifier_feature_importances(
     # in the source dataset
     tree_classification_feat_importance = tree_classifier.feature_importances_
     # Sort the INDEX of classification feature importance scores in desc. order
-    tree_classification_indices = np.argsort(tree_classification_feat_importance)[::-1]
+    tree_classification_indices = np.argsort(
+        tree_classification_feat_importance)[::-1]
     # Reorder classification importance scores according to the previous step
     reordered_feat_importance = [
         tree_classification_feat_importance[index]
@@ -4978,12 +5026,14 @@ def show_tree_classifier_feature_importances(
     print("\nImportance of Features in Tree Classification:")
     print(tree_classification_importances)
 
-    tree_classifiers_train_score = tree_classifier.score(features_train, target_train)
+    tree_classifiers_train_score = tree_classifier.score(
+        features_train, target_train)
     print(
         f"\nDecision Tree Mean Accuracy Score for Train Set = "
         f"{tree_classifiers_train_score:.1%}\n"
     )
-    tree_classifiers_test_score = tree_classifier.score(features_test, target_test)
+    tree_classifiers_test_score = tree_classifier.score(
+        features_test, target_test)
     print(
         f"\nDecision Tree Mean Accuracy Score for Test Set = "
         f"{tree_classifiers_test_score:.1%}\n"
