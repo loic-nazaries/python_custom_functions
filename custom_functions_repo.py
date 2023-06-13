@@ -15,6 +15,7 @@ Content Sections:
     - DATA MODELLING (MACHINE LEARNING)
 """
 import re
+
 # Call the libraries required
 # import glob
 import sys
@@ -29,12 +30,14 @@ from typing import Dict, List, Optional, Tuple
 import colourmap as colourmap
 import docx
 import dtale
+
 # from matplotlib.colors import ListedColormap
 from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
 import missingno as msno
 import numpy as np
 from numpy import array, array_equal, load
+
 # import openpyxl
 import pandas as pd
 from pca import pca
@@ -48,12 +51,15 @@ from scipy.spatial.distance import mahalanobis
 import seaborn as sns
 import sidetable as stb
 import statsmodels.api as sm
+
 # import statsmodels.stats.multicomp as mc
 import sweetviz as sv
 from yellowbrick.features import PCA as yb_pca, Rank1D
+
 # from yellowbrick.cluster import InterclusterDistance
 # Sampling
 from fast_ml.model_development import train_valid_test_split
+
 # Handle constant/duplicates and missing features/columns
 from feature_engine.selection import (
     DropConstantFeatures,
@@ -75,17 +81,20 @@ from pyod.models.mad import MAD
 from scipy.io import loadmat
 from scipy.stats import chi2, zscore
 from scipy import stats
+
 # Assemble pipeline(s)
 from sklearn import set_config
 from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector as selector
 from sklearn.decomposition import PCA
+
 # from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.feature_selection import (
     # RFECV,
-    VarianceThreshold
+    VarianceThreshold,
 )
 from sklearn.impute import SimpleImputer
+
 # from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     # accuracy_score,
@@ -97,7 +106,7 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     roc_auc_score,
-    roc_curve
+    roc_curve,
 )
 from sklearn.model_selection import (
     # GridSearchCV,
@@ -108,7 +117,7 @@ from sklearn.model_selection import (
     # StratifiedShuffleSplit,
     cross_val_predict,
     cross_val_score,
-    train_test_split
+    train_test_split,
 )
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.preprocessing import (
@@ -117,13 +126,11 @@ from sklearn.preprocessing import (
     MinMaxScaler,
     OneHotEncoder,
     OrdinalEncoder,
+    PowerTransform,
     RobustScaler,
-    StandardScaler
+    StandardScaler,
 )
-from sklearn.tree import (
-    DecisionTreeClassifier,
-    plot_tree
-)
+from sklearn.tree import DecisionTreeClassifier, plot_tree
 from skopt import BayesSearchCV, space
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
@@ -174,6 +181,7 @@ def timing(func):
     Args:
         func ([type]): [description]
     """
+
     def wrapper(*args, **kwargs):
         # Do something before calling the function
         start_time = time.time()
@@ -185,6 +193,7 @@ def timing(func):
             f"seconds to run.\n"
         )
         return result
+
     return wrapper
 
 
@@ -194,8 +203,7 @@ def timing(func):
 
 
 def ask_user_outlier_removal(
-        dataframe_with_outliers: pd.DataFrame,
-        dataframe_no_outliers: pd.DataFrame
+    dataframe_with_outliers: pd.DataFrame, dataframe_no_outliers: pd.DataFrame
 ) -> pd.DataFrame:
     """Let the user choose whether to bypass outlier removal.
 
@@ -246,8 +254,7 @@ def get_folder_name_list_from_directory(directory_name: Path) -> List[str]:
 
 
 def get_file_name_list_from_extension(
-    directory_name: Path,
-    extension: str
+    directory_name: Path, extension: str
 ) -> List[str]:
     """Get the list of file (name) from a directory.
 
@@ -263,10 +270,7 @@ def get_file_name_list_from_extension(
     return file_name_list
 
 
-def load_pickle_file(
-    file_name: str,
-    input_directory: Path
-) -> pd.DataFrame:
+def load_pickle_file(file_name: str, input_directory: Path) -> pd.DataFrame:
     """Load a pickle file into a dataframe.
 
     Args:
@@ -343,10 +347,8 @@ def load_csv_file(
         pd.DataFrame: DataFrame containing the data from the input CSV file.
     """
     dataframe = pd.read_csv(
-        filepath_or_buffer=(
-            input_directory.joinpath(f"{file_name}.csv")
-        ),
-        encoding="utf-8"
+        filepath_or_buffer=(input_directory.joinpath(f"{file_name}.csv")),
+        encoding="utf-8",
     )
     if index_col is not None:
         dataframe.set_index(keys=index_col, inplace=True)
@@ -395,7 +397,7 @@ def save_excel_file(
     dataframe.to_excel(
         excel_writer=output_directory.joinpath(f"{file_name}.xlsx"),
         index=False,
-        sheet_name="Sheet1"
+        sheet_name="Sheet1",
     )
     return None
 
@@ -440,16 +442,13 @@ def save_figure(file_name: str, output_directory: Path) -> None:
     plt.savefig(
         fname=output_directory.joinpath(f"{file_name}.png"),
         bbox_inches="tight",
-        dpi=300
+        dpi=300,
     )
     return None
 
 
 def save_image_show(
-    image: np.ndarray,
-    image_title: str,
-    file_name: str,
-    output_directory: Path
+    image: np.ndarray, image_title: str, file_name: str, output_directory: Path
 ):
     """save_image_show _summary_.
 
@@ -464,7 +463,9 @@ def save_image_show(
     """
     image = plt.imshow(
         X=image,
-        cmap="Greens", vmin=0, vmax=1,
+        cmap="Greens",
+        vmin=0,
+        vmax=1,
         # cmap='prism', vmin=0, vmax=255,
     )
     # # Testing the 'matshow()' function
@@ -495,10 +496,7 @@ def save_npz_file(
         output_directory (Path): _description_
         data_array (np.ndarray): _description_
     """
-    np.savez(
-        file=output_directory.joinpath(f"{file_name}"),
-        data=data_array
-    )
+    np.savez(file=output_directory.joinpath(f"{file_name}"), data=data_array)
 
 
 def save_pickle_file(
@@ -515,10 +513,8 @@ def save_pickle_file(
     Returns:
         None. Saves the dataframe as a pickle file.
     """
-    dataframe.to_pickle(
-        path=output_directory.joinpath(f"{file_name}.pkl"),
-        protocol=-1
-    )
+    dataframe.to_pickle(path=output_directory.joinpath(
+        f"{file_name}.pkl"), protocol=-1)
 
 
 def save_console_output(file_name: str) -> None:
@@ -547,10 +543,7 @@ def save_console_output(file_name: str) -> None:
     print("The console output was saved.")
 
 
-def convert_text_file_to_docx(
-    file_name: str,
-    output_directory: Path
-) -> None:
+def convert_text_file_to_docx(file_name: str, output_directory: Path) -> None:
     """convert_text_to_docx _summary_.
 
     Args:
@@ -561,7 +554,7 @@ def convert_text_file_to_docx(
     with open(
         file=output_directory.joinpath(f"{file_name}.txt"),
         mode="r",
-        encoding="utf-8"
+        encoding="utf-8",
     ) as output_file:
         # output_text = output_file.read()  # works fine
         output_text = Path(output_file).read_text(...)  # to be tested
@@ -575,10 +568,7 @@ def convert_text_file_to_docx(
     print("The console output was converted to a MS Word document file.")
 
 
-def convert_text_file_to_pdf(
-    file_name: str,
-    output_directory: Path
-) -> None:
+def convert_text_file_to_pdf(file_name: str, output_directory: Path) -> None:
     """convert_text_file_to_pdf _summary_.
 
     Args:
@@ -589,15 +579,13 @@ def convert_text_file_to_pdf(
     with open(
         file=output_directory.joinpath(f"{file_name}.txt"),
         mode="r",
-        encoding="utf-8"
+        encoding="utf-8",
     ) as output_file:
         # output_text = output_file.read()  # works fine
         output_text = Path(output_file).read_text(...)  # to be tested
 
     # Create a new PDF file
-    pdf_file = canvas.Canvas(
-        filename=f"{file_name}.pdf"
-    )
+    pdf_file = canvas.Canvas(filename=f"{file_name}.pdf")
     pdf_file = canvas.Canvas(
         filename=f"{output_directory}/{file_name}.pdf"
         # filename=output_directory.joinpath(file_name + ".pdf")  # BUG
@@ -654,8 +642,7 @@ def convert_npz_to_mat(input_directory: Path) -> None:
 
 
 def remove_key_from_dictionary(
-    dictionary: dict,  # check dict content type
-    key_name: str
+    dictionary: dict, key_name: str  # check dict content type
 ) -> dict:  # check dict content type
     """Delete a key and its content from a dictionary.
 
@@ -724,8 +711,7 @@ def extract_pattern_from_file_name_2(file_name):
 
 
 def convert_dataframe_to_array(
-    dataframe: pd.DataFrame,
-    column_name: str
+    dataframe: pd.DataFrame, column_name: str
 ) -> np.ndarray:
     """Convert dataframe to array.
 
@@ -790,15 +776,13 @@ def convert_dictionary_to_dataframe(dictionary_file: Dict) -> pd.DataFrame:
         pd.DataFrame: Dataframe representing the data in the input dictionary.
     """
     dataframe = pd.DataFrame(
-        data=dictionary_file,
-        index=[list(range(len(dictionary_file)))]
+        data=dictionary_file, index=[list(range(len(dictionary_file)))]
     )
     return dataframe
 
 
 def convert_to_datetime_type(
-    dataframe: pd.DataFrame,
-    datetime_variable_list: List[str | datetime]
+    dataframe: pd.DataFrame, datetime_variable_list: List[str | datetime]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to datetime type.
 
@@ -818,8 +802,7 @@ def convert_to_datetime_type(
 
 
 def convert_to_category_type(
-    dataframe: pd.DataFrame,
-    category_variable_list: List[str]
+    dataframe: pd.DataFrame, category_variable_list: List[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to category type.
 
@@ -839,8 +822,7 @@ def convert_to_category_type(
 
 
 def convert_to_number_type(
-    dataframe: pd.DataFrame,
-    numeric_variable_list: List[str]
+    dataframe: pd.DataFrame, numeric_variable_list: List[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to numeric type.
 
@@ -853,15 +835,14 @@ def convert_to_number_type(
         pd.DataFrame: The DataFrame with specified columns converted to
             number type.
     """
-    dataframe[numeric_variable_list] = (
-        dataframe[numeric_variable_list].astype(dtype="number")
+    dataframe[numeric_variable_list] = dataframe[numeric_variable_list].astype(
+        dtype="number"
     )
     return dataframe
 
 
 def convert_to_integer_type(
-    dataframe: pd.DataFrame,
-    integer_variable_list: List[str]
+    dataframe: pd.DataFrame, integer_variable_list: List[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to integer type.
 
@@ -874,15 +855,14 @@ def convert_to_integer_type(
         pd.DataFrame: The DataFrame with specified columns converted to
             integer type.
     """
-    dataframe[integer_variable_list] = (
-        dataframe[integer_variable_list].astype(dtype="int")
+    dataframe[integer_variable_list] = dataframe[integer_variable_list].astype(
+        dtype="int"
     )
     return dataframe
 
 
 def convert_to_float_type(
-    dataframe: pd.DataFrame,
-    float_variable_list: List[str]
+    dataframe: pd.DataFrame, float_variable_list: List[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to float type.
 
@@ -895,15 +875,14 @@ def convert_to_float_type(
         pd.DataFrame: The DataFrame with specified columns converted to
             float type.
     """
-    dataframe[float_variable_list] = (
-        dataframe[float_variable_list].astype(dtype="float")
+    dataframe[float_variable_list] = dataframe[float_variable_list].astype(
+        dtype="float"
     )
     return dataframe
 
 
 def convert_to_string_type(
-    dataframe: pd.DataFrame,
-    string_variable_list: List[str]
+    dataframe: pd.DataFrame, string_variable_list: List[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to string type.
 
@@ -916,8 +895,8 @@ def convert_to_string_type(
         pd.DataFrame: The DataFrame with specified columns converted to
             string type.
     """
-    dataframe[string_variable_list] = (
-        dataframe[string_variable_list].astype(dtype="string")
+    dataframe[string_variable_list] = dataframe[string_variable_list].astype(
+        dtype="string"
     )
     return dataframe
 
@@ -929,7 +908,7 @@ def convert_variables_to_proper_type(
     numeric_variable_list: Optional[List[str]] = None,
     integer_variable_list: Optional[List[str]] = None,
     float_variable_list: Optional[List[str]] = None,
-    string_variable_list: Optional[List[str]] = None
+    string_variable_list: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """Convert variables in a Pandas DataFrame to their proper data type.
 
@@ -964,24 +943,31 @@ def convert_variables_to_proper_type(
     if string_variable_list is None:
         string_variable_list = []
 
-    processed_dataframe_pipe = dataframe.pipe(
-        func=convert_to_datetime_type,
-        datetime_variable_list=datetime_variable_list
-    ).pipe(
-        func=convert_to_category_type,
-        category_variable_list=category_variable_list
-    ).pipe(
-        func=convert_to_number_type,
-        numeric_variable_list=numeric_variable_list
-    ).pipe(
-        func=convert_to_integer_type,
-        integer_variable_list=integer_variable_list
-    ).pipe(
-        func=convert_to_float_type,
-        float_variable_list=float_variable_list
-    ).pipe(
-        func=convert_to_string_type,
-        string_variable_list=string_variable_list
+    processed_dataframe_pipe = (
+        dataframe.pipe(
+            func=convert_to_datetime_type,
+            datetime_variable_list=datetime_variable_list,
+        )
+        .pipe(
+            func=convert_to_category_type,
+            category_variable_list=category_variable_list,
+        )
+        .pipe(
+            func=convert_to_number_type,
+            numeric_variable_list=numeric_variable_list,
+        )
+        .pipe(
+            func=convert_to_integer_type,
+            integer_variable_list=integer_variable_list,
+        )
+        .pipe(
+            func=convert_to_float_type,
+            float_variable_list=float_variable_list,
+        )
+        .pipe(
+            func=convert_to_string_type,
+            string_variable_list=string_variable_list,
+        )
     )
     return processed_dataframe_pipe
 
@@ -1026,8 +1012,7 @@ def remove_column_based_on_list(
         _type_: _description_
     """
     column_list_reduced = [
-        column for column in column_list
-        if column not in column_to_remove
+        column for column in column_list if column not in column_to_remove
     ]
     return column_list_reduced
 
@@ -1059,15 +1044,12 @@ def remove_duplicated_rows(dataframe: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: DataFrame with all duplicated rows removed.
     """
     # Drop all duplicated rows and reset the index
-    dataframe = (
-        dataframe.drop_duplicates().reset_index(drop=True)
-    )
+    dataframe = dataframe.drop_duplicates().reset_index(drop=True)
     return dataframe
 
 
 def drop_column(
-    dataframe: pd.DataFrame,
-    column_list: List[str]
+    dataframe: pd.DataFrame, column_list: List[str]
 ) -> pd.DataFrame:
     """Drop columns from the dataframe.
 
@@ -1086,9 +1068,9 @@ def drop_column(
 
 
 def drop_row_by_value(
-        dataframe: pd.DataFrame,
-        column_name: str,
-        value: str | int | float,  # to be checked
+    dataframe: pd.DataFrame,
+    column_name: str,
+    value: str | int | float,  # to be checked
 ) -> pd.DataFrame:
     """Drop rows from a column in the dataframe.
 
@@ -1122,15 +1104,12 @@ def filter_dataframe(
 
     # Apply the filter
     filtered_dataframe = dataframe.query(filter_content)
-    print(
-        f"Filtered Cluster Dataset Shape:\n{filtered_dataframe.shape}\n"
-    )
+    print(f"Filtered Cluster Dataset Shape:\n{filtered_dataframe.shape}\n")
     return filtered_dataframe
 
 
 def get_list_of_unique_values(
-        dataframe: pd.DataFrame,
-        column_name: str
+    dataframe: pd.DataFrame, column_name: str
 ) -> List[str | int | float]:  # to be checked
     """Get a list of unique values from a dataframe.
 
@@ -1182,7 +1161,9 @@ def get_categorical_features(dataframe):
     # Select categorical variables ONLY and make a list
     categorical_features = dataframe.select_dtypes(include="category")
     categorical_feature_list = categorical_features.columns.to_list()
-    # print(f"\nList of Categorical Features:\n{categorical_features_list}\n")
+    print(f"\nList of Categorical Features:\n{categorical_feature_list}\n")
+    print(f"\nSummary Statistics:\n{categorical_features.describe()}\n")
+    return categorical_features, categorical_feature_list
 
     # Create a dataframe of summary statistics
     summary_stats = categorical_features.describe().T
@@ -1190,8 +1171,7 @@ def get_categorical_features(dataframe):
 
 
 def get_dictionary_key(
-    dictionary: Dict[int, str],
-    target_key_string: str
+    dictionary: Dict[int, str], target_key_string: str
 ) -> int:
     """Get the key (as an integer) from the dictionary based on its values.
 
@@ -1225,8 +1205,7 @@ def get_missing_columns(dataframe: pd.DataFrame) -> pd.DataFrame | pd.Series:
 
 
 def prepare_scaled_features_encoded_target(
-    dataframe: pd.DataFrame,
-    target_name: str
+    dataframe: pd.DataFrame, target_name: str
 ) -> Tuple[pd.DataFrame, np.ndarray, List[str]]:
     """Define feature and target dataframes for modelling.
 
@@ -1241,8 +1220,7 @@ def prepare_scaled_features_encoded_target(
     features_scaled = standardise_features(features=features)
     target = dataframe[target_name]
     target_encoded, target_class_list = target_label_encoder(
-        dataframe=dataframe,
-        target_name=target
+        dataframe=dataframe, target_name=target
     )
     return (
         features,
@@ -1250,6 +1228,26 @@ def prepare_scaled_features_encoded_target(
         target_encoded,
         target_class_list,
     )
+
+
+def format_dataframe_index(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Format the dataframe index column.
+
+    It removes the underscore between the words of a variable and replaces
+    them by space. Then, the first letter of a word is capitalised.
+
+    Args:
+        dataframe (pd.DataFrame): Input dataframe.
+
+    Returns:
+        pd.DataFrame: Dataframe with formatted index column.
+    """
+    dataframe_index = dataframe.index.to_list()
+    dataframe_index_formatted = [
+        index.replace("_", " ").title() for index in dataframe_index
+    ]
+    dataframe.index = dataframe_index_formatted
+    return dataframe
 
 
 # -----------------------------------------------------------------------------
@@ -1262,14 +1260,15 @@ def run_exploratory_data_analysis(
     file_name: str,
     output_directory: Path,
 ) -> pd.DataFrame:
-    """Print out the summary descriptive statistics from the dataset.
+    """Run exploratory data analysis on a DataFrame and save the results.
 
     Also includes a missing table summary.
 
     Args:
-        dataframe (pd.DataFrame): Input dataset.
-        file_name (str): File name.
-        output_directory (Path): Save directory.
+        dataframe (pd.DataFrame): The input DataFrame.
+        file_name (str): The name of the output file.
+        output_directory (Path): The directory where the output file will be
+            saved.
 
     Returns:
         pd.DataFrame: Table with summary statistics.
@@ -1277,41 +1276,55 @@ def run_exploratory_data_analysis(
     print(
         f"\nData Shape: {dataframe.shape}\n",
         f"\nData Types:\n{dataframe.dtypes}\n",
-        # f"\nData Preview:\n{dataframe.sample(n=10)}\n",
-        f"\nList of DataFrame Columns:\n{dataframe.columns.to_list()}\n",
+        f"\nData Preview:\n{dataframe.sample(n=5)}\n",
     )
-    # Select "all" value in 'include' parameter to include non numeric data
-    # in the EDA
-    summary_stats = dataframe.describe(include="all").T
 
-    # Percent of variance (standard deviation actually) compared to mean value
+    # Numeric features statistics
+    (
+        numeric_features,
+        numeric_feature_list,
+        numeric_summary_stats
+    ) = get_numeric_features(dataframe)
+
+    # Percent of variation of standard deviation compared to mean value
     pct_variation = (
-        dataframe.std() / dataframe.mean() * 100
+        numeric_features.std() / numeric_features.mean() * 100
     ).rename("pct_var")
 
-    # Calculate mean absolute deviation (MAD)
-    mad = dataframe.mad().rename("mad")
-
-    # Kurtosis
-    kurtosis = dataframe.kurt().rename("kurt")
-
-    # Skewness
-    skewness = dataframe.skew().rename("skew")
+    # Calculate mean absolute deviation (MAD) and other statistics
+    # Apply 'mean_absolute_deviation()' function to each column using 'apply()'
+    mad = numeric_features.apply(
+        calculate_mean_absolute_deviation).rename("mad")
+    kurtosis = numeric_features.kurt().rename("kurt")
+    skewness = numeric_features.skew().rename("skew")
 
     # Concatenate the metrics into a dataframe
     metrics_list = [
-        summary_stats,
+        numeric_summary_stats,
         pct_variation,
         mad,
         kurtosis,
         skewness,
     ]
-    summary_stats_table = pd.concat(
-        objs=metrics_list,
-        sort=False,
-        axis=1
-    )
-    print(f"\nExploratory Data Analysis:\n{summary_stats_table}\n")
+    summary_stats_table = pd.concat(objs=metrics_list, sort=False, axis=1)
+
+    # Format the dataframe index column
+    summary_stats_table = format_dataframe_index(
+        dataframe=summary_stats_table)
+    print("\nSummary Statistics for Numeric Features:")
+    print(summary_stats_table)
+
+    # Categorical features statistics
+    (
+        categorical_features,
+        categorical_feature_list,
+        categorical_summary_stats
+    ) = get_categorical_features(dataframe)
+    # Format the dataframe index column
+    categorical_summary_stats = format_dataframe_index(
+        dataframe=categorical_summary_stats)
+    print("\nSummary Statistics for Categorical Features:")
+    print(categorical_summary_stats)
 
     # Save statistics summary to .csv file
     save_csv_file(
@@ -1319,70 +1332,33 @@ def run_exploratory_data_analysis(
         file_name=file_name,
         output_directory=output_directory,
     )
-    return summary_stats_table
+    return (
+        numeric_features,
+        numeric_feature_list,
+        categorical_features,
+        categorical_feature_list
+    )
 
 
-# Trying to generate numeric and categorical subsets
-def run_exploratory_data_analysis_nums_cats(
-    dataframe: pd.DataFrame
-) -> pd.DataFrame:
-    """Print out the summary descriptive statistics from the dataset.
-
-    Also includes a missing table summary.
+def calculate_mean_absolute_deviation(
+    data: pd.Series | List[float],
+) -> pd.Series | List[float]:
+    """Calculate the mean absolute deviation(MAD) of a given dataset.
 
     Args:
-        dataframe (_type_): _description_
+        data (pd.Series | List[float]): The input dataset as a 1-dimensional
+            array or list.
 
     Returns:
-        _type_: _description_
-
-    TODO Include the 'mode' function to analyse the existence of a bimodal
-    distribution within the transmissivity variables.
+        pd.Series | List[float]: Mean absolute deviation (MAD) of the dataset.
     """
-    print(
-        f"\nData Shape: {dataframe.shape}\n",
-        f"\nData Types:\n{dataframe.dtypes}\n",
-        # f"\nData Preview:\n{dataframe.sample(n=10)}\n",
-        f"\nList of DataFrame Columns:\n{dataframe.columns.to_list()}\n",
-    )
-    # Select "all" value in 'include' parameter to include non numeric data
-    # in the EDA
-    summary_stats_nums = dataframe.select_dtypes(
-        include="number"
-    ).describe(include="all").T
-
-    # Percent of variance (standard deviation actually) compared to mean value
-    pct_variation = (
-        dataframe.std() / dataframe.mean() * 100
-    ).rename("pct_var")
-    # Calculate mean absolute deviation (MAD)
-    mad = dataframe.mad().rename("mad")
-    # Kurtosis
-    kurtosis = dataframe.kurt().rename("kurt")
-    # Skewness
-    skewness = dataframe.skew().rename("skew")
-
-    dataframe_list = [
-        summary_stats_nums,
-        # mode,
-        pct_variation,
-        mad,
-        kurtosis,
-        skewness,
-    ]
-    summary_stats_nums_table = pd.concat(
-        objs=dataframe_list,
-        sort=False,
-        axis=1
-    )
-    print(f"\nExploratory Data Analysis:\n{summary_stats_nums_table}\n")
-    return summary_stats_nums_table
+    median = np.median(data)
+    mad = sm.robust.scale.mad(data - median)
+    return mad
 
 
 def produce_sweetviz_eda_report(
-    dataframe: pd.DataFrame,
-    eda_report_name: str,
-    output_directory: Path
+    dataframe: pd.DataFrame, eda_report_name: str, output_directory: Path
 ) -> None:
     """Generate an exploratory data analysis (EDA) report.
 
@@ -1399,9 +1375,7 @@ def produce_sweetviz_eda_report(
     """
     print("\nPreparing SweetViz Report:\n")
     sweetviz_eda_report = sv.analyze(
-        source=dataframe,
-        pairwise_analysis="auto"
-    )
+        source=dataframe, pairwise_analysis="auto")
     sweetviz_eda_report.show_html(
         filepath=output_directory.joinpath(f"{eda_report_name}.html"),
         open_browser=True,
@@ -1469,20 +1443,22 @@ def get_missing_values_table(dataframe: pd.DataFrame) -> pd.DataFrame:
     """
     # Produce a heatmap of missing values
     nan_table = dataframe.stb.missing(
-        clip_0=True,
-        # # BUG Below NOT working
-        # style=True
+        clip_0=True,  # when False, display variables with missing values only
+        # style=True  # bug when the dataframe does NOT have missing values
     )
-    print(f"\nPercentage of Missing Values:\n{nan_table}\n")
+    if nan_table.empty:
+        print("\nThere are no missing values.\n")
+    else:
+        print("\nPercentage of Missing Values:")
+        print(nan_table)
     return nan_table
 
 
 def pivot_to_aggregate(
-    dataframe,
-    values=None,
+    dataframe, values=None,
     index_list=None,
     column_list=None,
-    aggfunc_list=None
+    aggfunc_list=None,
 ):
     """Use 'pivot_table' function to aggregate data.
 
@@ -1502,7 +1478,7 @@ def pivot_to_aggregate(
         index=index_list,
         columns=column_list,
         fill_value="",
-        aggfunc=aggfunc_list
+        aggfunc=aggfunc_list,
     )
     return pivot_table
 
@@ -1518,19 +1494,23 @@ def group_by_columns_mean_std(dataframe, by_column_list, column_list):
     Returns:
         _type_: _description_
     """
-    dataframe_groups = dataframe.groupby(
-        by=by_column_list,
-        axis=0,
-        as_index=True,
-        sort=True,
-    ).agg(
-        mean=pd.NamedAgg(column=column_list, aggfunc="mean"),
-        std=pd.NamedAgg(column=column_list, aggfunc="std"),
-        # mad_intensity=("intensity", "mad"),  # NOT working
-    ).dropna(
-        axis=0,
-        how="any",
-        # inplace=True,
+    dataframe_groups = (
+        dataframe.groupby(
+            by=by_column_list,
+            axis=0,
+            as_index=True,
+            sort=True,
+        )
+        .agg(
+            mean=pd.NamedAgg(column=column_list, aggfunc="mean"),
+            std=pd.NamedAgg(column=column_list, aggfunc="std"),
+            # mad_intensity=("intensity", "mad"),  # NOT working
+        )
+        .dropna(
+            axis=0,
+            how="any",
+            # inplace=True,
+        )
     )  # Drop rows with NA values to focus on columns with defects
     return dataframe_groups
 
@@ -1538,7 +1518,7 @@ def group_by_columns_mean_std(dataframe, by_column_list, column_list):
 def calculate_mahalanobis_distance(
     var: np.ndarray,
     data: pd.DataFrame,
-    cov=None
+    cov=None,
 ):
     """Compute the Mahalanobis Distance between each row of x and the data.
 
@@ -1589,8 +1569,7 @@ def calculate_mahalanobis_distance_alt(dataframe: pd.DataFrame) -> List[float]:
 
 
 def apply_mahalanobis_test(
-    dataframe: pd.DataFrame,
-    alpha: float = 0.01
+    dataframe: pd.DataFrame, alpha: float = 0.01
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Apply the Mahalanobis test to identify outliers in the dataframe.
 
@@ -1608,14 +1587,13 @@ def apply_mahalanobis_test(
     mahalanobis_dataframe["mahalanobis_score"] = (
         calculate_mahalanobis_distance(
             var=mahalanobis_dataframe,
-            data=mahalanobis_dataframe
+            data=mahalanobis_dataframe,
         )
     )
 
     # Get the critical value for the test
     mahalanobis_test_critical_value = chi2.ppf(
-        (1-alpha),
-        df=len(mahalanobis_dataframe.columns) - 1
+        (1 - alpha), df=len(mahalanobis_dataframe.columns) - 1
     )
     print(
         f"\n\nMahalanobis Test Critical Value for alpha < {alpha}:"
@@ -1623,10 +1601,9 @@ def apply_mahalanobis_test(
     )
 
     # Get p-values from chi2 distribution
-    mahalanobis_dataframe["mahalanobis_p_value"] = (
-        1 - chi2.cdf(
-            mahalanobis_dataframe["mahalanobis_score"],
-            df=len(mahalanobis_dataframe.columns) - 1)
+    mahalanobis_dataframe["mahalanobis_p_value"] = 1 - chi2.cdf(
+        mahalanobis_dataframe["mahalanobis_score"],
+        df=len(mahalanobis_dataframe.columns) - 1,
     )
 
     # Select the rows below the alpha threshold
@@ -1640,7 +1617,7 @@ def apply_mahalanobis_test(
 
 def remove_mahalanobis_outliers(
     mahalanobis_dataframe: pd.DataFrame,
-    mahalanobis_outlier_dataframe: pd.DataFrame
+    mahalanobis_outlier_dataframe: pd.DataFrame,
 ) -> pd.DataFrame:
     """Drop the outliers from the 'mahalanobis_dataframe'.
 
@@ -1656,11 +1633,9 @@ def remove_mahalanobis_outliers(
 
     # Select rows of outliers using 'isin' based on 'mahalanobis_outlier_list'
     # Then, take opposite rows (as it would be 'notin') using '~' on the df
-    no_outlier_dataframe = (
-        mahalanobis_dataframe[
-            ~ mahalanobis_dataframe.index.isin(mahalanobis_outlier_list)
-        ]
-    )
+    no_outlier_dataframe = mahalanobis_dataframe[
+        ~mahalanobis_dataframe.index.isin(mahalanobis_outlier_list)
+    ]
 
     # Drop the mahalanobis column as not needed any more
     no_outlier_dataframe.drop(
@@ -1699,11 +1674,10 @@ def concatenate_outliers_with_target_category_dataframe(
         left=dataframe.loc[:, target_category_list],
         right=data_outliers,
         on="file_name",
-        how="right"
+        how="right",
     )
     print(
-        f"\nTable of outliers for {feature} based on {outlier_method} values:"
-    )
+        f"\nTable of outliers for {feature} based on {outlier_method} values:")
     print(outlier_dataframe)
 
     # Save output as a '.csv()' file
@@ -1717,9 +1691,9 @@ def concatenate_outliers_with_target_category_dataframe(
 
 def get_iqr_outliers(
     dataframe: pd.DataFrame,
-    column_name: str
+    column_name: str,
 ) -> pd.DataFrame:
-    """Get IQR (InterQuantile Range) outliers for a column in the dataframe.
+    """Get IQR (Inter Quantile Range) outliers for a column in the dataframe.
 
     Args:
         dataframe (pd.DataFrame): Input dataframe.
@@ -1732,10 +1706,7 @@ def get_iqr_outliers(
     print(f"\n{column_name.upper()}\n")
 
     # Calculate Q1, Q3
-    q_1, q_3 = np.percentile(
-        a=dataframe[column_name],
-        q=[25, 75]
-    )
+    q_1, q_3 = np.percentile(a=dataframe[column_name], q=[25, 75])
 
     # Calculate IQR, upper limit and lower limit
     iqr = q_3 - q_1
@@ -1745,12 +1716,10 @@ def get_iqr_outliers(
     print(f"Lower Limit of IQR = {lower_limit :.2f}")
 
     # Find outliers based on upper and lower limit values
-    iqr_outlier_dataframe = (
-        dataframe[
-            (dataframe[column_name] > upper_limit) |
-            (dataframe[column_name] < lower_limit)
-        ][column_name]
-    )
+    iqr_outlier_dataframe = dataframe[
+        (dataframe[column_name] > upper_limit) | (
+            dataframe[column_name] < lower_limit)
+    ][column_name]
 
     # Calculate the ratio of outliers
     iqr_outlier_ratio = len(iqr_outlier_dataframe) / len(dataframe)
@@ -1764,9 +1733,7 @@ def get_iqr_outliers(
 
 
 def get_zscore_outliers(
-    dataframe: pd.DataFrame,
-    column_name: str,
-    zscore_threshold: int = 3
+    dataframe: pd.DataFrame, column_name: str, zscore_threshold: int = 3
 ):
     """Get Z-score outliers for a specific column in the dataframe.
 
@@ -1844,7 +1811,7 @@ def get_mad_outliers(
 def detect_univariate_outliers(
     dataframe: pd.DataFrame,
     target_category_list: List[str],
-    output_directory: Path
+    output_directory: Path,
 ) -> pd.DataFrame:
     """Detect outliers using several methods: IQR, Z-score and MAD.
 
@@ -1864,13 +1831,13 @@ def detect_univariate_outliers(
     methods = [
         ("iqr", get_iqr_outliers),
         ("zscore", get_zscore_outliers),
-        ("mad", get_mad_outliers)
+        ("mad", get_mad_outliers),
     ]
 
     # Get list of numeric features
-    selected_numeric_feature_list = (
-        dataframe.select_dtypes(include=np.number).columns.to_list()
-    )
+    selected_numeric_feature_list = dataframe.select_dtypes(
+        include=np.number
+    ).columns.to_list()
 
     # Run 'concatenate_outliers_with_target_category_dataframe' function on all
     # methods
@@ -1883,7 +1850,7 @@ def detect_univariate_outliers(
                 data_outliers=outliers,
                 feature=feature,
                 outlier_method=method_name,
-                output_directory=output_directory
+                output_directory=output_directory,
             )
 
     # TODO Merge ALL outlier dataframes using only common file names (inner ?)
@@ -1893,7 +1860,7 @@ def detect_univariate_outliers(
 def detect_multivariate_outliers(
     dataframe: pd.DataFrame,
     target_category_list: List[str],
-    output_directory: Path
+    output_directory: Path,
 ) -> Tuple[pd.DataFrame]:
     """detect_multivariate_outliers _summary_.
 
@@ -1908,8 +1875,7 @@ def detect_multivariate_outliers(
     # MAHALANOBIS TEST
     # Perform Mahalanobis test and get outlier list
     mahalanobis_dataframe, mahalanobis_outliers = apply_mahalanobis_test(
-        dataframe.select_dtypes(include=np.number),
-        alpha=0.01
+        dataframe.select_dtypes(include=np.number), alpha=0.01
     )
 
     # Concatenate the outliers with their corresponding target categories
@@ -1917,7 +1883,7 @@ def detect_multivariate_outliers(
         left=dataframe.loc[:, target_category_list],
         right=mahalanobis_outliers,
         on="file_name",
-        how="right"
+        how="right",
     )
     print("\nTable of outliers based on Mahalanobis distance:")
     print(mahalanobis_outlier_dataframe)
@@ -1966,9 +1932,7 @@ def standardise_features(features: pd.DataFrame) -> pd.DataFrame:
 
     # Convert the Numpy array to a Pandas dataframe
     features_scaled = pd.DataFrame(
-        data=features_scaled,
-        columns=features.columns
-    )
+        data=features_scaled, columns=features.columns)
     return features_scaled
 
 
@@ -2021,7 +1985,8 @@ def identify_highly_correlated_features(
 
     # Find cols that meet the threshold
     features_to_drop = [
-        feature for feature in reduced_correlation_matrix.columns
+        feature
+        for feature in reduced_correlation_matrix.columns
         if any(reduced_correlation_matrix[feature] > correlation_threshold)
     ]
     print(
@@ -2057,8 +2022,7 @@ def get_pca_eigen_values_vectors(pca_model: PCA) -> Tuple[np.ndarray]:
 
 
 def apply_pca(
-    n_components: int | float,
-    features_scaled: pd.DataFrame | np.ndarray
+    n_components: int | float, features_scaled: pd.DataFrame | np.ndarray
 ) -> Tuple[PCA, np.ndarray]:
     """Run a Principal Component Analysis (PCA) on scaled data.
 
@@ -2086,9 +2050,7 @@ def apply_pca(
 
 
 def explain_pca_variance(
-    pca_eigen_values: np.ndarray,
-    pca_model: PCA,
-    pca_components: List[str]
+    pca_eigen_values: np.ndarray, pca_model: PCA, pca_components: List[str]
 ) -> Tuple[pd.DataFrame]:
     """explain_pca_variance _summary_.
 
@@ -2107,7 +2069,7 @@ def explain_pca_variance(
         data=[
             pca_eigen_values,
             variance_explained,
-            variance_explained_cumulated
+            variance_explained_cumulated,
         ],
         columns=pca_components,
     ).rename(
@@ -2134,10 +2096,10 @@ def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
     cumulative_values = variance_explained_df.loc["Cumulated Variance (%)", :]
 
     # Then, find the index of the last element in the array that is < 0.95
-    index = np.searchsorted(cumulative_values, 95, side='right')
+    index = np.searchsorted(cumulative_values, 95, side="right")
 
     # Include the first element that is >= 0.95
-    if cumulative_values[index-1] < 95:
+    if cumulative_values[index - 1] < 95:
         # Add 1 to include the first element greater than or equal to 0.95
         index += 1
 
@@ -2151,9 +2113,7 @@ def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
 
 
 def run_pc_analysis(
-    features: pd.DataFrame,
-    eda_report_name: str,
-    output_directory: Path
+    features: pd.DataFrame, eda_report_name: str, output_directory: Path
 ) -> Tuple[pd.DataFrame | np.ndarray, List[str]]:
     """run_pc_analysis _summary_.
 
@@ -2166,9 +2126,8 @@ def run_pc_analysis(
         Tuple[pd.DataFrame | np.ndarray], List[str]: _description_
     """
     # Select only the numeric input variables, i.e. not mahalanobis variables
-    numeric_feature_list = (
-        features.select_dtypes(include="number").columns.to_list()
-    )
+    numeric_feature_list = features.select_dtypes(
+        include="number").columns.to_list()
     print(f"\nSelected (Numeric) Features for PCA:\n{numeric_feature_list}\n")
 
     # Scale features data
@@ -2178,7 +2137,7 @@ def run_pc_analysis(
     pca_model, pca_array = apply_pca(
         # n_components=len(features_scaled.columns),
         n_components=0.95,  # set to keep PCs with cumulated variance of 95%
-        features_scaled=features_scaled
+        features_scaled=features_scaled,
     )
 
     # Get eigenvalues and eigenvectors
@@ -2196,17 +2155,16 @@ def run_pc_analysis(
     # Get PC axis labels and insert into the dataframe
     pca_components = [
         # f"pc{str(col + 1)}" for col in pca_dataframe.columns.to_list()
-        f"pc{col + 1}" for col in pca_dataframe.columns.to_list()  # to test
+        f"pc{col + 1}"
+        for col in pca_dataframe.columns.to_list()  # to test
     ]
     pca_dataframe.columns = pca_components
 
     # Calculate variance explained by PCA
-    variance_explained_df = (
-        explain_pca_variance(
-            pca_eigen_values=pca_eigen_values,
-            pca_model=pca_model,
-            pca_components=pca_components,
-        )
+    variance_explained_df = explain_pca_variance(
+        pca_eigen_values=pca_eigen_values,
+        pca_model=pca_model,
+        pca_components=pca_components,
     )
     # Set index as dataframe
     pca_dataframe = pca_dataframe.set_index(keys=[features.index])
@@ -2215,7 +2173,7 @@ def run_pc_analysis(
     # explained variance
     best_pc_axis_names, best_pc_axis_values = find_best_pc_axes(
         variance_explained_df=variance_explained_df,
-        percent_cut_off_threshold=95
+        percent_cut_off_threshold=95,
     )
 
     # Subset the PCA dataframe to include ONLY the best PC axes
@@ -2228,7 +2186,7 @@ def run_pc_analysis(
     produce_sweetviz_eda_report(
         dataframe=final_pca_df,
         eda_report_name=eda_report_name,
-        output_directory=output_directory
+        output_directory=output_directory,
     )
 
     # -------------------------------------------------------------------------
@@ -2250,7 +2208,7 @@ def run_pc_analysis(
         y=96,
         s="95% Cut-off Threshold",
         color="blue",
-        fontsize=12
+        fontsize=12,
     )
     plt.title(label="Scree Plot PCA", fontsize=16)
     plt.ylabel("Percentage of Variance Explained")
@@ -2269,11 +2227,10 @@ def run_pc_analysis(
     plt.title(
         label="Table of parameter effects on defect detection",
         fontsize=16,
-        loc="center"
+        loc="center",
     )
-    save_figure(
-        file_name="pca_loading_table", output_directory=output_directory
-    )
+    save_figure(file_name="pca_loading_table",
+                output_directory=output_directory)
 
     return (
         pca_model,
@@ -2364,8 +2321,7 @@ def get_outliers_from_pca(
         filter_content="y_bool == True",
     )
     print(
-        f"\nList of Outliers using Hotellings T2:\n{outliers_ht2_filtered}\n"
-    )
+        f"\nList of Outliers using Hotellings T2:\n{outliers_ht2_filtered}\n")
 
     # outlier_ht2_category_count = outliers_ht2.value_counts()
     # print(
@@ -2388,10 +2344,7 @@ def get_outliers_from_pca(
     # )
 
     # Grab overlapping outliers
-    overlapping_outliers = np.logical_and(
-        outliers_ht2,
-        outliers_spe
-    )
+    overlapping_outliers = np.logical_and(outliers_ht2, outliers_spe)
     pca_outlier_dataframe = dataframe.loc[overlapping_outliers, :]
     print(f"\nOverlapping Outliers:\n{pca_outlier_dataframe}\n")
     return pca_outlier_dataframe, pca_outlier_model
@@ -2430,9 +2383,7 @@ def run_anova_check_assumptions(
     # ---------------------------------------------------------------
 
     # Check assumptions of the model residuals are met
-    check_normality_assumption_residuals(
-        dataframe=anova_model.resid
-    )
+    check_normality_assumption_residuals(dataframe=anova_model.resid)
 
     check_equal_variance_assumption_residuals(
         dataframe=dataframe,
@@ -2489,7 +2440,7 @@ def run_anova_test(
     # Fit the OLS model
     ols_model = ols(
         formula=f"{dependent_variable} ~ C({independent_variable})",
-        data=dataframe
+        data=dataframe,
     ).fit()
 
     # Display ANOVA table
@@ -2499,9 +2450,8 @@ def run_anova_test(
     # Build confidence interval
     ci_table_target_categories = rp.summary_cont(
         group1=dataframe[dependent_variable].groupby(
-            dataframe[group_variable]
-        ),
-        conf=confidence_interval
+            dataframe[group_variable]),
+        conf=confidence_interval,
     )
     print("One-way ANOVA and confidence intervals:")
     print(ci_table_target_categories)
@@ -2515,7 +2465,7 @@ def run_anova_test(
     tukey_results = perform_multicomparison(
         dataframe=dataframe[dependent_variable],
         groups=dataframe[group_variable],
-        confidence_interval=confidence_interval
+        confidence_interval=confidence_interval,
     )
     return ols_model, tukey_results
 
@@ -2535,10 +2485,7 @@ def perform_multicomparison(
     Returns:
         _type_: _description_
     """
-    multicomparison = MultiComparison(
-        data=dataframe,
-        groups=groups
-    )
+    multicomparison = MultiComparison(data=dataframe, groups=groups)
     tukey_results = multicomparison.tukeyhsd(alpha=1 - confidence_interval)
     print(f"\nTukey's Multicomparison Test between groups:\n{tukey_results}\n")
     return tukey_results
@@ -2557,16 +2504,13 @@ def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
         _type_: _description_
     """
     # Run MANOVA test
-    manova_model = MANOVA.from_formula(
-        formula=formula,
-        data=dataframe
-    )
+    manova_model = MANOVA.from_formula(formula=formula, data=dataframe)
     manova_test = manova_model.mv_test()
     return manova_test
 
 
 def calculate_jarque_bera_values(
-    data: pd.Series | List[float]
+    data: pd.Series | List[float],
 ) -> pd.Series | List[float]:
     """Calculate Jarque-Bera values for kurtosis and skewness.
 
@@ -2581,18 +2525,10 @@ def calculate_jarque_bera_values(
         pd.DataFrame: DataFrame with 'jarque_bera' and 'jb_p_value' columns.
     """
     # Jarque-Bera (kurtosis and skewness together)
-    jarque_bera, jb_p_value = stats.jarque_bera(
-        x=data,
-        nan_policy="propagate"
-    )
-    jarque_bera_values = {
-        'jarque_bera': jarque_bera,
-        'jb_p_value': jb_p_value
-    }
+    jarque_bera, jb_p_value = stats.jarque_bera(x=data, nan_policy="propagate")
+    jarque_bera_values = {"jarque_bera": jarque_bera, "jb_p_value": jb_p_value}
     jarque_bera_df = pd.DataFrame.from_dict(
-        data=jarque_bera_values,
-        orient='index',
-        columns=['Value']
+        data=jarque_bera_values, orient="index", columns=["Value"]
     ).T
     print("\nJarque-Bera Test Results:")
     print(jarque_bera_df)
@@ -2621,22 +2557,26 @@ def check_normality_assumption_residuals(
     Returns:
         pd.DataFrame: DataFrame containing the results of the normality tests.
     """
-    # Set a dictionary of methods
-    test_methods = {
-        "Shapiro-Wilk": "shapiro",
-        "Normality": "normaltest",
-        "Jarque-Bera": "jarque_bera"
-    }
-    # Initialise the dictionary of results
-    test_results = {}
-    for test_name, test_method in test_methods.items():
-        test_result = pg.normality(
-            data=dataframe,
-            method=test_method,
-            alpha=(1 - confidence_interval)
-        )
-        test_result.rename(index={0: test_name}, inplace=True)
-        test_results[test_name] = test_result
+    shapiro_wilk = pg.normality(
+        data=dataframe,
+        method="shapiro",
+        alpha=(1 - confidence_interval)
+    )
+    shapiro_wilk.rename(index={0: "Shapiro-Wilk"}, inplace=True)
+
+    normality = pg.normality(
+        data=dataframe,
+        method="normaltest",
+        alpha=(1 - confidence_interval)
+    )
+    normality.rename(index={0: "Normality"}, inplace=True)
+
+    jarque_bera = pg.normality(
+        data=dataframe,
+        method="jarque_bera",
+        alpha=(1 - confidence_interval)
+    )
+    jarque_bera.rename(index={0: "Jarque-Bera"}, inplace=True)
 
     # Concatenate the tests output
     normality_tests = pd.concat(
@@ -2644,10 +2584,8 @@ def check_normality_assumption_residuals(
         axis=0,
     )
     normality_tests.rename(
-        columns={"W": "Statistic", "pval": "p-value"},
-        inplace=True
-    )
-    print(f"Normality Tests Results:\n{normality_tests}\n")
+        columns={"W": "Statistic", "pval": "p-value"}, inplace=True)
+    print(f"\nNormality Tests Results:\n{normality_tests}\n")
 
     # Print a message depending on the value ('True' or 'False') of the
     # 'jarque_bera' output
@@ -2715,6 +2653,19 @@ def check_equal_variance_assumption_residuals(
         )
         test_results[test_name] = test_result
 
+    levene = pg.homoscedasticity(
+        data=model_residuals_dataframe,
+        dv="residuals",
+        group=group_variable,
+        method="levene",
+        alpha=(1 - confidence_interval)
+    )
+    levene.rename(
+        index={"mean_intensities": "Levene's Test"},
+        columns={"W": "Statistic", "pval": "p-value", "normal": "Normal"},
+        inplace=True
+    )
+
     # Concatenate the tests output
     equal_variance_tests = pd.concat(
         objs=test_results.values(),
@@ -2735,8 +2686,7 @@ def check_equal_variance_assumption_residuals(
         print(f"Data have equal variance between {group_variable} groups.\n")
     else:
         print(
-            f"Data do NOT have equal variance between "
-            f"'{group_variable}' groups."
+            f"Data do NOT have equal variance between {group_variable} groups."
         )
     return equal_variance_tests
 
@@ -2755,16 +2705,12 @@ def run_tukey_post_hoc_test(dataframe, dependent_variable, group_list):
         _type_: _description_
     """
     tukey = pg.pairwise_tukey(
-        data=dataframe,
-        dv=dependent_variable,
-        between=group_list
-    )
+        data=dataframe, dv=dependent_variable, between=group_list)
     return tukey
 
 
 def perform_multicomparison_correction(
-    p_values,
-    method: str = "bonferroni"
+    p_values, method: str = "bonferroni"
 ) -> pd.DataFrame:
     """Apply the Bonferroni correction method to the p-values.
 
@@ -2778,18 +2724,14 @@ def perform_multicomparison_correction(
     Returns:
         _type_: _description_
     """
-    reject, p_values_corrected = pg.multicomp(
-        pvals=p_values,
-        method=method
-    )
+    reject, p_values_corrected = pg.multicomp(pvals=p_values, method=method)
     # Concatenate the two arrays together
     concatenate_arrays = np.column_stack((reject, p_values_corrected))
     concatenate_arrays.astype(dtype=np.bool)
 
     correction_dataframe = pd.DataFrame(concatenate_arrays)
     correction_dataframe.rename(
-        columns={0: "Reject Hypothesis", 1: "Corrected p-values"},
-        inplace=True
+        columns={0: "Reject Hypothesis", 1: "Corrected p-values"}, inplace=True
     )
     return correction_dataframe
 
@@ -2841,10 +2783,10 @@ def draw_scree_plot(x_axis, y_axis):
     scree_plot = sns.lineplot(
         x=x_axis,
         y=y_axis,
-        color='black',
-        linestyle='-',
+        color="black",
+        linestyle="-",
         linewidth=2,
-        marker='o',
+        marker="o",
         markersize=8,
     )
     return scree_plot
@@ -2863,10 +2805,10 @@ def draw_lineplot(x_axis, y_axis):
     lineplot = sns.lineplot(
         x=x_axis,
         y=y_axis,
-        color='black',
-        linestyle='-',
+        color="black",
+        linestyle="-",
         linewidth=2,
-        marker='o',
+        marker="o",
         markersize=8,
     )
     return lineplot
@@ -2919,7 +2861,7 @@ def draw_all_pca_pairs_scatterplot(
     pca_components: List[str],
     target_category: str,
     sub_category: str,
-    output_directory: Path
+    output_directory: Path,
 ) -> None:
     """Draw the scatter plots for all selected PC axes.
 
@@ -2977,7 +2919,7 @@ def draw_all_pca_pairs_scatterplot(
         )
         pca_scatter_plot.set(
             xlabel=f"{pc_x.upper()} ({variance_list[0]:.1f} %)",
-            ylabel=f"{pc_y.upper()} ({variance_list[1]:.1f} %)"
+            ylabel=f"{pc_y.upper()} ({variance_list[1]:.1f} %)",
         )
         plt.legend(
             title="Legend",
@@ -2985,7 +2927,7 @@ def draw_all_pca_pairs_scatterplot(
             loc="upper left",
             fontsize="10",
             frameon=False,
-            markerscale=2
+            markerscale=2,
         )
         plt.title(
             label=(
@@ -2993,12 +2935,12 @@ def draw_all_pca_pairs_scatterplot(
                 f"défauts {pc_x.upper()} vs. {pc_y.upper()}"
             ),
             fontsize=16,
-            loc="center"
+            loc="center",
         )
         plt.tight_layout()
         save_figure(
             file_name=f"scatterplot_pca_{target_category}_{pc_x}_vs_{pc_y}",
-            output_directory=output_directory
+            output_directory=output_directory,
         )
         # plt.show()
 
@@ -3025,17 +2967,11 @@ def draw_heatmap(data, xticklabels, yticklabels):
         square=True,
         linewidths=0.2,
         cbar=True,
-        cbar_kws={
-            "orientation": "vertical",
-            "shrink": .8
-        },
+        cbar_kws={"orientation": "vertical", "shrink": 0.8},
         cmap="YlGnBu",
     )
     heatmap.set_xticklabels(
-        labels=heatmap.get_xticklabels(),
-        rotation=45,
-        ha="right"
-    )
+        labels=heatmap.get_xticklabels(), rotation=45, ha="right")
     return heatmap
 
 
@@ -3112,7 +3048,7 @@ def draw_kdeplot_subplots(
 
     Returns:
         None: Returns a template to draw subplots. See function
-        'run_exploratory_data_visualisation' for an exemple.
+        'run_exploratory_data_visualisation' for an example.
     """
     plt.subplots_adjust(wspace=0.3, hspace=0.5)
 
@@ -3146,18 +3082,13 @@ def draw_kdeplot_subplots(
         ),
         axis.set_xlabel(
             # Split the feature name on '_' and capitalise each word
-            xlabel=(
-                ' '.join([word.capitalize() for word in feature.split('_')])
-            ),
-            fontsize=18
+            xlabel=(" ".join([word.title() for word in feature.split("_")])),
+            fontsize=18,
         )
-        axis.set_ylabel(
-            ylabel="Density",
-            fontsize=18
-        )
+        axis.set_ylabel(ylabel="Density", fontsize=18)
         # # BUG below NOT working
         # plt.legend(
-        #     title=' '.join([word.capitalize() for word in hue.split('_')])
+        #     title=' '.join([word.title() for word in hue.split('_')])
         # )
     return None
 
@@ -3174,8 +3105,8 @@ def draw_kde_plots(dataframe, columns, label):
     num_rows, num_cols = 4, 4
     fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 12))
     fig.suptitle(
-        f"Distribution of {label.capitalize()} Features (with Skewness)",
-        fontsize=20
+        f"Distribution of {label.title()} Features (with Skewness)",
+        fontsize=20,
     )
 
     for index, column in enumerate(dataframe[columns].columns):
@@ -3256,7 +3187,7 @@ def draw_barplot(
         hue=hue,
         errorbar=errorbar,
         orient=orient,
-        palette=palette
+        palette=palette,
     )
     return barplot
 
@@ -3308,7 +3239,7 @@ def draw_barplot_subplots(
 
     Returns:
         None: Returns a template to draw subplots. See function
-        'run_exploratory_data_visualisation' for an exemple.
+        'run_exploratory_data_visualisation' for an example.
     """
     plt.subplots_adjust(wspace=0.3, hspace=0.5)
 
@@ -3336,24 +3267,21 @@ def draw_barplot_subplots(
             hue=hue,
             errorbar=errorbar,
             orient=orient,
-            palette=palette
+            palette=palette,
         )
         axis.set_title(
             # Split the feature name on '_' and capitalise each word
-            label=' '.join([word.capitalize() for word in feature.split('_')]),
-            fontsize=16
+            label=" ".join([word.title() for word in feature.split("_")]),
+            fontsize=16,
         ),
         axis.set_xticklabels(
             labels=barplot_subplots.get_xticklabels(),
             size=14,
             rotation=45,
-            ha="right"
+            ha="right",
         ),
         axis.set_xlabel(""),
-        axis.set_ylabel(
-            ylabel=y_label,
-            fontsize=18
-        )
+        axis.set_ylabel(ylabel=y_label, fontsize=18)
     return None
 
 
@@ -3368,7 +3296,7 @@ def draw_bar_plots(dataframe, columns, label):
     """
     num_rows, num_cols = 3, 4
     fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(12, 12))
-    fig.suptitle(f"{label.capitalize()} Features Count", fontsize=20)
+    fig.suptitle(f"{label.title()} Features Count", fontsize=20)
 
     for index, column in enumerate(dataframe[columns].columns):
         i, j = (index // num_cols, index % num_cols)
@@ -3424,17 +3352,26 @@ def draw_correlation_heatmap(
         # linewidths=0.5,
         # cbar_kws={"shrink": 0.5},
     )
+
+    # Get the column and index labels
+    x_labels = [
+        label.get_text().replace("_", " ").title()
+        for label in correlation_heatmap.get_xticklabels()
+    ]
+    y_labels = [
+        label.get_text().replace("_", " ").title()
+        for label in correlation_heatmap.get_yticklabels()
+    ]
+
     correlation_heatmap.set_xticklabels(
-        labels=correlation_heatmap.get_xticklabels(),
+        labels=x_labels,
         rotation=45,
         horizontalalignment="right",
         size=12,
     )
+
     correlation_heatmap.set_yticklabels(
-        labels=correlation_heatmap.get_yticklabels(),
-        rotation="horizontal",
-        size=12
-    )
+        labels=y_labels, rotation="horizontal", size=12)
     correlation_heatmap.tick_params(left=True, bottom=True)
     plt.title("Correlation Matrix Heatmap", fontsize=20)
     plt.tight_layout()
@@ -3443,13 +3380,13 @@ def draw_correlation_heatmap(
 
 
 def run_exploratory_data_visualisation(
-        dataframe: pd.DataFrame,
-        numeric_features: pd.DataFrame,
-        numeric_feature_list: List[str],
-        group_variable: str,
-        nb_columns: int,
-        output_directory: Path,
-        palette: str | List[str] | Dict[str, str] = None
+    dataframe: pd.DataFrame,
+    numeric_features: pd.DataFrame,
+    numeric_feature_list: List[str],
+    group_variable: str,
+    nb_columns: int,
+    output_directory: Path,
+    palette: str | List[str] | Dict[str, str] = None,
 ) -> None:
     """Produce data visualisation to observe target and features behaviour.
 
@@ -3480,13 +3417,16 @@ def run_exploratory_data_visualisation(
         nb_columns=nb_columns,
     )
     plt.suptitle(
-        t=f"Effects of {group_variable} on detection parameters",
+        t=(
+            f"Effects of {group_variable.replace('_', ' ').title()} "
+            f"on Detection Parameters"
+        ),
         fontsize=28,
-        y=0.92
+        y=0.92,
     )
     save_figure(
         file_name=f"barplot_num_vars_{group_variable}",
-        output_directory=output_directory
+        output_directory=output_directory,
     )
     # plt.show()
 
@@ -3500,16 +3440,19 @@ def run_exploratory_data_visualisation(
         dataframe=dataframe,
         feature_list=numeric_feature_list,
         nb_columns=nb_columns,
-        hue=group_variable
+        hue=group_variable,
     )
     plt.suptitle(
-        t=f"Distribution of detection parameters for each {group_variable}",
+        t=(
+            f"Distribution of Detection Parameters for Each "
+            f"{group_variable.replace('_', ' ').title()}"
+        ),
         fontsize=28,
-        y=0.92
+        y=0.92,
     )
     save_figure(
         file_name=f"kdeplot_num_vars_{group_variable}",
-        output_directory=output_directory
+        output_directory=output_directory,
     )
     # plt.show()
 
@@ -3525,6 +3468,31 @@ def run_exploratory_data_visualisation(
 
     # -------------------------------------------------------------------------
 
+    # Correlation analysis
+    # ! Below NOT working any more...
+    # Display output as a table AND a figure
+    plt.figure(figsize=(25, 20))
+    features_correlation_matrix = draw_correlation_heatmap(
+        dataframe=numeric_features, method="pearson"
+    )
+    print("\nFeatures Correlation Matrix:")
+    print(features_correlation_matrix)
+    plt.title(
+        label="Correlation analysis between engineered features\n",
+        fontsize=26,
+        loc="left",
+    )
+    plt.grid(visible=False)
+    plt.tight_layout()
+
+    save_figure(
+        file_name="correlation_matrix_feat_engineering",
+        output_directory=output_directory,
+    )
+    # plt.show()
+
+    # -------------------------------------------------------------------------
+
     print("\nGenerating Pair Plots...\n")
 
     # Display pair plots for EACH target
@@ -3536,40 +3504,20 @@ def run_exploratory_data_visualisation(
         diag_kind="kde",
     )
     plt.suptitle(
-        t=f"Correlogram of detection features for each {group_variable}",
+        t=(
+            f"Correlogram of Detection Features for each "
+            f"{group_variable.replace('_', ' ').title()}"
+        ),
         fontsize=36,
         # y=1.12
     )
     plt.subplots_adjust(top=0.95)
     save_figure(
         file_name=f"pairplot_between_parameters_{group_variable}",
-        output_directory=output_directory
+        output_directory=output_directory,
     )
     # plt.show()
 
-    # -------------------------------------------------------------------------
-
-    # # Correlation analysis
-    # # ! Below NOT working any more...
-    # # Display output as a table AND a figure
-    # plt.figure(figsize=(25, 20))
-    # features_correlation_matrix = draw_correlation_heatmap(
-    #     dataframe=numeric_features,
-    #     method="pearson"
-    # )
-    # plt.title(
-    #     label="Correlation analysis between engineered features\n",
-    #     fontsize=16,
-    #     loc="left"
-    # )
-    # print("\nFeatures Correlation Matrix:")
-    # print(features_correlation_matrix)
-
-    # save_figure(
-    #     file_name="correlation_matrix_feat_engineering",
-    #     output_directory=output_directory
-    # )
-    # # plt.show()
     return None
 
 
@@ -3586,7 +3534,7 @@ def draw_pair_plot(dataframe, hue=None):
         kind="reg",
         diag_kind="kde",
         hue=hue,
-        # palette="husl",  # disabled to favour "colorblind" setting at start
+        # palette="husl",  # disabled to favour "colour-blind" setting at start
         corner=True,
         dropna=False,
         size=2.5,
@@ -3603,7 +3551,7 @@ def draw_pair_plot(dataframe, hue=None):
 
 def draw_qqplot(
     dataframe: pd.DataFrame,
-    confidence_interval: float = 0.95
+    confidence_interval: float = 0.95,
 ) -> None:
     """Draw the Q-Q plot using the residuals of fitted model, for example.
 
@@ -3621,7 +3569,7 @@ def draw_qqplot(
     qqplot = pg.qqplot(
         x=dataframe,
         dist="norm",
-        confidence=confidence_interval
+        confidence=confidence_interval,
     )
     return qqplot
 
@@ -3646,21 +3594,18 @@ def draw_anova_quality_checks(
     Returns:
         None. Saves the plot as an image file.
     """
-    draw_qqplot(
-        dataframe=model.resid,
-        confidence_interval=confidence_interval
-    )
+    draw_qqplot(dataframe=model.resid, confidence_interval=confidence_interval)
     plt.title(
         label=f"Q-Q Plot of Model Residuals for {dependent_variable}",
         fontsize=14,
-        loc="center"
+        loc="center",
     )
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
     save_figure(
         file_name=f"qqplot_anova_{independent_variable}_{dependent_variable}",
-        output_directory=output_directory
+        output_directory=output_directory,
     )
     # plt.show()
     return None
@@ -3690,24 +3635,21 @@ def draw_tukeys_hsd_plot(
     tukey_result = perform_multicomparison(
         dataframe=dataframe[dependent_variable],
         groups=dataframe[independent_variable],
-        confidence_interval=confidence_interval
+        confidence_interval=confidence_interval,
     )
 
     # Plot graphic output from Tukey's test
     tukey_result.plot_simultaneous(
-        ylabel="Target Categories",
-        xlabel="Score Difference"
+        ylabel="Target Categories", xlabel="Score Difference"
     )
     plt.suptitle(
-        t=f"Tukey's HSD Post-hoc Test on {dependent_variable}",
-        fontsize=14
-    )
+        t=f"Tukey's HSD Post-hoc Test on {dependent_variable}", fontsize=14)
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
     save_figure(
         file_name=f"tukey_anova_{independent_variable}_{dependent_variable}",
-        output_directory=output_directory
+        output_directory=output_directory,
     )
     # plt.show()
 
@@ -3782,7 +3724,7 @@ def draw_pca_outliers_biplot_3d(
             "size": 12,
             "ha": "center",
             "va": "center",
-            "c": "color_arrow"
+            "c": "color_arrow",
         },
         title="Outliers marked using Hotellings T2 & SPE/DmodX methods",
         # cmap="bwr_r",
@@ -3841,7 +3783,7 @@ def draw_pca_outliers_biplot(
             "size": 12,
             "ha": "center",
             "va": "center",
-            "c": "color_arrow"
+            "c": "color_arrow",
         },
         title="Outliers marked using Hotellings T2 & SPE/DmodX methods",
         # cmap="bwr_r",
@@ -3879,8 +3821,7 @@ def draw_pca_biplot_3d(
     # Define the colour scheme for identifying the target classes ?
     # target_class_colour_list, _ = colourmap.fromlist(target_class_list)
     target_class_colour_list = colourmap.generate(
-        len(target_class_list),
-        method="seaborn"
+        len(target_class_list), method="seaborn"
     )
 
     plt.figure(figsize=(15, 10))
@@ -3921,7 +3862,7 @@ def draw_pca_biplot_3d(
                 for target_class in target_class_list
             ],
             # color=[colour_map[colour] for colour in pca_biplot_3d.y]  # BUG
-        )
+        ),
     )
 
     # Create the Plotly layout
@@ -3930,12 +3871,12 @@ def draw_pca_biplot_3d(
             xaxis=dict(title="PC1"),
             yaxis=dict(title="PC2"),
             zaxis=dict(title="PC3"),
-            aspectmode="data"
+            aspectmode="data",
         ),
         title=dict(
             text="Table of parameter effects on defect detection",
-            font=dict(size=24)
-        )
+            font=dict(size=24),
+        ),
     )
 
     # Create the Plotly figure
@@ -4006,7 +3947,7 @@ def draw_pca_biplot(
     plt.title(
         label="Parameter Effects on Defect Detection PC1 vs. PC2",
         fontsize=16,
-        loc="center"
+        loc="center",
     )
 
     # -------------------------------------------------------------------------
@@ -4030,26 +3971,28 @@ def draw_pca_biplot(
         # and covariance matrix
         ellipse = Ellipse(
             xy=mean,
-            width=2 * np.sqrt(cov[0, 0]) * stats.t.ppf(
-                q=(1 + confidence_interval) / 2,
-                df=pca_class.shape[0] - 1
-            ),
-            height=2 * np.sqrt(cov[1, 1]) * stats.t.ppf(
-                q=(1 + confidence_interval) / 2,
-                df=pca_class.shape[0] - 1
-            )
+            width=2
+            * np.sqrt(cov[0, 0])
+            * stats.t.ppf(q=(1 + confidence_interval) /
+                          2, df=pca_class.shape[0] - 1),
+            height=2
+            * np.sqrt(cov[1, 1])
+            * stats.t.ppf(q=(1 + confidence_interval) /
+                          2, df=pca_class.shape[0] - 1),
         )
         width, height = ellipse.get_width(), ellipse.get_height()
 
         # Add the ellipse to the plot with the specified color and alpha value
-        plt.gca().add_artist(Ellipse(
-            xy=mean,
-            width=width,
-            height=height,
-            edgecolor=colour,
-            facecolor=colour,
-            alpha=alpha
-        ))
+        plt.gca().add_artist(
+            Ellipse(
+                xy=mean,
+                width=width,
+                height=height,
+                edgecolor=colour,
+                facecolor=colour,
+                alpha=alpha,
+            )
+        )
     # pca_biplot.show()
     save_figure(file_name=file_name, output_directory=output_directory)
 
@@ -4091,27 +4034,29 @@ def add_confidence_interval_ellipses(
         # interval value and covariance matrix
         ellipse = Ellipse(
             xy=mean,
-            width=2*np.sqrt(cov[0, 0])*stats.t.ppf(
-                q=(1+confidence_interval)/2,
-                df=pca_class.shape[0]-1
-            ),
-            height=2*np.sqrt(cov[1, 1])*stats.t.ppf(
-                q=(1+confidence_interval)/2,
-                df=pca_class.shape[0]-1
-            )
+            width=2
+            * np.sqrt(cov[0, 0])
+            * stats.t.ppf(q=(1 + confidence_interval) /
+                          2, df=pca_class.shape[0] - 1),
+            height=2
+            * np.sqrt(cov[1, 1])
+            * stats.t.ppf(q=(1 + confidence_interval) /
+                          2, df=pca_class.shape[0] - 1),
         )
         width, height = ellipse.get_width(), ellipse.get_height()
         # print(width, height)
 
         # Add ellipses to the plot with the specified color & alpha value
-        plt.gca().add_artist(Ellipse(
-            xy=mean,
-            width=width,
-            height=height,
-            edgecolor=colour,
-            facecolor=colour,
-            alpha=alpha
-        ))
+        plt.gca().add_artist(
+            Ellipse(
+                xy=mean,
+                width=width,
+                height=height,
+                edgecolor=colour,
+                facecolor=colour,
+                alpha=alpha,
+            )
+        )
     plt.tight_layout()
     plt.show()
 
@@ -4155,8 +4100,8 @@ def draw_feature_rank(
 
 
 def show_items_per_category(
-        data: pd.Series | pd.DataFrame,
-        category_name: str,
+    data: pd.Series | pd.DataFrame,
+    category_name: str,
 ) -> None:
     """Show the number of items in each class of a given category.
 
@@ -4179,17 +4124,16 @@ def show_items_per_category(
     ax.set(xlabel="Number of items", ylabel=category_name)
     plt.title(
         label=(
-            f"Number of items for each class of the category '{category_name}'"
+            f"Number of items for each class of the category "
+            f"'{category_name}'"
         ),
         fontsize=16,
-        loc="center"
+        loc="center",
     )
     # plt.axis("off")
     plt.tight_layout()
-    save_figure(
-        file_name="item_count_barchart",
-        output_directory=OUTPUT_DIR_FIGURES
-    )
+    save_figure(file_name="item_count_barchart",
+                output_directory=OUTPUT_DIR_FIGURES)
     plt.show()
 
 
@@ -4202,11 +4146,9 @@ def generate_class_colour_list(class_list: List[str]) -> List[str]:
     Returns:
         List[str]: [description]
     """
-    colour_list = colourmap.generate(
-        len(class_list),
-        method="seaborn"
-    )
+    colour_list = colourmap.generate(len(class_list), method="seaborn")
     return colour_list
+
 
 # -----------------------------------------------------------------------------
 
@@ -4245,7 +4187,7 @@ def target_label_encoder(
 def train_test_split_pipeline(
     feature_selection: pd.DataFrame,
     target_selection: List[str | int] | pd.Series,
-    train_size: float = 0.6
+    train_size: float = 0.6,
 ) -> Pipeline:
     """Train_test_split_pipeline _summary_.
 
@@ -4259,14 +4201,17 @@ def train_test_split_pipeline(
     """
     train_test_split_pipe = Pipeline(
         steps=[
-            ("train_test_split", train_test_split(
-                feature_selection,
-                target_selection,
-                train_size=train_size,
-                random_state=42,
-                shuffle=True,
-                stratify=target_selection,
-            )),
+            (
+                "train_test_split",
+                train_test_split(
+                    feature_selection,
+                    target_selection,
+                    train_size=train_size,
+                    random_state=42,
+                    shuffle=True,
+                    stratify=target_selection,
+                ),
+            ),
         ],
     )
     return train_test_split_pipe
@@ -4306,7 +4251,7 @@ def train_valid_test_split_fast(
         features_valid,
         target_valid,
         features_test,
-        target_test
+        target_test,
     ) = train_valid_test_split(
         df=dataframe,
         target=target,
@@ -4322,13 +4267,12 @@ def train_valid_test_split_fast(
         features_valid,
         target_valid,
         features_test,
-        target_test
+        target_test,
     )
 
 
 def remove_features_with_nans(
-    dataframe: pd.DataFrame,
-    nan_threshold: float = 0.7
+    dataframe: pd.DataFrame, nan_threshold: float = 0.7
 ) -> pd.DataFrame:
     """Remove features if there is a high proportion of NaN values.
 
@@ -4355,7 +4299,8 @@ def remove_features_with_nans(
     variable_list_after = reduced_dataframe.columns.to_list()
 
     removed_column_list = [
-        feature for feature in variable_list_before
+        feature
+        for feature in variable_list_before
         if feature not in variable_list_after
     ]
     print("\nColumns Removed due to a High Proportion of NaN Values:")
@@ -4425,7 +4370,7 @@ def drop_feature_pipeline(
     steps = [
         (
             "Remove Rows With NaN Values",
-            remove_features_with_nans_transformer(nan_threshold=nan_threshold)
+            remove_features_with_nans_transformer(nan_threshold=nan_threshold),
         ),
         (
             "Remove Rows With NaN Values",
@@ -4434,7 +4379,7 @@ def drop_feature_pipeline(
                 missing_only=True,
                 threshold=0.03,  # variable with =< 0.3 variance removed
                 # threshold=None,  # rows with any NaNs will be removed
-            )
+            ),
         ),
         (
             "Drop Columns",
@@ -4443,23 +4388,20 @@ def drop_feature_pipeline(
                     feature for feature in features
                     if feature not in features_to_keep
                 ]
-            )
+            ),
         ),
         (
             "Drop Constant Values",
-            DropConstantFeatures(tol=0.95, missing_values="ignore")
+            DropConstantFeatures(tol=0.95, missing_values="ignore"),
         ),  # TODO to test vs. Scikit-learn 'VarianceThreshold()' (below)
-        (
-            "Drop Duplicates",
-            DropDuplicateFeatures(missing_values="ignore")
-        ),
+        ("Drop Duplicates", DropDuplicateFeatures(missing_values="ignore")),
         (
             "Drop Correlated Features",
             DropCorrelatedFeatures(
                 method="pearson",
                 threshold=correlation_threshold,
-                missing_values="ignore"
-            )
+                missing_values="ignore",
+            ),
         ),
     ]
 
@@ -4477,8 +4419,7 @@ def drop_feature_pipeline(
 
 
 def get_dropped_features_from_pipeline(
-    pipeline: Pipeline,
-    features: pd.DataFrame
+    pipeline: Pipeline, features: pd.DataFrame
 ) -> List[str]:
     """Retrieve the list of features dropped by a Scikit-learn pipeline.
 
@@ -4506,14 +4447,13 @@ def get_dropped_features_from_pipeline(
     print(f"\nFeatures Duplicated:\n{drop_duplicate_features}\n")
 
     drop_correlated_features = list(
-        pipeline.named_steps[
-            "Drop Correlated Features"].features_to_drop_
+        pipeline.named_steps["Drop Correlated Features"].features_to_drop_
     )
 
     # Get a list of correlated features
     correlated_features = list(
-        pipeline.named_steps[
-            "Drop Correlated Features"].correlated_feature_sets_
+        pipeline.named_steps["Drop Correlated Features"]
+        .correlated_feature_sets_
     )
     print(f"\nFeatures Correlated:\n{correlated_features}\n", sep="\n")
 
@@ -4525,7 +4465,7 @@ def get_dropped_features_from_pipeline(
     dropped_feature_list = (
         *drop_constant_features,
         *drop_duplicate_features,
-        *drop_correlated_features
+        *drop_correlated_features,
     )
     print(f"\nFeatures Dropped:\n{dropped_feature_list}\n")
     return dropped_feature_list
@@ -4545,17 +4485,21 @@ def preprocess_numeric_feature_pipeline(scaler: str) -> Pipeline:
     scaler_dictionary = {
         "standard_scaler": StandardScaler(),
         "min_max_scaler": MinMaxScaler(),
-        "robust_scaler": RobustScaler()
+        "robust_scaler": RobustScaler(),
+        "power_transform": PowerTransform(),
     }
     scaler_class = scaler_dictionary.get(scaler)
 
     # Build the pipeline for the chosen scaler
     numeric_feature_pipeline = Pipeline(
         steps=[
-            ("imputer", SimpleImputer(
-                missing_values=np.nan,
-                strategy="median",
-            )),
+            (
+                "imputer",
+                SimpleImputer(
+                    missing_values=np.nan,
+                    strategy="median",
+                ),
+            ),
             ("scaler", scaler_class),
         ],
         verbose=True,
@@ -4584,11 +4528,17 @@ def preprocess_categorical_feature_pipeline(encoder: str) -> Pipeline:
     # Build the pipeline for the chosen scaler
     categorical_feature_pipeline = Pipeline(
         steps=[
-            ("imputer", SimpleImputer(
-                strategy="most_frequent",
-                fill_value="missing",
-            )),
-            ("encoder", encoder_class),
+            (
+                "imputer",
+                SimpleImputer(
+                    strategy="most_frequent",
+                    fill_value="missing",
+                ),
+            ),
+            (
+                "encoder",
+                encoder_class,
+            ),
         ],
         verbose=True,
     )
@@ -4610,7 +4560,7 @@ def run_machine_learning_pipeline(
 
     The model parameter is defined as a dictionary where the key represents the
     name (as a string) of the model/pipeline and the value represents the
-    'definition' of the model, that is, for exemple, the pipeline object that
+    'definition' of the model, that is, for example, the pipeline object that
     is created outside the function.
 
     Args:
@@ -4642,13 +4592,13 @@ def run_machine_learning_pipeline(
     # Step 2: Preprocess numeric and categorical features
 
     # Impute and encode categorical features  # TODO Test the 'one2hot' library
-    categorical_feature_pipeline = (
-        preprocess_categorical_feature_pipeline(encoder="one_hot_encoder")
+    categorical_feature_pipeline = preprocess_categorical_feature_pipeline(
+        encoder="one_hot_encoder"
     )
 
     # Impute and scale numeric features
-    numeric_feature_pipeline = (
-        preprocess_numeric_feature_pipeline(scaler="robust_scaler")
+    numeric_feature_pipeline = preprocess_numeric_feature_pipeline(
+        scaler="robust_scaler"
     )
 
     # Create a column transformer with both numeric and categorical pipelines
@@ -4719,12 +4669,12 @@ def transform_feature_pipeline(
             (
                 "Numeric Features",
                 numeric_feature_pipeline,
-                selector(dtype_include="number")
+                selector(dtype_include="number"),
             ),
             (
                 "Categorical Features",
                 categorical_feature_pipeline,
-                selector(dtype_include="category")
+                selector(dtype_include="category"),
             ),
         ],
         verbose_feature_names_out=False,  # if True, will display transformers
@@ -4795,10 +4745,10 @@ def join_parallel_pipelines(
     union_transformer = FeatureUnion(
         transformer_list=[
             ("Pipeline #1", pipeline_one),
-            ("Pipeline #2", pipeline_two)
+            ("Pipeline #2", pipeline_two),
         ],
         n_jobs=-1,
-        verbose=True
+        verbose=True,
     )
     print("\nModel Transformer Pipeline Structure ('FeatureUnion'):")
     print(union_transformer)
@@ -4826,24 +4776,20 @@ def predict_target(
     target_pred = model.predict(X=features_test)
 
     # Build a dataframe of true/test values vs. prediction values
-    target_pred_df = pd.DataFrame(
-        data=target_pred,
-        columns=["predictions"],
-        index=features_test.index
-    )
-
     predictions_vs_test = pd.concat(
-        objs=[target_test, target_pred_df],
-        axis=1
-    ).reset_index(drop=True)
+        objs=[pd.Series(target_test), pd.Series(target_pred)],
+        keys=["test", "predictions"],
+        axis=1,
+    )
+    predictions_vs_test.set_index(keys=features_test.index, inplace=True)
     print(f"\nTest vs. Predictions:\n{predictions_vs_test}\n")
     return target_pred
 
 
 def predict_defect_class(
-        data: np.ndarray,
-        model: Pipeline,
-        defect_class_dictionary: Dict[int, str],
+    data: np.ndarray,
+    model: Pipeline,
+    defect_class_dictionary: Dict[int, str],
 ) -> str:
     """Predict the defect class based on the input data using a trained model.
 
@@ -4906,7 +4852,7 @@ def calculate_cross_validation_scores(
     target_test: pd.Series,
     target_pred: pd.Series,
     target_label_list: List[str],
-    cv: int = 5
+    cv: int = 5,
 ) -> None:
     """Calculate cross-validation scores.
 
@@ -4963,7 +4909,7 @@ def calculate_multiple_cross_validation_scores(
     model: object,
     features: pd.DataFrame | np.ndarray,
     target: pd.Series | np.ndarray,
-    cv: int = 5
+    cv: int = 5,
 ) -> None:
     """Calculate multiple cross-validation scores using the provided model.
 
@@ -4985,7 +4931,7 @@ def calculate_multiple_cross_validation_scores(
         "balanced_accuracy",
         "precision_macro",
         "recall_macro",
-        "f1_weighted"
+        "f1_weighted",
     ]
     valid_scores_cv = cross_validate(
         estimator=model,
@@ -5015,13 +4961,15 @@ def calculate_multiple_cross_validation_scores(
         lambda float_: f"{float_:.2%}"
     )
     print(f"\nModel Score Output*:\n{valid_scores_cv_means}\n")
-    print("""
+    print(
+        """
         * Note: the scores calculated for the 'test' set are derived from the
         'split' of the input data (i.e. the train set), hence the output values
         should be very close to the ones calculated with the function
         'calculate_cross_validation_prediction_scores', which uses the
         'cross_val_predict' function from Scikit-learn library.
-    """)
+    """
+    )
 
 
 def calculate_cross_validation_prediction_scores(
@@ -5029,7 +4977,7 @@ def calculate_cross_validation_prediction_scores(
     features: pd.DataFrame,
     target: pd.Series,
     # groups: np.ndarray,
-    cv: int = 5
+    cv: int = 5,
 ) -> None:
     """calculate_cross_validation_predictions _summary_.
 
@@ -5070,15 +5018,13 @@ def calculate_cross_validation_prediction_scores(
 
     # Apply each scoring method 'score' to a loop & append output to dictionary
     for score in score_list:
-        score_name = (
-            score.__name__.replace("_", " ").replace(
-                "score", "").capitalize()
-        )
+        score_name = score.__name__.replace(
+            "_", " ").replace("score", "").title()
         score_aggregation = score(
             y_true=target,
             y_pred=target_pred_cv,
             # labels=groups,  # how does it work ?
-            average=None
+            average=None,
         )
         # Calculate mean and standard deviation of each score
         mean_scores[f"{score_name}"].append(score_aggregation.mean())
@@ -5088,8 +5034,7 @@ def calculate_cross_validation_prediction_scores(
     score_mean_df = pd.DataFrame(data=mean_scores)
     score_stdev_df = pd.DataFrame(data=stdev_scores)
     prediction_scores_dataframe = pd.concat(
-        objs=[score_mean_df, score_stdev_df],
-        axis=0
+        objs=[score_mean_df, score_stdev_df], axis=0
     )
     prediction_scores_dataframe.index = ["Mean", "StDev"]
 
@@ -5106,7 +5051,7 @@ def train_tree_classifier(
     features_test: pd.DataFrame | np.ndarray,
     target_test: pd.Series | np.ndarray,
     target_pred: pd.Series | np.ndarray,
-    index_name: str
+    index_name: str,
 ) -> pd.DataFrame:
     """Train a tree classifier.
 
@@ -5125,27 +5070,23 @@ def train_tree_classifier(
         max_leaf_nodes=5,
         # max_depth=3,
         # max_features="sqrt",
-        random_state=42
+        random_state=42,
     )
     tree_classifier.fit(X=features_train, y=target_train)
-    tree_classifier.predict(
-        X=features_test
-    )
+    tree_classifier.predict(X=features_test)
 
     # Build a dataframe of true/test values vs prediction values
     target_pred_tree_classifier_df = pd.DataFrame(
-        data=target_pred,
-        columns=["predictions"]
+        data=target_pred, columns=["predictions"]
     )
 
     # Compare the predictions against the target
     prediction_list_tree_classifier = [
         target_test.reset_index(),  # need resetting index before concatenating
-        target_pred_tree_classifier_df
+        target_pred_tree_classifier_df,
     ]
     predictions_tree_classifier = pd.concat(
-        objs=prediction_list_tree_classifier,
-        axis=1
+        objs=prediction_list_tree_classifier, axis=1
     ).set_index(keys=index_name)
     print("Test vs. Predictions for tree classifier:")
     print(predictions_tree_classifier)
@@ -5198,15 +5139,13 @@ def show_tree_classifier_feature_importances(
     print(tree_classification_importances)
 
     tree_classifiers_train_score = tree_classifier.score(
-        features_train, target_train
-    )
+        features_train, target_train)
     print(
         f"\nDecision Tree Mean Accuracy Score for Train Set = "
         f"{tree_classifiers_train_score:.1%}\n"
     )
     tree_classifiers_test_score = tree_classifier.score(
-        features_test, target_test
-    )
+        features_test, target_test)
     print(
         f"\nDecision Tree Mean Accuracy Score for Test Set = "
         f"{tree_classifiers_test_score:.1%}\n"
@@ -5288,7 +5227,7 @@ def draw_decision_tree(
     )
     plt.title(
         label="Decision Tree for the Identification of Target Categories",
-        fontsize=20
+        fontsize=20,
     )
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
@@ -5327,7 +5266,7 @@ def draw_random_forest_tree(
         label=(
             "Random Forest Tree for the Identification of Target Categories"
         ),
-        fontsize=16
+        fontsize=16,
     )
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
@@ -5411,9 +5350,7 @@ def get_feature_importance_scores(
     feature_indices = np.argsort(feature_importances)[::-1]
 
     # Reorder the feature names according to the previous step
-    feature_names = [
-        feature_name_list[index] for index in feature_indices
-    ]
+    feature_names = [feature_name_list[index] for index in feature_indices]
 
     # # Calculate the standard deviation of all estimators
     # estimator_std = np.std(
@@ -5423,8 +5360,7 @@ def get_feature_importance_scores(
 
     # Create a Pandas Series to plot the data
     model_feature_importances = pd.Series(
-        data=feature_importances[feature_indices],
-        index=feature_names
+        data=feature_importances[feature_indices], index=feature_names
     )
     print(f"\nModel Features Importance:\n{model_feature_importances}\n")
 
@@ -5433,7 +5369,7 @@ def get_feature_importance_scores(
     model_feature_importances.plot.barh(
         # xerr=estimator_std,  # remove error bars
         align="center",
-        ax=ax
+        ax=ax,
     )
     plt.ylabel("Parameters")
     plt.xlabel("Mean decrease in Impurity")
@@ -5455,7 +5391,7 @@ def apply_cross_validation_analysis(
     target_label_list: str,
     cv: int,
     file_name: str,
-    output_directory: Path
+    output_directory: Path,
 ) -> None:
     """
     Apply cross-validation on train & test data to evaluate model performance.
@@ -5479,7 +5415,7 @@ def apply_cross_validation_analysis(
         target_test=target_test,
         target_pred=target_pred,
         target_label_list=target_label_list,
-        cv=cv
+        cv=cv,
     )
 
     draw_confusion_matrix_heatmap(
@@ -5528,7 +5464,7 @@ def get_best_parameters_ensemble(
 
     The model parameter is defined as a dictionary where the key represents the
     name (as a string) of the model/pipeline and the value represents the
-    'definition' of the model, that is, for exemple, the pipeline object that
+    'definition' of the model, that is, for example, the pipeline object that
     is created outside the function.
 
     NOTE: This function is specific to the optimisation of the 'Ensemble
@@ -5559,44 +5495,48 @@ def get_best_parameters_ensemble(
 
     # Get the optimised parameters of the Top 5 Ensemble Classifiers
     # First, reorder the columns
-    cv_results_best_5 = cv_results_dataframe[[
-        "mean_test_score",
-        "std_test_score",
-        "rank_test_score",
+    cv_results_best_5 = cv_results_dataframe[
+        [
+            "mean_test_score",
+            "std_test_score",
+            "rank_test_score",
+            "param_Transform Features__Numeric Features__scaler",
+            "param_Resampler",
 
-        "param_Transform Features__Numeric Features__scaler",
+            f"param_{model['model_name']}__voting",
 
-        "param_Resampler",
+            # f"param_{model['model_name']}__Decision Tree "
+            # f"Classifier__criterion",
+            # f"param_{model['model_name']}__Decision Tree "
+            # f"Classifier__max_depth",
+            # f"param_{model['model_name']}__Decision Tree "
+            # f"Classifier__min_samples_leaf",
+            # f"param_{model['model_name']}__Gaussian Naive "
+            # f"Bayes__var_smoothing",
+            # f"param_{model['model_name']}__Linear Discriminant "
+            # f"Analysis__solver",
 
-        f"param_{model['model_name']}__voting",
-
-        # f"param_{model['model_name']}__Decision Tree Classifier__criterion",
-        # f"param_{model['model_name']}__Decision Tree Classifier__max_depth",
-        # f"param_{model['model_name']}__Decision Tree \
-        #     Classifier__min_samples_leaf",
-
-        # f"param_{model['model_name']}__Gaussian Naive Bayes__var_smoothing",
-        # f"param_{model['model_name']}__Linear Discriminant Analysis__solver",
-
-        f"param_{model['model_name']}__Random Forest Classifier__max_depth",
-        f"param_{model['model_name']}__Random Forest "
-        f"Classifier__max_leaf_nodes",
-        f"param_{model['model_name']}__Random Forest "
-        f"Classifier__min_samples_leaf",
-        f"param_{model['model_name']}__Random Forest "
-        f"Classifier__min_samples_split",
-        f"param_{model['model_name']}__Random Forest Classifier__n_estimators",
-
-        f"param_{model['model_name']}__Support Vector Machine Classifier__C",
-        f"param_{model['model_name']}__Support Vector Machine "
-        f"Classifier__gamma",
-        f"param_{model['model_name']}__Support Vector Machine "
-        f"Classifier__kernel",
-
-        f"param_{model['model_name']}__XGBoost Classifier__gamma",
-        f"param_{model['model_name']}__XGBoost Classifier__learning_rate",
-        f"param_{model['model_name']}__XGBoost Classifier__max_depth",
-    ]].head(5)
+            f"param_{model['model_name']}__Random Forest "
+            f"Classifier__max_depth",
+            f"param_{model['model_name']}__Random Forest "
+            f"Classifier__max_leaf_nodes",
+            f"param_{model['model_name']}__Random Forest "
+            f"Classifier__min_samples_leaf",
+            f"param_{model['model_name']}__Random Forest "
+            f"Classifier__min_samples_split",
+            f"param_{model['model_name']}__Random Forest "
+            f"Classifier__n_estimators",
+            f"param_{model['model_name']}__Support Vector Machine "
+            f"Classifier__C",
+            f"param_{model['model_name']}__Support Vector Machine "
+            f"Classifier__gamma",
+            f"param_{model['model_name']}__Support Vector Machine "
+            f"Classifier__kernel",
+            f"param_{model['model_name']}__XGBoost Classifier__gamma",
+            f"param_{model['model_name']}__XGBoost Classifier__learning_rate",
+            f"param_{model['model_name']}__XGBoost Classifier__max_depth",
+        ]
+    ].head(5)
 
     # Set the column 'mean_test_score' to a percentage with one decimal
     cv_results_best_5["mean_test_score"] = (
@@ -5610,9 +5550,7 @@ def get_best_parameters_ensemble(
 
 
 def random_search_cv_optimisation_ensemble(
-    pipeline: Pipeline,
-    model: Dict[str, object],
-    cv: int = 5
+    pipeline: Pipeline, model: Dict[str, object], cv: int = 5
 ) -> RandomizedSearchCV:
     """Perform random search cross-validation.
 
@@ -5630,7 +5568,7 @@ def random_search_cv_optimisation_ensemble(
 
     The model parameter is defined as a dictionary where the key represents the
     name (as a string) of the model/pipeline and the value represents the
-    'definition' of the model, that is, for exemple, the pipeline object that
+    'definition' of the model, that is, for example, the pipeline object that
     is created outside the function.
 
     Args:
@@ -5643,9 +5581,11 @@ def random_search_cv_optimisation_ensemble(
     """
     # Set of optimisation options
     parameter_search = {
-        "Transform Features__Numeric Features__scaler":
-        [StandardScaler(), MinMaxScaler(), RobustScaler()],
-
+        "Transform Features__Numeric Features__scaler": [
+            StandardScaler(),
+            MinMaxScaler(),
+            RobustScaler(),
+        ],
         "Resampler": [
             None,
             BorderlineSMOTE(random_state=42),
@@ -5656,45 +5596,111 @@ def random_search_cv_optimisation_ensemble(
             SMOTEENN(random_state=42),  # combination of over- & under-sampling
             SVMSMOTE(random_state=42),
         ],
-
         f"{model['model_name']}__voting": ["soft", "hard"],
 
-        # f"{model['model_name']}__Gaussian Naive Bayes__var_smoothing": \
-        # [0, 1e-9, 0.01, 0.1, 0.2, 0.5, 1],
-        # f"{model['model_name']}__Linear Discriminant Analysis__solver": \
-        # ["svd", "lsqr", "eigen"],
+        # f"{model['model_name']}__Gaussian Naive Bayes__var_smoothing": [
+        #     0,
+        #     1e-9,
+        #     0.01,
+        #     0.1,
+        #     0.2,
+        #     0.5,
+        #     1,
+        # ],
+        # f"{model['model_name']}__Linear Discriminant Analysis__solver": [
+        #     "svd",
+        #     "lsqr",
+        #     "eigen",
+        # ],
 
-        f"{model['model_name']}__Random Forest Classifier__max_depth": \
-        [2, 3, 5, 7, 10],
-        f"{model['model_name']}__Random Forest Classifier__max_leaf_nodes": \
-        [2, 5, 7, 10],
-        f"{model['model_name']}__Random Forest Classifier__min_samples_leaf": \
-        [2, 3, 5, 7, 10],
-        f"{model['model_name']}__Random Forest Classifier__min_samples_split":\
-        [2, 5, 7],
-        f"{model['model_name']}__Random Forest Classifier__n_estimators": \
-        [100, 200, 500, 700],
-
-        f"{model['model_name']}__Support Vector Machine Classifier__C": \
-        [1, 10, 100, 500, 1000],
-        f"{model['model_name']}__Support Vector Machine Classifier__gamma": \
-        ["auto", "scale", 1, 0.1, 0.01, 0.001, 0.0001],
-        f"{model['model_name']}__Support Vector Machine Classifier__kernel": \
-        ["rbf", "linear"],
-
-        f"{model['model_name']}__XGBoost Classifier__learning_rate": \
-        [0.01, 0.05, 0.1, 0.2, 0.3],
-        f"{model['model_name']}__XGBoost Classifier__max_depth": \
-        [2, 5, 10, 15],
-        f"{model['model_name']}__XGBoost Classifier__gamma": [0, 1, 2,  5, 10],
-        # f"{model['model_name']}__XGBoost Classifier__min_child_weight": \
-        # [10, 15, 20, 25],
-        # f"{model['model_name']}__XGBoost Classifier__colsample_bytree": \
-        # [0.8, 0.9, 1],
-        # f"{model['model_name']}__XGBoost Classifier__n_estimators": \
-        # [300, 400, 500, 600],
-        # f"{model['model_name']}__XGBoost Classifier__reg_alpha": \
-        # [0.5, 0.2, 1],
+        f"{model['model_name']}__Random Forest Classifier__max_depth": [
+            2,
+            3,
+            5,
+            7,
+            10,
+        ],
+        f"{model['model_name']}__Random Forest Classifier__max_leaf_nodes": [
+            2,
+            5,
+            7,
+            10,
+        ],
+        f"{model['model_name']}__Random Forest Classifier__min_samples_leaf": [
+            2,
+            3,
+            5,
+            7,
+            10,
+        ],
+        f"{model['model_name']}__Random Forest "
+        f"Classifier__min_samples_split": [
+            2,
+            5,
+            7,
+        ],
+        f"{model['model_name']}__Random Forest Classifier__n_estimators": [
+            100,
+            200,
+            500,
+            700,
+        ],
+        f"{model['model_name']}__Support Vector Machine Classifier__C": [
+            1,
+            10,
+            100,
+            500,
+            1000,
+        ],
+        f"{model['model_name']}__Support Vector Machine Classifier__gamma": [
+            "auto",
+            "scale",
+            1,
+            0.1,
+            0.01,
+            0.001,
+            0.0001,
+        ],
+        f"{model['model_name']}__Support Vector Machine Classifier__kernel": [
+            "rbf",
+            "linear",
+        ],
+        f"{model['model_name']}__XGBoost Classifier__learning_rate": [
+            0.01,
+            0.05,
+            0.1,
+            0.2,
+            0.3,
+        ],
+        f"{model['model_name']}__XGBoost Classifier__max_depth": [
+            2,
+            5,
+            10,
+            15,
+        ],
+        f"{model['model_name']}__XGBoost Classifier__gamma": [0, 1, 2, 5, 10],
+        # f"{model['model_name']}__XGBoost Classifier__min_child_weight": [
+        #     10,
+        #     15,
+        #     20,
+        #     25,
+        # ],
+        # f"{model['model_name']}__XGBoost Classifier__colsample_bytree": [
+        #     0.8,
+        #     0.9,
+        #     1,
+        # ],
+        # f"{model['model_name']}__XGBoost Classifier__n_estimators": [
+        #     300,
+        #     400,
+        #     500,
+        #     600,
+        # ],
+        # f"{model['model_name']}__XGBoost Classifier__reg_alpha": [
+        #     0.5,
+        #     0.2,
+        #     1,
+        # ],
         # f"{model['model_name']}__XGBoost Classifier__reg_lambda": [2, 3, 5],
     }
 
@@ -5707,7 +5713,7 @@ def random_search_cv_optimisation_ensemble(
         # verbose=True,
         cv=StratifiedKFold(n_splits=cv, shuffle=True, random_state=42),
         random_state=42,
-        n_jobs=-1
+        n_jobs=-1,
     )
     print("\nRandom Search CV Pipeline:")
     print(random_search_cv)
@@ -5715,9 +5721,7 @@ def random_search_cv_optimisation_ensemble(
 
 
 def bayes_search_cv_optimisation(
-    pipeline: Pipeline,
-    model: Dict[str, object],
-    cv: int = 5
+    pipeline: Pipeline, model: Dict[str, object], cv: int = 5
 ) -> BayesSearchCV:
     """Perform random search cross-validation.
 
@@ -5726,7 +5730,7 @@ def bayes_search_cv_optimisation(
 
     The model parameter is defined as a dictionary where the key represents the
     name (as a string) of the model/pipeline and the value represents the
-    'definition' of the model, that is, for exemple, the pipeline object that
+    'definition' of the model, that is, for example, the pipeline object that
     is created outside the function.
 
     Different steps of the pipeline are optimised:
@@ -5747,9 +5751,11 @@ def bayes_search_cv_optimisation(
         RandomizedSearchCV: The optimised model.
     """
     parameter_search = {
-        "Transform Features__Numeric Features__scaler":
-        [StandardScaler(), MinMaxScaler(), RobustScaler()],
-
+        "Transform Features__Numeric Features__scaler": [
+            StandardScaler(),
+            MinMaxScaler(),
+            RobustScaler(),
+        ],
         "Resampler": [
             None,
             BorderlineSMOTE(random_state=42),
@@ -5760,14 +5766,14 @@ def bayes_search_cv_optimisation(
             SMOTEENN(random_state=42),  # combination of over- & under-sampling
             SVMSMOTE(random_state=42),
         ],
-
         f"{model['model_name']}__num_leaves": space.Integer(20, 200),
         f"{model['model_name']}__min_data_in_leaf": space.Integer(20, 50),
-        # f"{model['model_name']}__boosting_type": ['gbdt',  'dart',  'rf'],
-        f"{model['model_name']}__learning_rate": \
-        space.Real(0.005, 1, prior='log-uniform'),
+        # f"{model['model_name']}__boosting_type": ["gbdt",  "dart",  "rf"],
+        f"{model['model_name']}__learning_rate": space.Real(
+            0.005, 1, prior="log-uniform"
+        ),
         f"{model['model_name']}__n_estimators": space.Integer(100, 500),
-        f"{model['model_name']}__max_depth": space.Integer(4, 10)
+        f"{model['model_name']}__max_depth": space.Integer(4, 10),
     }
 
     bayes_search_cv = BayesSearchCV(
