@@ -1162,9 +1162,11 @@ def get_numeric_features(
     # Select numeric variables ONLY and make a list
     numeric_features = dataframe.select_dtypes(include=np.number)
     numeric_feature_list = numeric_features.columns.to_list()
-    print(f"\nList of Numeric Features:\n{numeric_feature_list}\n")
-    print(f"\nSummary Statistics:\n{numeric_features.describe()}\n")
-    return numeric_features, numeric_feature_list
+    # print(f"\nList of Numeric Features:\n{numeric_feature_list}\n")
+
+    # Create a dataframe of summary statistics
+    summary_stats = numeric_features.describe().T
+    return numeric_features, numeric_feature_list, summary_stats
 
 
 def get_categorical_features(dataframe):
@@ -1179,10 +1181,12 @@ def get_categorical_features(dataframe):
     """
     # Select categorical variables ONLY and make a list
     categorical_features = dataframe.select_dtypes(include="category")
-    categorical_features_list = categorical_features.columns.to_list()
-    print(f"\nList of Categorical Features:\n{categorical_features_list}\n")
-    print(f"\nSummary Statistics:\n{categorical_features.describe()}\n")
-    return categorical_features, categorical_features_list
+    categorical_feature_list = categorical_features.columns.to_list()
+    # print(f"\nList of Categorical Features:\n{categorical_features_list}\n")
+
+    # Create a dataframe of summary statistics
+    summary_stats = categorical_features.describe().T
+    return categorical_features, categorical_feature_list, summary_stats
 
 
 def get_dictionary_key(
@@ -2412,7 +2416,7 @@ def run_anova_check_assumptions(
         confidence_interval (float, optional): [description]. Defaults to 0.95.
 
     Returns:
-        ols: [description]
+        ols: ANOVA model instance.
     """
     anova_model, tukey_results = run_anova_test(
         dataframe=dataframe,
@@ -2596,7 +2600,7 @@ def calculate_jarque_bera_values(
 
 
 def check_normality_assumption_residuals(
-    dataframe: pd.DataFrame,
+    dataframe: pd.DataFrame | pd.Series,
     confidence_interval: float = 0.95,
 ) -> pd.DataFrame:
     """Check assumptions for normality of model residual data.
@@ -2606,42 +2610,37 @@ def check_normality_assumption_residuals(
         - Normality
         - Jarque-Bera (kurtosis and skewness together)
 
-    Then, concatenate the test outputs into a dataframe.
-
-    The parameter 'data' can take a 1D-array (e.g. model output) or a
-    dataframe and one of its column (e.g. dataframes[column]).
+    Jarque-Bera is used to decide whether the data are normally distributed.
 
     Args:
-        data (_type_): _description_
-        confidence_interval (float, optional): _description_. Defaults to 0.95.
+        dataframe (pd.DataFrame | pd.Series): The input data as a DataFrame or
+            Series.
+        confidence_interval (float, optional): The confidence level for the
+            normality tests. Defaults to 0.95.
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: DataFrame containing the results of the normality tests.
     """
-    shapiro_wilk = pg.normality(
-        data=dataframe,
-        method="shapiro",
-        alpha=(1 - confidence_interval)
-    )
-    shapiro_wilk.rename(index={0: "Shapiro-Wilk"}, inplace=True)
-
-    normality = pg.normality(
-        data=dataframe,
-        method="normaltest",
-        alpha=(1 - confidence_interval)
-    )
-    normality.rename(index={0: "Normality"}, inplace=True)
-
-    jarque_bera = pg.normality(
-        data=dataframe,
-        method="jarque_bera",
-        alpha=(1 - confidence_interval)
-    )
-    jarque_bera.rename(index={0: "Jarque-Bera"}, inplace=True)
+    # Set a dictionary of methods
+    test_methods = {
+        "Shapiro-Wilk": "shapiro",
+        "Normality": "normaltest",
+        "Jarque-Bera": "jarque_bera"
+    }
+    # Initialise the dictionary of results
+    test_results = {}
+    for test_name, test_method in test_methods.items():
+        test_result = pg.normality(
+            data=dataframe,
+            method=test_method,
+            alpha=(1 - confidence_interval)
+        )
+        test_result.rename(index={0: test_name}, inplace=True)
+        test_results[test_name] = test_result
 
     # Concatenate the tests output
     normality_tests = pd.concat(
-        objs=[shapiro_wilk, normality, jarque_bera],
+        objs=test_results.values(),
         axis=0,
     )
     normality_tests.rename(
@@ -2650,91 +2649,95 @@ def check_normality_assumption_residuals(
     )
     print(f"Normality Tests Results:\n{normality_tests}\n")
 
-    # # BUG Below NOT working
-    # # Print a message depending on the value ('True' or 'False') of the
-    # # 'jarque_bera' output
-    # print("Normal Distribution of data ?")
-    # if normality_tests.iloc[2, 2] == "False":
-    #     print("The data are NOT normally distributed.")
-    # elif normality_tests.iloc[2, 2] is True:
-    #     print("The data are normally distributed.")
+    # Print a message depending on the value ('True' or 'False') of the
+    # 'jarque_bera' output
+    print("Normal Distribution of data ?")
+    jarque_bera_pvalue = normality_tests.loc["Jarque-Bera", "p-value"]
+    if jarque_bera_pvalue < (1 - confidence_interval):
+        print("The data are NOT normally distributed.\n")
+    else:
+        print("The data are normally distributed.\n")
     return normality_tests
 
 
 def check_equal_variance_assumption_residuals(
-    dataframe,
+    dataframe: pd.DataFrame,
     model,
-    group_variable,
+    group_variable: str,
     confidence_interval: float = 0.95,
-):
+) -> pd.DataFrame:
     """Check assumption of equal variance between groups of a model residuals.
 
     Use the following 'equality of variance' tests:
-        - Bartlett
-        - Levene
-
-    Then, concatenate the test outputs into a dataframe.
-
-    The parameter 'dataframe' can take a 1D-array (e.g. model output) or a
-    dataframe and one of its column (e.g. dataframes[column]).
+        - Bartlett's test
+        - Levene's test
 
     Args:
-        dataframe (_type_): _description_
-        model (_type_): _description_
-        group_variable (_type_): _description_
-        confidence_interval (float, optional): _description_. Defaults to 0.95.
+        dataframe (pd.DataFrame): The input dataframe.
+        model ( ): The model object.
+        group_variable (str): The variable representing groups.
+        confidence_interval (float, optional): The confidence level for the
+            tests. Defaults to 0.95.
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: Dataframe containing results of the equal variance tests.
     """
     # Prepare a dataframe of the ANOVA model residuals
     model_residuals_dataframe = pd.concat(
-        [dataframe[group_variable], model.resid], axis=1
+        objs=[dataframe[group_variable], model.resid],
+        axis=1
     ).rename(columns={0: "Residuals"})
 
-    bartlett = pg.homoscedasticity(
-        data=model_residuals_dataframe,
-        dv="residuals",
-        group=group_variable,
-        method="bartlett",
-        alpha=(1 - confidence_interval)
-    )
-    bartlett.rename(
-        index={"mean_intensities": "Bartlett's Test"},
-        columns={"T": "Statistic", "pval": "p-value", "normal": "Normal"},
-        inplace=True
-    )
-
-    levene = pg.homoscedasticity(
-        data=model_residuals_dataframe,
-        dv="residuals",
-        group=group_variable,
-        method="levene",
-        alpha=(1 - confidence_interval)
-    )
-    levene.rename(
-        index={"mean_intensities": "Levene's Test"},
-        columns={"W": "Statistic", "pval": "p-value", "normal": "Normal"},
-        inplace=True
-    )
+    # Set a dictionary of methods
+    test_methods = {
+        "Bartlett": "bartlett",
+        "Levene": "levene"
+    }
+    # Initialise the dictionary of results
+    test_results = {}
+    for test_name, test_method in test_methods.items():
+        test_result = pg.homoscedasticity(
+            data=model_residuals_dataframe,
+            dv="Residuals",
+            group=group_variable,
+            method=test_method,
+            alpha=(1 - confidence_interval)
+        )
+        # The name of the statistic metric for Bartlett' and Levene's test is
+        # different so each is renamed to 'Statistic' for consistency
+        test_result.rename(
+            index={0: test_name},
+            columns=(
+                lambda statistic_name: "Statistic"
+                if statistic_name in ("W", "T") else statistic_name
+            ),
+            inplace=True
+        )
+        test_results[test_name] = test_result
 
     # Concatenate the tests output
     equal_variance_tests = pd.concat(
-        objs=[bartlett, levene],
+        objs=test_results.values(),
         axis=0,
     )
+    equal_variance_tests.rename(
+        columns={"pval": "p-value", "equal_var": "Equal Variance"},
+        inplace=True
+    )
+
     print(
         f"\nEquality of Variance Tests Results - '{group_variable}' as group"
         f"\n{equal_variance_tests}\n"
     )
-    # BUG It does not the difference between 'if' and 'else' output
-    print("Equal Variance of Data Between Groups:")
-    if levene.iloc[0]["equal_var"] is False:
-        print(
-            f"Data do NOT have equal variance between {group_variable} groups."
-        )
-    else:
+    # Print a message depending on the equal_var column of Levene's test
+    print("Equal Variance of Data Between Groups ?")
+    if equal_variance_tests.loc["levene", "Equal Variance"]:
         print(f"Data have equal variance between {group_variable} groups.\n")
+    else:
+        print(
+            f"Data do NOT have equal variance between "
+            f"'{group_variable}' groups."
+        )
     return equal_variance_tests
 
 
