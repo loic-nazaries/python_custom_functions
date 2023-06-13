@@ -1141,10 +1141,11 @@ def get_numeric_features(
     # Select numeric variables ONLY and make a list
     numeric_features = dataframe.select_dtypes(include=np.number)
     numeric_feature_list = numeric_features.columns.to_list()
-    # print(f"\nList of Numeric Features:\n{numeric_feature_list}\n")
+    print(f"\nList of Numeric Features:\n{numeric_feature_list}\n")
 
     # Create a dataframe of summary statistics
     summary_stats = numeric_features.describe().T
+    print(f"\nSummary Statistics:\n{summary_stats}\n")
     return numeric_features, numeric_feature_list, summary_stats
 
 
@@ -1162,11 +1163,10 @@ def get_categorical_features(dataframe):
     categorical_features = dataframe.select_dtypes(include="category")
     categorical_feature_list = categorical_features.columns.to_list()
     print(f"\nList of Categorical Features:\n{categorical_feature_list}\n")
-    print(f"\nSummary Statistics:\n{categorical_features.describe()}\n")
-    return categorical_features, categorical_feature_list
 
     # Create a dataframe of summary statistics
     summary_stats = categorical_features.describe().T
+    print(f"\nSummary Statistics:\n{summary_stats}\n")
     return categorical_features, categorical_feature_list, summary_stats
 
 
@@ -2557,26 +2557,20 @@ def check_normality_assumption_residuals(
     Returns:
         pd.DataFrame: DataFrame containing the results of the normality tests.
     """
-    shapiro_wilk = pg.normality(
-        data=dataframe,
-        method="shapiro",
-        alpha=(1 - confidence_interval)
-    )
-    shapiro_wilk.rename(index={0: "Shapiro-Wilk"}, inplace=True)
-
-    normality = pg.normality(
-        data=dataframe,
-        method="normaltest",
-        alpha=(1 - confidence_interval)
-    )
-    normality.rename(index={0: "Normality"}, inplace=True)
-
-    jarque_bera = pg.normality(
-        data=dataframe,
-        method="jarque_bera",
-        alpha=(1 - confidence_interval)
-    )
-    jarque_bera.rename(index={0: "Jarque-Bera"}, inplace=True)
+    # Set a dictionary of methods
+    test_methods = {
+        "Shapiro-Wilk": "shapiro",
+        "Normality": "normaltest",
+        "Jarque-Bera": "jarque_bera",
+    }
+    # Initialise the dictionary of results
+    test_results = {}
+    for test_name, test_method in test_methods.items():
+        test_result = pg.normality(
+            data=dataframe, method=test_method, alpha=(1 - confidence_interval)
+        )
+        test_result.rename(index={0: test_name}, inplace=True)
+        test_results[test_name] = test_result
 
     # Concatenate the tests output
     normality_tests = pd.concat(
@@ -2584,12 +2578,14 @@ def check_normality_assumption_residuals(
         axis=0,
     )
     normality_tests.rename(
-        columns={"W": "Statistic", "pval": "p-value"}, inplace=True)
+        columns={"W": "Statistic", "pval": "p-value"},
+        inplace=True
+    )
     print(f"\nNormality Tests Results:\n{normality_tests}\n")
 
     # Print a message depending on the value ('True' or 'False') of the
     # 'jarque_bera' output
-    print("Normal Distribution of data ?")
+    print("Normal Distribution of Data ?")
     jarque_bera_pvalue = normality_tests.loc["Jarque-Bera", "p-value"]
     if jarque_bera_pvalue < (1 - confidence_interval):
         print("The data are NOT normally distributed.\n")
