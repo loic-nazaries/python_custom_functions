@@ -189,7 +189,7 @@ def timing(func):
         # Do something after calling the function
         end_time = time.time()
         print(
-            f"\nFunction '{func.__name__}' took {end_time - start_time:.2} "
+            f"\n\nFunction '{func.__name__}' took {end_time - start_time:.2} "
             f"seconds to run.\n"
         )
         return result
@@ -278,7 +278,7 @@ def load_pickle_file(file_name: str, input_directory: Path) -> pd.DataFrame:
         input_directory (Path): Directory path where the '.pkl' file resides.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: A dataframe containing the pickled data.
     """
     dataframe = pd.read_pickle(
         filepath_or_buffer=input_directory.joinpath(f"{file_name}.pkl")
@@ -3310,7 +3310,8 @@ def draw_bar_plots(dataframe, columns, label):
 
 
 def draw_correlation_heatmap(
-    dataframe, method="pearson"
+    dataframe: pd.DataFrame,
+    method: str = "pearson",
 ) -> Tuple[pd.DataFrame, sns.matrix.ClusterGrid]:
     """Draw a correlation matrix between numeric variables.
 
@@ -3340,7 +3341,7 @@ def draw_correlation_heatmap(
         vmin=-1,
         vmax=1,
         annot=True,
-        annot_kws={"size": 10},
+        annot_kws={"size": 14},
         square=True,
         cbar=True,
         cmap="coolwarm",
@@ -4098,6 +4099,7 @@ def draw_feature_rank(
 def show_items_per_category(
     data: pd.Series | pd.DataFrame,
     category_name: str,
+    output_directory: Path,
 ) -> None:
     """Show the number of items in each class of a given category.
 
@@ -4105,6 +4107,7 @@ def show_items_per_category(
         data (pd.Series | pd.DataFrame): The data containing the category to be
             analysed.
         category_name (str): The name of the category to be analysed.
+        output_directory (Path): The directory where the figure will be saved.
 
     Returns:
         None. Saves a bar chart image for counts of each defect class.
@@ -4128,8 +4131,10 @@ def show_items_per_category(
     )
     # plt.axis("off")
     plt.tight_layout()
-    save_figure(file_name="item_count_barchart",
-                output_directory=OUTPUT_DIR_FIGURES)
+    save_figure(
+        file_name="item_count_barchart",
+        output_directory=output_directory
+    )
     plt.show()
 
 
@@ -4153,7 +4158,7 @@ def generate_class_colour_list(class_list: List[str]) -> List[str]:
 
 def target_label_encoder(
     data: pd.DataFrame | pd.Series,
-) -> Tuple[np.ndarray, List[str]]:
+) -> Tuple[np.ndarray, List[str], LabelEncoder]:
     """Encode the target labels (usually strings) into integers.
 
     Args:
@@ -4547,23 +4552,29 @@ def run_machine_learning_pipeline(
     features: pd.DataFrame,
     features_to_keep: List[str],
     label_encoder: LabelEncoder,
-    model: Dict[str, object],
+    model: namedtuple,
+    pca_n_components: int = None,
     resampling: bool = True,
     nan_threshold=0.70,
     correlation_threshold=0.80,
 ) -> Pipeline:
     """Perform a machine learning analysis based on several key steps.
 
-    The model parameter is defined as a dictionary where the key represents the
-    name (as a string) of the model/pipeline and the value represents the
-    'definition' of the model, that is, for example, the pipeline object that
-    is created outside the function.
+    The model parameter is defined as a named tuple of the form:
+    Model = namedtuple("Model", ["model_name", "model_definition"])
+    where 'model_name' represents the name of the model/pipeline (as a string)
+    and 'model_definition' represents the model function/class such as
+    'RandomForestClassifier()'.
+    The elements of the named tuple are accessed using slicing.
 
     Args:
         features (pd.DataFrame): The dataframe containing the features.
         features_to_keep (List[str]): A list of feature names to keep.
         label_encoder (LabelEncoder): The instance of the label encoder.
-        model (_type_): _description_
+    model (namedtuple): A named tuple containing the model name and its
+        definition.
+        pca_n_components (int): The number of principal components to use.
+            Defaults to None.
         resampling (bool, optional): Whether to integrate or not a resampler
             tool to the pipeline. Defaults to True.
         nan_threshold (float, optional): The threshold for removing features
@@ -4594,7 +4605,8 @@ def run_machine_learning_pipeline(
 
     # Impute and scale numeric features
     numeric_feature_pipeline = preprocess_numeric_feature_pipeline(
-        scaler="robust_scaler"
+        scaler="robust_scaler",
+        pca_n_components=pca_n_components,
     )
 
     # Create a column transformer with both numeric and categorical pipelines
@@ -4618,12 +4630,12 @@ def run_machine_learning_pipeline(
     pipeline = Pipeline(
         steps=[
             # ! Pipeline class from imblearn library not support nested class
-            # ("Drop Features", drop_feature_pipeline),
+            # ("Drop Features", drop_feature_pipe),
             # ! Unpacking the steps of the 'drop features' pipeline is required
             *drop_feature_pipe.steps,
             ("Transform Features", preprocess_feature_pipeline),
             ("Resampler", smote_resampler),
-            (model["model_name"], model["model_definition"]),
+            (model[0], model[1]),
         ],
         verbose=False,
     )
