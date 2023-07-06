@@ -14,90 +14,75 @@ Content Sections:
     - DATA VISUALISATION
     - DATA MODELLING (MACHINE LEARNING)
 """
-import re
 
 # Call the libraries required
-# import glob
-import sys
-from collections import defaultdict
-from datetime import datetime
-import time
+import glob
 import itertools
-import joblib
+import re
+import sys
+import time
+from collections import defaultdict, namedtuple
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import colourmap as colourmap
 import docx
 import dtale
-
-# from matplotlib.colors import ListedColormap
-from matplotlib.patches import Ellipse
+import joblib
 import matplotlib.pyplot as plt
 import missingno as msno
 import numpy as np
-from numpy import array, array_equal, load
-
-# import openpyxl
+import openpyxl
 import pandas as pd
-from pca import pca
 import pingouin as pg
 import plotly.graph_objs as go
-from reportlab.pdfgen import canvas
 import researchpy as rp
 import scipy as sp
-from scipy.io import savemat
-from scipy.spatial.distance import mahalanobis
 import seaborn as sns
 import sidetable as stb
 import statsmodels.api as sm
-
-# import statsmodels.stats.multicomp as mc
+import statsmodels.stats.multicomp as mc
 import sweetviz as sv
-from yellowbrick.features import PCA as yb_pca, Rank1D
-
-# from yellowbrick.cluster import InterclusterDistance
-# Sampling
+import treeplot as tree
 from fast_ml.model_development import train_valid_test_split
-
-# Handle constant/duplicates and missing features/columns
 from feature_engine.selection import (
     DropConstantFeatures,
     DropCorrelatedFeatures,
-    DropDuplicateFeatures,
-    DropFeatures,
+    DropDuplicateFeatures, DropFeatures,
     DropMissingData,
 )
 from imblearn.combine import SMOTEENN
 from imblearn.over_sampling import (
+    SMOTE,
+    SVMSMOTE,
     BorderlineSMOTE,
     KMeansSMOTE,
     RandomOverSampler,
-    SMOTE,
-    SVMSMOTE,
 )
 from imblearn.under_sampling import RandomUnderSampler
+from matplotlib.colors import ListedColormap
+from matplotlib.patches import Ellipse
+from numpy import array, array_equal, load
+from pca import pca
 from pyod.models.mad import MAD
-from scipy.io import loadmat
-from scipy.stats import chi2, zscore
+from reportlab.pdfgen import canvas
 from scipy import stats
-
-# Assemble pipeline(s)
+from scipy.io import loadmat, savemat
+from scipy.spatial.distance import mahalanobis
+from scipy.stats import chi2, zscore
 from sklearn import set_config
+from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector as selector
 from sklearn.decomposition import PCA
-
-# from sklearn.ensemble import RandomForestClassifier, VotingClassifier
-from sklearn.feature_selection import (
-    # RFECV,
-    VarianceThreshold,
-)
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+from sklearn.feature_selection import VarianceThreshold  # RFECV,
 from sklearn.impute import SimpleImputer
-
-# from sklearn.linear_model import LogisticRegression
+from sklearn.inspection import DecisionBoundaryDisplay
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
-    # accuracy_score,
+    accuracy_score,
     balanced_accuracy_score,
     classification_report,
     confusion_matrix,
@@ -109,17 +94,17 @@ from sklearn.metrics import (
     roc_curve,
 )
 from sklearn.model_selection import (
-    # GridSearchCV,
-    cross_validate,
+    GridSearchCV,
     RandomizedSearchCV,
+    RepeatedStratifiedKFold,
     StratifiedKFold,
-    # RepeatedStratifiedKFold,
-    # StratifiedShuffleSplit,
+    StratifiedShuffleSplit,
     cross_val_predict,
     cross_val_score,
+    cross_validate,
     train_test_split,
 )
-from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.pipeline import FeatureUnion, Pipeline
 from sklearn.preprocessing import (
     FunctionTransformer,
     LabelEncoder,
@@ -135,10 +120,10 @@ from skopt import BayesSearchCV, space
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
 from statsmodels.stats.multicomp import MultiComparison
-import treeplot as tree
-
-# Models
-# from xgboost import XGBClassifier
+from xgboost import XGBClassifier
+from yellowbrick.cluster import InterclusterDistance
+from yellowbrick.features import PCA as yb_pca
+from yellowbrick.features import Rank1D
 
 set_config(transform_output="pandas")
 
@@ -368,7 +353,7 @@ def save_csv_file(
         output_directory (Path): Folder where the data is saved to.
 
     Returns:
-        None.
+        None. Saves the data as a '.csv' file.
     """
     dataframe.to_csv(
         path_or_buf=output_directory.joinpath(f"{file_name}.csv"),
@@ -392,7 +377,7 @@ def save_excel_file(
         output_directory (Path): Folder where the data is saved to.
 
     Returns:
-        None.
+        None. Saves the data as an '.xlsx' file.
     """
     dataframe.to_excel(
         excel_writer=output_directory.joinpath(f"{file_name}.xlsx"),
@@ -437,7 +422,7 @@ def save_figure(file_name: str, output_directory: Path) -> None:
         output_directory (Path): Folder where the image is saved to.
 
     Returns:
-        None.
+        None. Save a figure as '.png' file.
     """
     plt.savefig(
         fname=output_directory.joinpath(f"{file_name}.png"),
@@ -515,6 +500,7 @@ def save_pickle_file(
     """
     dataframe.to_pickle(path=output_directory.joinpath(
         f"{file_name}.pkl"), protocol=-1)
+    return None
 
 
 def save_console_output(file_name: str) -> None:
@@ -530,6 +516,9 @@ def save_console_output(file_name: str) -> None:
 
     Args:
         file_name (str): _description_
+
+    Returns:
+        None.
     """
     # Save the original stdout
     original_stdout = sys.stdout
@@ -541,6 +530,7 @@ def save_console_output(file_name: str) -> None:
         # Reset stdout back to the original
         sys.stdout = original_stdout
     print("The console output was saved.")
+    return None
 
 
 def convert_text_file_to_docx(file_name: str, output_directory: Path) -> None:
@@ -610,13 +600,11 @@ def convert_npz_to_mat(input_directory: Path) -> None:
     Args:
         input_directory (Path): [description]
     """
-    output_directory = input_directory
-
     none_array = array(None)
     NB_ERRORS = 0
     NB_CONVERTED = 0
 
-    npz_file_list = list(input_directory.glob(pattern="*.npz"))
+    npz_file_list = list(Path(input_directory).glob(pattern="*.npz"))
 
     for input_path in npz_file_list:
         try:
@@ -627,7 +615,7 @@ def convert_npz_to_mat(input_directory: Path) -> None:
                 if array_equal(value, none_array):
                     data_dict[key] = array([])
 
-            output_path = output_directory.joinpath(input_path.stem + ".mat")
+            output_path = input_directory.joinpath(input_path.stem + ".mat")
             savemat(file_name=str(output_path), mdict=data_dict)
         except Exception:
             NB_ERRORS += 1
@@ -1113,6 +1101,8 @@ def get_list_of_unique_values(
 ) -> List[str | int | float]:  # to be checked
     """Get a list of unique values from a dataframe.
 
+    NOTE: if dealing with a Numpy array, function 'np.unique()' must be used.
+
     Since an array is produced, the output is converted to a list.
 
     Args:
@@ -1219,7 +1209,7 @@ def prepare_scaled_features_encoded_target(
     features = dataframe.select_dtypes(include="number")
     features_scaled = standardise_features(features=features)
     target = dataframe[target_name]
-    target_encoded, target_class_list = target_label_encoder(
+    target_encoded, target_class_list = encode_target_labels(
         dataframe=dataframe, target_name=target
     )
     return (
@@ -1381,6 +1371,7 @@ def produce_sweetviz_eda_report(
         open_browser=True,
         layout="widescreen",
     )
+    return None
 
 
 def compare_sweetviz_eda_report(
@@ -1414,6 +1405,7 @@ def compare_sweetviz_eda_report(
         open_browser=True,
         layout="widescreen",
     )
+    return None
 
 
 def produce_dtale_eda_report(dataframe: pd.DataFrame) -> None:
@@ -2750,7 +2742,7 @@ def create_missing_data_matrix(
         output_directory (Path): Output directory where figure will be saved.
 
     Returns:
-        None. Saves the matrix as an image file.
+        None. Saves the matrix as a figure file.
     """
     plt.figure(figsize=(15, 10))
     msno.matrix(
@@ -2764,6 +2756,7 @@ def create_missing_data_matrix(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
+    return None
 
 
 def draw_scree_plot(x_axis, y_axis):
@@ -3589,7 +3582,7 @@ def draw_anova_quality_checks(
         confidence_interval (float, optional): _description_. Defaults to 0.95.
 
     Returns:
-        None. Saves the plot as an image file.
+        None. Saves the plot as a figure file.
     """
     draw_qqplot(dataframe=model.resid, confidence_interval=confidence_interval)
     plt.title(
@@ -3625,7 +3618,7 @@ def draw_tukeys_hsd_plot(
         confidence_interval (float, optional): _description_. Defaults to 0.95.
 
     Returns:
-        None. Saves the plot as an image file.
+        None. Saves the plot as a figure file.
     """
     print("\nStats for Tukey's HSD Plots")
     # Run post-hoc test
@@ -3735,6 +3728,7 @@ def draw_pca_outliers_biplot_3d(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
+    return None
 
 
 def draw_pca_outliers_biplot(
@@ -3794,6 +3788,7 @@ def draw_pca_outliers_biplot(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
+    return None
 
 
 def draw_pca_biplot_3d(
@@ -3814,6 +3809,9 @@ def draw_pca_biplot_3d(
         target_encoded (pd.Series): _description_
         target_class_list (List[str]): _description_
         output_directory (Path): _description_
+
+    Returns:
+        None. Produces an '.html' file of the PCA biplot.
     """
     # Define the colour scheme for identifying the target classes ?
     # target_class_colour_list, _ = colourmap.fromlist(target_class_list)
@@ -3871,7 +3869,10 @@ def draw_pca_biplot_3d(
             aspectmode="data",
         ),
         title=dict(
-            text="Table of parameter effects on defect detection",
+            text=(
+                "Representation of the parameter effects on defect detection "
+                "(PC1 vs. PC2 vs. PC3)"
+            ),
             font=dict(size=24),
         ),
     )
@@ -3881,117 +3882,75 @@ def draw_pca_biplot_3d(
     fig.show()
     # Save the Plotly figure as an HTML file
     fig.write_html(output_directory.joinpath(f"{file_name}.html"))
+    return None
 
 
-def draw_pca_biplot(
-    pca_array: np.ndarray,
-    features_scaled: pd.DataFrame,
-    target_encoded: pd.Series,
-    target_class_list: List[str],
-    file_name: str,
-    output_directory: Path,
+def draw_pca_scatterplot(
+    dataframe: pd.DataFrame,
+    x_axis: str,
+    y_axis: str,
+    # file_name: str,
+    # output_directory: Path,
+    pca_variance_explained: List[float],
+    hue: str = None,
+    hue_order: List[str] = None,
+    palette: List[str] = None,
+    style=None,
+    size=None,
 ) -> None:
-    """draw_pca_biplot _summary_.
+    """Draw a scatter plot of TWO variables.
 
-    The 'yellowbrick' library is used for Principle Component Analysis.
-    Prior to fitting the features and target, the latter must be first
-    label-encoded.
+    Use the parameter 'size' to choose a grouping variable that will produce
+    points with different sizes.
 
     Args:
-        features_scaled (pd.DataFrame): _description_
-        target_encoded (pd.Series): _description_
-        target_class_list (List[str]): _description_
-        output_directory (Path): _description_
+        dataframe (_type_): Input dataframe.
+        x (_type_): X-axis variable, i.e. first Principal Component.
+        y (_type_): Y-axis variable, i.e. second Principal Component.
+        file_name (str): Output filename.
+        output_directory (Path): Output directory (as Path object).
+        pca_variance_explained (List[float]): List of PCA variance explained
+        values.
+        hue (str, optional): Grouping variable. Defaults to None.
+        hue_order (List[str], optional): Order for the levels of the grouping
+        variable. Defaults to None.
+        palette (List[str], optional): List of colors to use for the different
+        levels of the hue variable. Defaults to None.
+        style (str, optional): Styling variable. Defaults to None.
+        size (str, optional): Sizing variable. Defaults to None.
+
+    Returns:
+        None. Saves the plot as a figure file.
     """
-    # Define the colour scheme for identifying the target classes
+    # Define the size range for the markers
+    size_range = (20, 200)
 
-    # Get a colour map
-    # cmap = plt.get_cmap('tab10')
-    # Create a list of colours based on the colour map and the number of
-    # colours, i.e. the number of target classes
-    # target_class_colour_list = [
-    #     cmap[colour] for colour in range(len(target_class_list))
-    # ]
+    # Define the size of the markers
+    marker_size = 50
 
-    # Define the colour scheme for identifying the target classes
-    target_class_colour_list, _ = colourmap.fromlist(target_class_list)
-
-    plt.figure(figsize=(15, 10))
-    pca_biplot = yb_pca(
-        scale=True,
-        classes=target_class_list,
-        proj_features=True,
-    )
-    pca_biplot.fit_transform(features_scaled, target_encoded)
-    pca_biplot.finalize()
-
-    # plt.set(
-    #     xlabel=f"{pc_x.upper()} ({variance_list[0]:.1f} %)",
-    #     ylabel=f"{pc_y.upper()} ({variance_list[1]:.1f} %)"
-    # )
-    # plt.set(
-    #     xlabel="PC1",
-    #     ylabel="PC2"
-    # )
-    # plt.legend(
-    #     title="Legend",
-    #     bbox_to_anchor=(1, 1),
-    #     loc="upper left",
-    #     fontsize="10",
-    #     frameon=False,
-    #     markerscale=2
-    # )
-    plt.title(
-        label="Parameter Effects on Defect Detection PC1 vs. PC2",
-        fontsize=16,
-        loc="center",
+    # Draw the scatter plot
+    pca_scatterplot = sns.scatterplot(
+        data=dataframe,
+        x=x_axis,
+        y=y_axis,
+        hue=hue,
+        style=style,
+        palette=palette,
+        hue_order=hue_order,
+        size=size,
+        sizes=size_range,
+        legend="full",
+        s=marker_size,
     )
 
-    # -------------------------------------------------------------------------
-
-    # Create ellipsis for 95% CI for each classe
-
-    # Define the confidence level and alpha value for the ellipse
-    confidence_interval = 0.95
-    alpha = 0.3  # this is the transparency level of the ellipses
-
-    # Iterate over each class in the dataset
-    for target_class, colour in zip(
-        range(len(target_class_list)), target_class_colour_list
-    ):
-        # Select the data for the current class
-        pca_class = pca_array[target_encoded == target_class]
-        # Calculate the mean and covariance matrix for the data
-        mean = np.mean(pca_class, axis=0)
-        cov = np.cov(pca_class.T)
-        # Calculate the ellipse width and height based on the confidence level
-        # and covariance matrix
-        ellipse = Ellipse(
-            xy=mean,
-            width=2
-            * np.sqrt(cov[0, 0])
-            * stats.t.ppf(q=(1 + confidence_interval) /
-                          2, df=pca_class.shape[0] - 1),
-            height=2
-            * np.sqrt(cov[1, 1])
-            * stats.t.ppf(q=(1 + confidence_interval) /
-                          2, df=pca_class.shape[0] - 1),
-        )
-        width, height = ellipse.get_width(), ellipse.get_height()
-
-        # Add the ellipse to the plot with the specified color and alpha value
-        plt.gca().add_artist(
-            Ellipse(
-                xy=mean,
-                width=width,
-                height=height,
-                edgecolor=colour,
-                facecolor=colour,
-                alpha=alpha,
-            )
-        )
-    # pca_biplot.show()
-    save_figure(file_name=file_name, output_directory=output_directory)
+    # Set the labels for the axes
+    pca_scatterplot.set(
+        xlabel=f"PC1 ({pca_variance_explained[0]:.1f} %)",
+        # xlabel="X-coordinate",
+        ylabel=f"PC2 ({pca_variance_explained[1]:.1f} %)",
+        # ylabel="Y-coordinate"
+    )
+    return None
 
 
 def add_confidence_interval_ellipses(
@@ -4031,14 +3990,14 @@ def add_confidence_interval_ellipses(
         # interval value and covariance matrix
         ellipse = Ellipse(
             xy=mean,
-            width=2
-            * np.sqrt(cov[0, 0])
-            * stats.t.ppf(q=(1 + confidence_interval) /
-                          2, df=pca_class.shape[0] - 1),
-            height=2
-            * np.sqrt(cov[1, 1])
-            * stats.t.ppf(q=(1 + confidence_interval) /
-                          2, df=pca_class.shape[0] - 1),
+            width=2 * np.sqrt(cov[0, 0]) * stats.t.ppf(
+                q=(1 + confidence_interval) / 2,
+                df=pca_class.shape[0] - 1
+            ),
+            height=2 * np.sqrt(cov[1, 1]) * stats.t.ppf(
+                q=(1 + confidence_interval) / 2,
+                df=pca_class.shape[0] - 1
+            )
         )
         width, height = ellipse.get_width(), ellipse.get_height()
         # print(width, height)
@@ -4056,14 +4015,137 @@ def add_confidence_interval_ellipses(
         )
     plt.tight_layout()
     plt.show()
+    return None
 
 
-# # RadViz with 'yellowbrick' library
-# plt.figure(dpi=120)
-# radviz = RadViz(classes=target_encoded_list)
-# radviz.fit(features, target_encoded)
-# radviz.transform(features)
-# # radviz.show()
+def draw_pca_scatterplot_with_ellipses(
+    pca_array: np.ndarray,
+    target_label_encoded: np.ndarray,
+    target_label_list: List[str],
+    target_class_colour_list: List[str],
+    pca_target_dataframe: pd.DataFrame,
+    pca_variance_explained: List[float],
+    target_name: str,
+    confidence_interval=0.90,
+) -> None:
+    """Draws a scatterplot of PCA with ellipses as confidence intervals.
+
+    Only the first TWO principal components ("pc1" and "pc2") are selected.
+
+    Args:
+        pca_array (np.ndarray): Output array from PCA.
+        target_label_encoded (np.ndarray): Encoded target labels.
+        target_label_list (List[str]): List of target labels/classes.
+        target_class_colour_list (List[str]): List of color codes for each
+            target class.
+        pca_target_dataframe (pd.DataFrame): Concatenated dataframe of PCA
+            and target.
+        pca_variance_explained (List[float]): List of variances explained by
+            each principal component.
+        target_name (str): Name of the target variable.
+        confidence_interval (float): Value of the confidence interval. Defaults
+            to 0.90 (90%).
+
+    Returns:
+        None. Saves the plot as a figure file.
+    """
+    # Create ellipsis for 90% CI (can be changed) for each target class
+    add_confidence_interval_ellipses(
+        pca_array=pca_array,
+        target_encoded=target_label_encoded,
+        target_class_list=target_label_list,
+        target_class_colour_list=target_class_colour_list,
+        confidence_interval=confidence_interval,
+    )
+
+    # Add a scatter plot to the confidence intervals
+    draw_pca_scatterplot(
+        dataframe=pca_target_dataframe,
+        x_axis="pc1",
+        y_axis="pc2",
+        pca_variance_explained=pca_variance_explained,
+        hue=target_name,
+        hue_order=target_label_list,
+        palette=target_class_colour_list,
+    )
+    return None
+
+
+def display_boundary_decision(
+    data: np.ndarray,
+    model: BaseEstimator,
+) -> DecisionBoundaryDisplay:
+    """Display the decision boundaries to split class clusters.
+
+    The model MUST be a trained dataset previously fitted on the selected
+    features.
+
+    Args:
+        data (np.ndarray): Numpy array of data points.
+        model (_type_): Trained model object.
+
+    Returns:
+        DecisionBoundaryDisplay: DecisionBoundaryDisplay object.
+    """
+    display_bounds = DecisionBoundaryDisplay.from_estimator(
+        estimator=model,
+        X=data,
+        plot_method="contour",
+        response_method="predict",
+        grid_resolution=200,
+        xlabel="PC1",
+        ylabel="PC2",
+        alpha=0.5,
+    )
+    return display_bounds
+
+
+def draw_pca_scatterplot_with_boundaries(
+    pca_array: np.ndarray,
+    model: BaseEstimator,
+    target_label_list: List[str],
+    target_class_colour_list: List[str],
+    pca_target_dataframe: pd.DataFrame,
+    pca_variance_explained: List[float],
+    target_name: str,
+) -> None:
+    """Draws a scatterplot of PCA with target class boundaries.
+
+    Only the first TWO principal components ("pc1" and "pc2") are selected.
+
+    Args:
+        pca_array (np.ndarray): Output array from PCA.
+        model (BaseEstimator): Model used to fit the data to the boundaries.
+        target_label_list (List[str]): List of target labels/classes.
+        target_class_colour_list (List[str]): List of color codes for each
+            target class.
+        pca_target_dataframe (pd.DataFrame): Concatenated dataframe of PCA
+            and target.
+        pca_variance_explained (List[float]): List of variances explained by
+            each principal component.
+        target_name (str): Name of the target variable.
+
+    Returns:
+        None.
+    """
+    # Create the boundary decision map
+    display_boundary_decision(
+        data=pca_array,
+        model=model,
+    )
+
+    # Add a scatter plot to the boundary display
+    draw_pca_scatterplot(
+        # dataframe=pca_target_dataframe,
+        dataframe=pca_target_dataframe,
+        x_axis="pc1",
+        y_axis="pc2",
+        pca_variance_explained=pca_variance_explained,
+        hue=target_name,
+        hue_order=target_label_list,
+        palette=target_class_colour_list,
+    )
+    return None
 
 
 def draw_feature_rank(
@@ -4110,7 +4192,7 @@ def show_items_per_category(
         output_directory (Path): The directory where the figure will be saved.
 
     Returns:
-        None. Saves a bar chart image for counts of each defect class.
+        None. Saves a bar chart figure for counts of each defect class.
     """
     # Show number of items in each class of the target
     data_class_count = data.value_counts()
@@ -4118,13 +4200,15 @@ def show_items_per_category(
         f"\nNumber of items within each '{category_name}' class:\n"
         f"{data_class_count}\n"
     )
+
+    # Plot the figure as (horizontal) bars
     plt.figure()
     ax = data_class_count.sort_values().plot.barh()
     ax.set(xlabel="Number of items", ylabel=category_name)
     plt.title(
         label=(
-            f"Number of items for each class of the category "
-            f"'{category_name}'"
+            f"Number of Items for Each Class of the Category "
+            f"'{category_name.replace('_', ' ').title()}'"
         ),
         fontsize=16,
         loc="center",
@@ -4136,6 +4220,7 @@ def show_items_per_category(
         output_directory=output_directory
     )
     plt.show()
+    return None
 
 
 def generate_class_colour_list(class_list: List[str]) -> List[str]:
@@ -4156,7 +4241,7 @@ def generate_class_colour_list(class_list: List[str]) -> List[str]:
 # DATA MODELLING (MACHINE LEARNING)
 
 
-def target_label_encoder(
+def encode_target_labels(
     data: pd.DataFrame | pd.Series,
 ) -> Tuple[np.ndarray, List[str], LabelEncoder]:
     """Encode the target labels (usually strings) into integers.
@@ -4177,12 +4262,73 @@ def target_label_encoder(
     target_class_list = label_encoder.classes_.tolist()
 
     # Get the mapping dictionary of original labels to encoded labels
-    label_mapping_dictionary = dict(
-        zip(target_class_list, range(len(target_class_list)))
-    )
-    print("\nDictionary of the target encoded classes:")
+    label_mapping_dictionary = {
+        class_name: index for index, class_name in enumerate(target_class_list)
+    }
+    print("\nDictionary of the target-encoded classes:")
     print(label_mapping_dictionary)
-    return target_encoded, target_class_list
+    return target_encoded, target_class_list, label_encoder
+
+
+def get_model_target(
+    dataframe: pd.DataFrame,
+    target_name: str,
+) -> Tuple[np.ndarray, List[str], LabelEncoder, np.ndarray]:
+    """Get the target for a machine learning model.
+
+    NOTE: Unfortunately, the 'LabelEncoder()' class function for target
+    variable cannot be added to a Scikit-learn pipeline, hence must be done
+    beforehand.
+
+    Args:
+        dataframe (pd.DataFrame): The input DataFrame containing the data.
+        target_name (str): The name of the target column.
+
+    Returns:
+        Tuple[np.ndarray, List[str], LabelEncoder, np.ndarray]: A tuple
+            containing the target_label_encoded, target_label_list,
+            label_encoder and target.
+    """
+    # Separate the target from the rest of the dataset
+    target = dataframe[target_name]
+
+    # Since we will be working with a classification model, fit and
+    # transform the target column with a label encoder
+    (
+        target_label_encoded,
+        target_label_list,
+        label_encoder,
+    ) = encode_target_labels(data=target)
+
+    target = target_label_encoded
+    return (
+        target,
+        target_label_encoded,
+        target_label_list,
+        label_encoder,
+    )
+
+
+def get_model_features(
+    dataframe: pd.DataFrame,
+    target_name: str,
+) -> pd.DataFrame:
+    """Get the features for a machine learning model.
+
+    Args:
+        dataframe (pd.DataFrame): The input DataFrame containing the data.
+        target_name (str): The name of the target column.
+
+    Returns:
+        pd.DataFrame: A dataframe containing the model features.
+    """
+    # Separate features from target, including the file names as not needed
+    features = dataframe.drop(labels=target_name, axis=1)
+
+    # Create a list of features
+    feature_list = features.columns.to_list()
+    print(f"\nList of features available:\n{feature_list}\n")
+    return features
 
 
 def train_test_split_pipeline(
@@ -4218,7 +4364,7 @@ def train_test_split_pipeline(
     return train_test_split_pipe
 
 
-def train_valid_test_split_fast(
+def train_test_valid_split(
     dataframe: pd.DataFrame,
     target: pd.Series,
     train_size: float = 0.6,
@@ -4855,7 +5001,7 @@ def save_pipeline_model_joblib(
 
 
 def calculate_cross_validation_scores(
-    model: object,
+    model: BaseEstimator,
     features_test: pd.DataFrame,
     target_test: pd.Series,
     target_pred: pd.Series,
@@ -4869,6 +5015,7 @@ def calculate_cross_validation_scores(
     target.
 
     Args:
+        model (BaseEstimator): Model to be used for cross validation analysis.
         features_test (pd.DataFrame): The test features data.
         target_test (pd.Series): The true target values.
         target_pred (pd.Series): The predicted target values.
@@ -4911,10 +5058,11 @@ def calculate_cross_validation_scores(
         # output_dict=True,
     )
     print(f"\nClassification Report:\n{classification_report_}\n")
+    return None
 
 
 def calculate_multiple_cross_validation_scores(
-    model: object,
+    model: BaseEstimator,
     features: pd.DataFrame | np.ndarray,
     target: pd.Series | np.ndarray,
     cv: int = 5,
@@ -4927,7 +5075,7 @@ def calculate_multiple_cross_validation_scores(
     must be set to 'True'.
 
     Args:
-        model (object): The model used for cross-validation.
+        model (BaseEstimator): The model used for cross-validation.
         features (pd.DataFrame | np.ndarray): The input features data.
         target (pd.Series | np.ndarray): The target values.
         cv (int, optional): Number of cross-validation folds. Defaults to 5.
@@ -4978,6 +5126,52 @@ def calculate_multiple_cross_validation_scores(
         'cross_val_predict' function from Scikit-learn library.
     """
     )
+    return None
+
+
+def calculate_recall_cross_validation_scores(
+    model: BaseEstimator,
+    features: pd.DataFrame,
+    target: pd.Series,
+    cv: int = 5,
+) -> Tuple[float, float]:
+    """Calculate the cross-validated recall scores for a given model.
+
+    Args:
+        model (BaseEstimator): The model to evaluate.
+        features (pd.DataFrame): The input features.
+        target (pd.Series): The target variable.
+        cv (int, optional): Number of cross-validation folds. Defaults to 5.
+
+    Returns:
+        Tuple[float, float]: A tuple containing the average recall score and
+            its standard deviation.
+    """
+    # Define the scoring metric
+    # The 'weighted' parameter is favoured in cases of class imbalanced
+    scoring = make_scorer(
+        score_func=recall_score,
+        average="weighted",
+    )
+
+    recall_cv_score = cross_val_score(
+        estimator=model,
+        X=features,
+        y=target,
+        cv=cv,
+        scoring=scoring,
+    )
+
+    # Calculate the average recall score and its standard deviation
+    recall_average = recall_cv_score.mean()
+    recall_stdev = recall_cv_score.std()
+
+    print(f"\nAverage Recall Score = {recall_average:.1%}")
+    print(f"StDev Recall Score = {recall_stdev:.1%}\n")
+
+    # Save the mean score and its standard deviation as a tuple
+    recall_cv_scores = (recall_average, recall_stdev)
+    return recall_cv_scores
 
 
 def calculate_cross_validation_prediction_scores(
@@ -5279,27 +5473,37 @@ def draw_random_forest_tree(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
+    return None
 
 
 def draw_confusion_matrix_heatmap(
     target_test: pd.Series,
     target_pred: pd.Series,
     target_label_list: List[str],
+    accuracy_score_: float,
+    recall_cv_scores: Tuple[float],
+    model_name: str,
     file_name: str,
     output_directory: Path,
 ) -> None:
     """
     Draw a heatmap of confusion matrix based on predicted & true target values.
 
+    # ? Add recall score to the confusion matrix ?
+
     Args:
         target_test (pd.Series): The true target values.
         target_pred (pd.Series): The predicted target values.
         target_label_list (List[str]): A list of target labels.
+        accuracy_score_ (float): The accuracy score of the model.
+        recall_cv_scores (Tuple[float]): A tuple containing the mean score and
+            its standard deviation.
+        model_name (str): The model name to be displayed in confusion matrix.
         file_name (str): The name of the output file.
         output_directory (Path): The directory to save the output file.
 
     Returns:
-        None. Saves the heatmap as an image file.
+        None. Saves the heatmap as a figure file.
     """
     # Compute the confusion matrix
     confusion_matrix_ = confusion_matrix(
@@ -5307,14 +5511,12 @@ def draw_confusion_matrix_heatmap(
         y_pred=target_pred,
         labels=target_label_list,
     )
-    print(f"\nConfusion Matrix (Test Set):\n{confusion_matrix_}\n")
+    print(f"\nConfusion Matrix:\n{confusion_matrix_}\n")
 
     # Show the confusion matrix as a heatmap
     plt.figure()
     sns.heatmap(
         data=confusion_matrix_,
-        # Get % of predictions
-        # data=confusion_matrix_/np.sum(confusion_matrix_),
         annot=True,
         # fmt=".1%",
         cmap="Greens",
@@ -5324,16 +5526,25 @@ def draw_confusion_matrix_heatmap(
     )
     plt.ylabel("True label")
     plt.xlabel("Predicted label")
-    plt.title(label="Confusion matrix of predictions", fontsize=16)
+    plt.title(
+        label=(
+            f"Confusion matrix of predictions - {model_name}\n"
+            f"Accuracy = {accuracy_score_:.1%} - "
+            f"Mean Recall = {recall_cv_scores[0]:.1%} +/- "
+            f"{recall_cv_scores[1]:.1%}"
+        ),
+        fontsize=14,
+    )
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
+    return None
 
 
 def get_feature_importance_scores(
-    model: object,
+    model: BaseEstimator,
     feature_name_list: List[str],
     file_name: str,
     output_directory: Path,
@@ -5342,7 +5553,7 @@ def get_feature_importance_scores(
     Retrieve the feature importance scores from a model & generates a bar plot.
 
     Args:
-        model (object): The trained model.
+        model (BaseEstimator): The trained model.
         feature_name_list (List[str]): The list of feature names.
         file_name (str): The name of the output file.
         output_directory (Path): The directory to save the output file.
@@ -5390,7 +5601,7 @@ def get_feature_importance_scores(
 
 
 def apply_cross_validation_analysis(
-    model: object,
+    model: BaseEstimator,
     features_train: pd.DataFrame,
     target_train: pd.Series,
     features_test: pd.DataFrame,
@@ -5405,7 +5616,7 @@ def apply_cross_validation_analysis(
     Apply cross-validation on train & test data to evaluate model performance.
 
     Args:
-        model (object): The model to be used for cross validation analysis.
+        model (BaseEstimator): Model to be used for cross validation analysis.
         features_train (pd.DataFrame): The training data features.
         target_train (pd.Series): The training data target.
         features_test (pd.DataFrame): The test data features.
