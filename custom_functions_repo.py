@@ -3889,8 +3889,6 @@ def draw_pca_scatterplot(
     dataframe: pd.DataFrame,
     x_axis: str,
     y_axis: str,
-    # file_name: str,
-    # output_directory: Path,
     pca_variance_explained: List[float],
     hue: str = None,
     hue_order: List[str] = None,
@@ -3907,8 +3905,6 @@ def draw_pca_scatterplot(
         dataframe (_type_): Input dataframe.
         x (_type_): X-axis variable, i.e. first Principal Component.
         y (_type_): Y-axis variable, i.e. second Principal Component.
-        file_name (str): Output filename.
-        output_directory (Path): Output directory (as Path object).
         pca_variance_explained (List[float]): List of PCA variance explained
         values.
         hue (str, optional): Grouping variable. Defaults to None.
@@ -3946,9 +3942,7 @@ def draw_pca_scatterplot(
     # Set the labels for the axes
     pca_scatterplot.set(
         xlabel=f"PC1 ({pca_variance_explained[0]:.1f} %)",
-        # xlabel="X-coordinate",
         ylabel=f"PC2 ({pca_variance_explained[1]:.1f} %)",
-        # ylabel="Y-coordinate"
     )
     return None
 
