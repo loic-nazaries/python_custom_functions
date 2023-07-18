@@ -273,17 +273,46 @@ def load_pickle_file(file_name: str, input_directory: Path) -> pd.DataFrame:
     return dataframe
 
 
-def load_mat_file(mat_file_name: str) -> Dict[str, float]:
+def load_mat_file(
+        mat_file_name: str,
+        input_directory: Path,
+) -> Dict[str, np.ndarray]:
     """Load data from '.mat' file as a dictionary and print it.
 
     Args:
-        mat_file_name (_type_): _description_
+        mat_file_name (str): The name of the MAT file.
+        input_directory (str): The input directory path.
 
     Returns:
-        _type_: _description_
+        Dict[str, np.ndarray]: The loaded dictionary data from the '.mat' file.
     """
-    dictionary = loadmat(file_name=mat_file_name)
-    return dictionary  # check dict content type
+    dictionary = loadmat(file_name=input_directory/mat_file_name)
+    print("The '.mat' file was successfully converted.")
+    return dictionary
+
+
+def load_mat_file_73(
+    mat_file_name: str,
+    input_directory: Path,
+) -> Dict[str, np.ndarray]:
+    """Load dictionary data from a '.mat' file.
+
+    IMPORTANT: the 'mat73' library converts mat files from MATLAB version 7.3
+    and above.
+
+    Args:
+        mat_file_name (str): The name of the MAT file.
+        input_directory (str): The input directory path.
+
+    Returns:
+        Dict[str, np.ndarray]: The loaded dictionary data from the '.mat' file.
+    """
+    dictionary = mat73.loadmat(
+        filename=input_directory/mat_file_name,
+        use_attrdict=True,
+    )
+    print("The '.mat' file was successfully converted.")
+    return dictionary
 
 
 def load_excel_file(
