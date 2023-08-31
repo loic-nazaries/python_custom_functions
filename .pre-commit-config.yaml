@@ -1,0 +1,172 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+# Apply to all files without committing:
+#   pre-commit run --all-files
+# Update this file:
+#   pre-commit autoupdate
+
+# Don't run pre-commit on files under third-party/
+exclude: "^\
+    (third-party/.*)\
+"
+
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0  # must match test-requirements.txt
+    hooks:
+    -   id: check-merge-conflict    # checks for files that contain merge conflict strings
+        verbose: true
+    -   id: check-added-large-files # prevents giant files from being committed
+        args: ["--maxkb=10000"]
+        verbose: true
+    -   id: check-case-conflict     # checks for files that would conflict in case-insensitive filesystems
+        verbose: true
+    -   id: check-yaml              # checks yaml files for parseable syntax
+        verbose: true
+    -   id: check-toml              # checks toml files for parseable syntax
+        verbose: true
+    -   id: check-json              # checks json files for parseable syntax
+        verbose: true
+    -   id: detect-private-key      # detects the presence of private keys
+        verbose: true
+    -   id: debug-statements        # checks for debugger imports
+        verbose: true
+    -   id: name-tests-test         # verifies that test files are named correctly
+        verbose: true
+    -   id: requirements-txt-fixer  # sorts entries in requirements.txt
+        verbose: true
+    -   id: pretty-format-json      # checks that keys are sorted and indented
+        verbose: true
+    -   id: check-docstring-first   # checks for a common error of placing code before the docstring
+        verbose: true
+    -   id: trailing-whitespace     # trims trailing whitespace
+        verbose: true
+    -   id: end-of-file-fixer       # ensures that a file is either empty, or ends with one newline
+        verbose: true
+    -   id: mixed-line-ending       # replaces or checks mixed line ending
+        verbose: true
+-   repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+    -   id: black           # code formatter
+        verbose: true
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.0.282
+    hooks:
+    -   id: ruff            # code linter
+        args: [
+            --ignore, E402,         # module level import not at top of file
+            --ignore, PLR0913,      # too many arguments to function call
+            --ignore, PLR0915,      # too many statements to function call
+            --fix,                  # enable auto-fix
+            --exit-non-zero-on-fix, # exit with a non-zero status code if any files were modified via auto-fix, even if no lint violations remain
+        ]
+        verbose: true
+# -   repo: https://github.com/PyCQA/flake8             # should be replaced by 'ruff'
+#     rev: 6.0.0
+#     hooks:
+#     -   id: flake8        # code linter
+#         verbose: true
+# -   repo: https://github.com/timothycrosley/isort     # should be replaced by 'ruff'
+#     rev: 5.12.0
+#     hooks:
+#     -   id: isort         # sorts imports alphabetically and automatically separate into sections and by type
+#         args: [--profile=black]
+#         verbose: true
+-   repo: https://github.com/pre-commit/mirrors-pylint  # should be replaced by 'ruff'
+    rev: ""
+    hooks:
+    -   id: pylint
+        args: [
+            "--disable=E0401",  # used when pylint has been unable to import a module
+            "--disable=C0413",  # used when code and imports are mixed
+            "--disable=W0511",  # used when a warning note as FIXME or XXX is detected
+            "--disable=R0801",  # indicates that a set of similar lines has been detected among multiple file. This usually means that the code should be refactored to avoid this duplication
+            "--disable=R0913",  # used when a function or method takes too many arguments
+            "--disable=R0914",  # used when a function or method takes too many local variables
+            "--disable=R0915",  # used when a function or method takes too many statements
+        ]
+        verbose: true
+-   repo: https://github.com/hadialqattan/pycln
+    rev: "v2.2.0"
+    hooks:
+    -   id: pycln           # finds and removes unused import statements
+        args: [".", "--all"]
+        verbose: true
+# -   repo: https://github.com/asottile/pyupgrade  # should be replaced by Ruff
+#     rev: v3.9.0
+#     hooks:
+#     -   id: pyupgrade     # upgrades syntax for newer versions of the language
+#         verbose: true
+-   repo: https://github.com/asottile/add-trailing-comma
+    rev: v3.0.0
+    hooks:
+    -   id: add-trailing-comma
+        verbose: true
+-   repo: https://github.com/asottile/dead
+    rev: v1.5.2
+    hooks:
+    -   id: dead            # detects dead, unused code
+        verbose: true
+-   repo: https://github.com/asottile/setup-cfg-fmt
+    rev: v2.4.0
+    hooks:
+    -   id: setup-cfg-fmt   # applies a consistent format to setup.cfg files
+        verbose: true
+-   repo: https://github.com/tox-dev/pyproject-fmt
+    rev: "0.13.0"
+    hooks:
+    -   id: pyproject-fmt   # applies a consistent format to pyproject.toml files
+        verbose: true
+-   repo: https://github.com/adamchainz/blacken-docs
+    rev: 1.15.0
+    hooks:
+    -   id: blacken-docs    # runs Black on Python code blocks in documentation files
+        exclude: README\.md$ # exclude `README.md` file
+        verbose: true
+# -   repo: https://github.com/pre-commit/mirrors-pdoc3  # NOT WORKING
+#     rev: v0.9.2
+#     hooks:
+#     -   id: pdoc3
+#         args: ["--html", "--output-dir", "docs"]
+#         additional_dependencies: ["pdoc3"]
+#         verbose: true
+-   repo: https://github.com/econchick/interrogate
+    rev: 1.5.0
+    hooks:
+    -   id: interrogate     # interrogates a codebase for docstring coverage
+        args: [-vv, -i]
+        verbose: true
+-   repo: https://github.com/dosisod/refurb
+    rev: v1.17.0
+    hooks:
+    -   id: refurb          # refurbishes and modernises Python codebases
+        verbose: true
+-   repo: local
+    hooks:
+    -   id: sourcery        # similar to 'refurb'
+        name: sourcery
+        language: system
+        types:
+        -   python
+        pass_filenames: false
+        entry: sourcery review .
+        verbose: true
+# -   repo: https://github.com/pre-commit/mirrors-mypy
+#     rev: v1.4.1
+#     hooks:
+#     -   id: mypy
+#         args: [--ignore-missing-imports]
+#         verbose: true
+-   repo: local
+    hooks:
+    -   id: run_tests        # similar to 'refurb'
+        name: Run tests
+        language: script
+        types:
+        -   python
+        pass_filenames: false
+        entry: ./run_test.sh
+        stage: [commit]
+        verbose: true

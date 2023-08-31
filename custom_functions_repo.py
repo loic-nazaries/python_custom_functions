@@ -16,52 +16,45 @@ Content Sections:
 """
 
 # Call the libraries required
-import glob
-import itertools
+import itertools  # noqa: I001
 import re
+import shutil
 import sys
 import time
 from collections import defaultdict, namedtuple
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from pprint import pprint
 
-import colourmap as colourmap
+import colourmap
 import docx
 import dtale
 import joblib
+import mat73
 import matplotlib.pyplot as plt
 import missingno as msno
 import numpy as np
-import openpyxl
+import openpyxl  # noqa: F401
 import pandas as pd
 import pingouin as pg
 import plotly.graph_objs as go
 import researchpy as rp
 import scipy as sp
 import seaborn as sns
-import sidetable as stb
+import sidetable as stb  # noqa: F401
 import statsmodels.api as sm
-import statsmodels.stats.multicomp as mc
 import sweetviz as sv
 import treeplot as tree
 from fast_ml.model_development import train_valid_test_split
-from feature_engine.selection import (
-    DropConstantFeatures,
-    DropCorrelatedFeatures,
-    DropDuplicateFeatures, DropFeatures,
-    DropMissingData,
-)
+from feature_engine.selection import (DropConstantFeatures,
+                                      DropCorrelatedFeatures,
+                                      DropDuplicateFeatures, DropFeatures,
+                                      DropMissingData)
 from imblearn.combine import SMOTEENN
-from imblearn.over_sampling import (
-    SMOTE,
-    SVMSMOTE,
-    BorderlineSMOTE,
-    KMeansSMOTE,
-    RandomOverSampler,
-)
+from imblearn.over_sampling import (SMOTE, SVMSMOTE, BorderlineSMOTE,
+                                    KMeansSMOTE, RandomOverSampler)
 from imblearn.under_sampling import RandomUnderSampler
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap  # noqa: F401
 from matplotlib.patches import Ellipse
 from numpy import array, array_equal, load
 from pca import pca
@@ -76,53 +69,32 @@ from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector as selector
 from sklearn.decomposition import PCA
-from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier  # noqa: F401
 from sklearn.feature_selection import VarianceThreshold  # RFECV,
 from sklearn.impute import SimpleImputer
 from sklearn.inspection import DecisionBoundaryDisplay
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    balanced_accuracy_score,
-    classification_report,
-    confusion_matrix,
-    f1_score,
-    make_scorer,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-    roc_curve,
-)
-from sklearn.model_selection import (
-    GridSearchCV,
-    RandomizedSearchCV,
-    RepeatedStratifiedKFold,
-    StratifiedKFold,
-    StratifiedShuffleSplit,
-    cross_val_predict,
-    cross_val_score,
-    cross_validate,
-    train_test_split,
-)
+from sklearn.linear_model import LogisticRegression  # noqa: F401
+from sklearn.metrics import (accuracy_score, balanced_accuracy_score,  # noqa: F401
+                             classification_report, confusion_matrix, f1_score,
+                             make_scorer, precision_score, recall_score,
+                             roc_auc_score, roc_curve)
+from sklearn.model_selection import (GridSearchCV, RandomizedSearchCV,  # noqa: F401
+                                     RepeatedStratifiedKFold, StratifiedKFold,
+                                     StratifiedShuffleSplit, cross_val_predict,
+                                     cross_val_score, cross_validate,
+                                     train_test_split)
 from sklearn.pipeline import FeatureUnion, Pipeline
-from sklearn.preprocessing import (
-    FunctionTransformer,
-    LabelEncoder,
-    MinMaxScaler,
-    OneHotEncoder,
-    OrdinalEncoder,
-    PowerTransform,
-    RobustScaler,
-    StandardScaler,
-)
+from sklearn.preprocessing import (FunctionTransformer, LabelEncoder,
+                                   MinMaxScaler, OneHotEncoder, OrdinalEncoder,
+                                   PowerTransform, RobustScaler,
+                                   StandardScaler)
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from skopt import BayesSearchCV, space
 from statsmodels.formula.api import ols
 from statsmodels.multivariate.manova import MANOVA
 from statsmodels.stats.multicomp import MultiComparison
-from xgboost import XGBClassifier
-from yellowbrick.cluster import InterclusterDistance
-from yellowbrick.features import PCA as yb_pca
+from xgboost import XGBClassifier  # noqa: F401
+from yellowbrick.features import PCA as yb_pca  # noqa: N811
 from yellowbrick.features import Rank1D
 
 set_config(transform_output="pandas")
@@ -137,6 +109,8 @@ OUTPUT_DIR_FIGURES = Path("./figures")
 # -----------------------------------------------------------------------------
 
 # DECORATOR FUNCTIONS
+
+# -----------------------------------------------------------------------------
 
 
 # def cache(func: Callable[any, ...]) -> Callable[any, ...]:
@@ -186,6 +160,8 @@ def timing(func):
 
 # USER INTERFACE
 
+# -----------------------------------------------------------------------------
+
 
 def ask_user_outlier_removal(
     dataframe_with_outliers: pd.DataFrame, dataframe_no_outliers: pd.DataFrame
@@ -223,8 +199,10 @@ def ask_user_outlier_removal(
 
 # INPUT/OUTPUT
 
+# -----------------------------------------------------------------------------
 
-def get_folder_name_list_from_directory(directory_name: Path) -> List[str]:
+
+def get_folder_name_list_from_directory(directory_name: Path) -> list[str]:
     """Get the list of file (name) from a directory.
 
     Args:
@@ -240,7 +218,7 @@ def get_folder_name_list_from_directory(directory_name: Path) -> List[str]:
 
 def get_file_name_list_from_extension(
     directory_name: Path, extension: str
-) -> List[str]:
+) -> list[str]:
     """Get the list of file (name) from a directory.
 
     Args:
@@ -253,6 +231,25 @@ def get_file_name_list_from_extension(
     paths = Path(directory_name).glob(pattern=f"**/*.{extension}")
     file_name_list = [str(path) for path in paths]
     return file_name_list
+
+
+def load_joblib_file(file_name: str, input_directory: Path) -> None:
+    """Load a joblib file containing model parameters and print them using pprint.
+
+    Parameters:
+    - file_name (str): The base name of the joblib file (without the file extension).
+    - input_directory (Path): The directory where the joblib file is located.
+
+    Returns:
+    None
+
+    This function loads a joblib file containing model parameters from the specified
+    directory and file name. It then pretty-prints the loaded parameters using pprint.
+    """
+    model_parameters = joblib.load(
+        filename=input_directory.joinpath(f"{file_name}.joblib"),
+    )
+    pprint(model_parameters)
 
 
 def load_pickle_file(file_name: str, input_directory: Path) -> pd.DataFrame:
@@ -276,7 +273,7 @@ def load_pickle_file(file_name: str, input_directory: Path) -> pd.DataFrame:
 def load_mat_file(
         mat_file_name: str,
         input_directory: Path,
-) -> Dict[str, np.ndarray]:
+) -> dict[str, np.ndarray]:
     """Load data from '.mat' file as a dictionary and print it.
 
     Args:
@@ -284,7 +281,7 @@ def load_mat_file(
         input_directory (str): The input directory path.
 
     Returns:
-        Dict[str, np.ndarray]: The loaded dictionary data from the '.mat' file.
+        dict[str, np.ndarray]: The loaded dictionary data from the '.mat' file.
     """
     dictionary = loadmat(file_name=input_directory/mat_file_name)
     print("The '.mat' file was successfully converted.")
@@ -294,7 +291,7 @@ def load_mat_file(
 def load_mat_file_73(
     mat_file_name: str,
     input_directory: Path,
-) -> Dict[str, np.ndarray]:
+) -> dict[str, np.ndarray]:
     """Load dictionary data from a '.mat' file.
 
     IMPORTANT: the 'mat73' library converts mat files from MATLAB version 7.3
@@ -305,7 +302,7 @@ def load_mat_file_73(
         input_directory (str): The input directory path.
 
     Returns:
-        Dict[str, np.ndarray]: The loaded dictionary data from the '.mat' file.
+        dict[str, np.ndarray]: The loaded dictionary data from the '.mat' file.
     """
     dictionary = mat73.loadmat(
         filename=input_directory/mat_file_name,
@@ -319,17 +316,17 @@ def load_excel_file(
     file_name: str,
     input_directory: Path,
     sheet_name: str | int = 0,
-    nrows: int = None,
+    nrows: int | None = None,
 ) -> pd.DataFrame:
     """Load an Excel file.
 
     Args:
         file_name (str): The file name of the Excel file.
         output_directory (Path): The directory path where the file is located.
-        sheet_name (str | int, optional): The name or index of the sheet to
-            load. Defaults to 0.
-        nrows (int, optional): The number of rows to read from the sheet.
-            Defaults to None.
+        sheet_name (str | int, optional): The name or index of the sheet to load.
+            Defaults to 0.
+        nrows (int, optional): The number of rows to read from the sheet. Defaults to
+            None.
 
     Returns:
         pd.DataFrame: The loaded DataFrame object.
@@ -348,14 +345,15 @@ def load_excel_file(
 def load_csv_file(
     file_name: str,
     input_directory: Path,
-    index_col: str = None,
+    index_col: str | None = None,
 ) -> pd.DataFrame:
     """Load a CSV file.
 
     Args:
         file_name (str): Name of the CSV file, without extension.
         input_directory (Path): Directory path where the CSV file resides.
-        index_col (str): Name of the column to be used as dataframe index.
+        index_col (str): Name of the column to be used as dataframe index. Defaults to
+            None.
 
     Returns:
         pd.DataFrame: DataFrame containing the data from the input CSV file.
@@ -390,7 +388,6 @@ def save_csv_file(
         encoding="utf-8",
         index=True,
     )
-    return None
 
 
 def save_excel_file(
@@ -413,7 +410,6 @@ def save_excel_file(
         index=False,
         sheet_name="Sheet1",
     )
-    return None
 
 
 def save_pipeline_model(
@@ -458,7 +454,7 @@ def save_figure(file_name: str, output_directory: Path) -> None:
         bbox_inches="tight",
         dpi=300,
     )
-    return None
+
 
 
 def save_image_show(
@@ -529,7 +525,7 @@ def save_pickle_file(
     """
     dataframe.to_pickle(path=output_directory.joinpath(
         f"{file_name}.pkl"), protocol=-1)
-    return None
+
 
 
 def save_console_output(file_name: str) -> None:
@@ -559,7 +555,7 @@ def save_console_output(file_name: str) -> None:
         # Reset stdout back to the original
         sys.stdout = original_stdout
     print("The console output was saved.")
-    return None
+
 
 
 def convert_text_file_to_docx(file_name: str, output_directory: Path) -> None:
@@ -572,7 +568,6 @@ def convert_text_file_to_docx(file_name: str, output_directory: Path) -> None:
     # Open the text file and read its contents
     with open(
         file=output_directory.joinpath(f"{file_name}.txt"),
-        mode="r",
         encoding="utf-8",
     ) as output_file:
         # output_text = output_file.read()  # works fine
@@ -597,7 +592,6 @@ def convert_text_file_to_pdf(file_name: str, output_directory: Path) -> None:
     # Open the text file and read its contents
     with open(
         file=output_directory.joinpath(f"{file_name}.txt"),
-        mode="r",
         encoding="utf-8",
     ) as output_file:
         # output_text = output_file.read()  # works fine
@@ -630,8 +624,8 @@ def convert_npz_to_mat(input_directory: Path) -> None:
         input_directory (Path): [description]
     """
     none_array = array(None)
-    NB_ERRORS = 0
-    NB_CONVERTED = 0
+    nb_errors = 0
+    nb_converted = 0
 
     npz_file_list = list(Path(input_directory).glob(pattern="*.npz"))
 
@@ -647,12 +641,12 @@ def convert_npz_to_mat(input_directory: Path) -> None:
             output_path = input_directory.joinpath(input_path.stem + ".mat")
             savemat(file_name=str(output_path), mdict=data_dict)
         except Exception:
-            NB_ERRORS += 1
+            nb_errors += 1
         else:
-            NB_CONVERTED += 1
+            nb_converted += 1
 
-    print(f"{NB_ERRORS} error(s) occurred")
-    print(f"{NB_CONVERTED} file(s) converted")
+    print(f"{nb_errors} error(s) occurred")
+    print(f"{nb_converted} file(s) converted")
 
 
 # ----------------------------------------------------------------------------
@@ -674,7 +668,7 @@ def remove_key_from_dictionary(
     return dictionary  # check dict content type
 
 
-def extract_pattern_from_file_name(file_name: str) -> List[str]:
+def extract_pattern_from_file_name(file_name: str) -> list[str]:
     """Use regular expressions to extract a pattern from a list of file names.
 
     Specifically, it splits the string (here, file name) each time an
@@ -725,6 +719,8 @@ def extract_pattern_from_file_name_2(file_name):
 # ----------------------------------------------------------------------------
 
 # ARRAYS
+
+# -----------------------------------------------------------------------------
 
 
 def convert_dataframe_to_array(
@@ -777,8 +773,10 @@ def convert_array_to_series(array: np.ndarray, array_name: str) -> pd.Series:
 
 # CONVERT OBJECTS
 
+# -----------------------------------------------------------------------------
 
-def convert_dictionary_to_dataframe(dictionary_file: Dict) -> pd.DataFrame:
+
+def convert_dictionary_to_dataframe(dictionary_file: dict) -> pd.DataFrame:
     """Convert a dictionary into a dataframe.
 
     First, the 'len()' function gets the number of items in the dictionary.
@@ -799,13 +797,13 @@ def convert_dictionary_to_dataframe(dictionary_file: Dict) -> pd.DataFrame:
 
 
 def convert_to_datetime_type(
-    dataframe: pd.DataFrame, datetime_variable_list: List[str | datetime]
+    dataframe: pd.DataFrame, datetime_variable_list: list[str | datetime]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to datetime type.
 
     Args:
         dataframe (pd.DataFrame): The DataFrame to be converted.
-        datetime_variable_list (List[str | datetime]): List of column names or
+        datetime_variable_list (list[str | datetime]): List of column names or
             datetime variables to be converted to datetime type.
 
     Returns:
@@ -819,13 +817,13 @@ def convert_to_datetime_type(
 
 
 def convert_to_category_type(
-    dataframe: pd.DataFrame, category_variable_list: List[str]
+    dataframe: pd.DataFrame, category_variable_list: list[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to category type.
 
     Args:
         dataframe (pd.DataFrame): The DataFrame to be converted.
-        category_variable_list (List[str]): List of column names to be
+        category_variable_list (list[str]): List of column names to be
             converted to category type.
 
     Returns:
@@ -839,13 +837,13 @@ def convert_to_category_type(
 
 
 def convert_to_number_type(
-    dataframe: pd.DataFrame, numeric_variable_list: List[str]
+    dataframe: pd.DataFrame, numeric_variable_list: list[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to numeric type.
 
     Args:
         dataframe (pd.DataFrame): The DataFrame to be converted.
-        numeric_variable_list (List[str]): List of column names to be
+        numeric_variable_list (list[str]): List of column names to be
             converted to string type.
 
     Returns:
@@ -859,13 +857,13 @@ def convert_to_number_type(
 
 
 def convert_to_integer_type(
-    dataframe: pd.DataFrame, integer_variable_list: List[str]
+    dataframe: pd.DataFrame, integer_variable_list: list[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to integer type.
 
     Args:
         dataframe (pd.DataFrame): The DataFrame to be converted.
-        integer_variable_list (List[str]): List of column names to be
+        integer_variable_list (list[str]): List of column names to be
             converted to integer type.
 
     Returns:
@@ -879,13 +877,13 @@ def convert_to_integer_type(
 
 
 def convert_to_float_type(
-    dataframe: pd.DataFrame, float_variable_list: List[str]
+    dataframe: pd.DataFrame, float_variable_list: list[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to float type.
 
     Args:
         dataframe (pd.DataFrame): The DataFrame to be converted.
-        float_variable_list (List[str]): List of column names to be
+        float_variable_list (list[str]): List of column names to be
             converted to float type.
 
     Returns:
@@ -899,13 +897,13 @@ def convert_to_float_type(
 
 
 def convert_to_string_type(
-    dataframe: pd.DataFrame, string_variable_list: List[str]
+    dataframe: pd.DataFrame, string_variable_list: list[str]
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to string type.
 
     Args:
         dataframe (pd.DataFrame): The DataFrame to be converted.
-        string_variable_list (List[str]): List of column names to be
+        string_variable_list (list[str]): List of column names to be
             converted to string type.
 
     Returns:
@@ -920,12 +918,12 @@ def convert_to_string_type(
 
 def convert_variables_to_proper_type(
     dataframe: pd.DataFrame,
-    datetime_variable_list: Optional[List[str | datetime]] = None,
-    category_variable_list: Optional[List[str]] = None,
-    numeric_variable_list: Optional[List[str]] = None,
-    integer_variable_list: Optional[List[str]] = None,
-    float_variable_list: Optional[List[str]] = None,
-    string_variable_list: Optional[List[str]] = None,
+    datetime_variable_list: list[str | datetime] | None = None,
+    category_variable_list: list[str] | None = None,
+    numeric_variable_list: list[str] | None = None,
+    integer_variable_list: list[str] | None = None,
+    float_variable_list: list[str] | None = None,
+    string_variable_list: list[str] | None = None,
 ) -> pd.DataFrame:
     """Convert variables in a Pandas DataFrame to their proper data type.
 
@@ -934,16 +932,16 @@ def convert_variables_to_proper_type(
     Args:
         dataframe (pd.DataFrame): The DataFrame to convert variables to
             proper data type.
-        datetime_variable_list (Optional[List[str  |  datetime]], optional):
+        datetime_variable_list (Optional[list[str  |  datetime]], optional):
             List of variable names to convert to 'datetime' type.
             Defaults to None.
-        category_variable_list (Optional[List[str]], optional):  List of
+        category_variable_list (Optional[list[str]], optional):  List of
             variable names to convert to 'category' type. Defaults to None.
-        integer_variable_list (Optional[List[str]], optional): List of
+        integer_variable_list (Optional[list[str]], optional): List of
             variable names to convert to 'integer' type. Defaults to None.
-        float_variable_list (Optional[List[str]], optional): List of
+        float_variable_list (Optional[list[str]], optional): List of
             variable names to convert to 'float' type. Defaults to None.
-        string_variable_list (Optional[List[str]], optional): List of
+        string_variable_list (Optional[list[str]], optional): List of
             variable names to convert to 'string' type. Defaults to None.
 
     Returns:
@@ -993,15 +991,17 @@ def convert_variables_to_proper_type(
 
 # DATA MANIPULATION
 
+# -----------------------------------------------------------------------------
+
 
 def concatenate_dataframes(
-    dataframe_list: List[str],
+    dataframe_list: list[str],
     axis: str | int,
 ) -> pd.DataFrame:
     """Concatenate the dataframes from the various processing steps.
 
-    Use either 'axis="horizontal"' or 'axis=1' for an analysis column-wise
-    or 'axis="vertical"' or 'axis=0' for an analysis row-wise.
+    Use either 'axis="columns"' or 'axis=1' for an analysis column-wise
+    or 'axis="index"' or 'axis=0' for an analysis row-wise.
 
     Args:
         dataframe_list (_type_): _description_
@@ -1015,9 +1015,9 @@ def concatenate_dataframes(
 
 def remove_column_based_on_list(
     # column,  # delete ?
-    column_list: List[str],
-    column_to_remove: List[str],
-) -> List[str]:  # to be checked; not dataframe ?
+    column_list: list[str],
+    column_to_remove: list[str],
+) -> list[str]:  # to be checked; not dataframe ?
     """_summary_.
 
     Args:
@@ -1066,7 +1066,7 @@ def remove_duplicated_rows(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 
 def drop_column(
-    dataframe: pd.DataFrame, column_list: List[str]
+    dataframe: pd.DataFrame, column_list: list[str]
 ) -> pd.DataFrame:
     """Drop columns from the dataframe.
 
@@ -1078,7 +1078,7 @@ def drop_column(
     """
     dataframe_reduced = dataframe.drop(
         labels=column_list,
-        axis=1,
+        axis="columns",
         # inplace=True,
     )
     return dataframe_reduced
@@ -1127,7 +1127,7 @@ def filter_dataframe(
 
 def get_list_of_unique_values(
     dataframe: pd.DataFrame, column_name: str
-) -> List[str | int | float]:  # to be checked
+) -> list[str | int | float]:  # to be checked
     """Get a list of unique values from a dataframe.
 
     NOTE: if dealing with a Numpy array, function 'np.unique()' must be used.
@@ -1147,14 +1147,14 @@ def get_list_of_unique_values(
 
 def get_numeric_features(
     dataframe: pd.DataFrame
-) -> Tuple[pd.DataFrame, List[str]]:
+) -> tuple[pd.DataFrame, list[str]]:
     """Extract numeric features from a Pandas DataFrame.
 
     Args:
         dataframe (pd.DataFrame): DataFrame to select numeric features from.
 
     Returns:
-        Tuple[pd.Dataframe, List[str]]: A tuple containing a pandas DataFrame
+        tuple[pd.Dataframe, list[str]]: A tuple containing a pandas DataFrame
             with only numeric features and a list of the feature names.
     """
     # Select numeric variables ONLY and make a list
@@ -1175,7 +1175,7 @@ def get_categorical_features(dataframe):
         dataframe (pd.DataFrame): Df to select categorical features from.
 
     Returns:
-        Tuple (pd.Dataframe, List[str]): A tuple containing a pandas DataFrame
+        Tuple (pd.Dataframe, list[str]): A tuple containing a pandas DataFrame
             with only categorical features and a list of the feature names.
     """
     # Select categorical variables ONLY and make a list
@@ -1190,7 +1190,7 @@ def get_categorical_features(dataframe):
 
 
 def get_dictionary_key(
-    dictionary: Dict[int, str], target_key_string: str
+    dictionary: dict[int, str], target_key_string: str
 ) -> int:
     """Get the key (as an integer) from the dictionary based on its values.
 
@@ -1225,7 +1225,7 @@ def get_missing_columns(dataframe: pd.DataFrame) -> pd.DataFrame | pd.Series:
 
 def prepare_scaled_features_encoded_target(
     dataframe: pd.DataFrame, target_name: str
-) -> Tuple[pd.DataFrame, np.ndarray, List[str]]:
+) -> tuple[pd.DataFrame, np.ndarray, list[str]]:
     """Define feature and target dataframes for modelling.
 
     Args:
@@ -1233,7 +1233,7 @@ def prepare_scaled_features_encoded_target(
         target (str): _description_
 
     Returns:
-        Tuple[pd.DataFrame, np.ndarray, List[str]]: _description_
+        tuple[pd.DataFrame, np.ndarray, list[str]]: _description_
     """
     features = dataframe.select_dtypes(include="number")
     features_scaled = standardise_features(features=features)
@@ -1272,6 +1272,8 @@ def format_dataframe_index(dataframe: pd.DataFrame) -> pd.DataFrame:
 # -----------------------------------------------------------------------------
 
 # EXPLORATORY DATA ANALYSIS
+
+# -----------------------------------------------------------------------------
 
 
 def run_exploratory_data_analysis(
@@ -1325,7 +1327,7 @@ def run_exploratory_data_analysis(
         kurtosis,
         skewness,
     ]
-    summary_stats_table = pd.concat(objs=metrics_list, sort=False, axis=1)
+    summary_stats_table = pd.concat(objs=metrics_list, sort=False, axis="columns")
 
     # Format the dataframe index column
     summary_stats_table = format_dataframe_index(
@@ -1360,16 +1362,16 @@ def run_exploratory_data_analysis(
 
 
 def calculate_mean_absolute_deviation(
-    data: pd.Series | List[float],
-) -> pd.Series | List[float]:
+    data: pd.Series | list[float],
+) -> pd.Series | list[float]:
     """Calculate the mean absolute deviation(MAD) of a given dataset.
 
     Args:
-        data (pd.Series | List[float]): The input dataset as a 1-dimensional
+        data (pd.Series | list[float]): The input dataset as a 1-dimensional
             array or list.
 
     Returns:
-        pd.Series | List[float]: Mean absolute deviation (MAD) of the dataset.
+        pd.Series | list[float]: Mean absolute deviation (MAD) of the dataset.
     """
     median = np.median(data)
     mad = sm.robust.scale.mad(data - median)
@@ -1400,7 +1402,6 @@ def produce_sweetviz_eda_report(
         open_browser=True,
         layout="widescreen",
     )
-    return None
 
 
 def compare_sweetviz_eda_report(
@@ -1434,7 +1435,6 @@ def compare_sweetviz_eda_report(
         open_browser=True,
         layout="widescreen",
     )
-    return None
 
 
 def produce_dtale_eda_report(dataframe: pd.DataFrame) -> None:
@@ -1518,7 +1518,7 @@ def group_by_columns_mean_std(dataframe, by_column_list, column_list):
     dataframe_groups = (
         dataframe.groupby(
             by=by_column_list,
-            axis=0,
+            axis="index",
             as_index=True,
             sort=True,
         )
@@ -1528,7 +1528,7 @@ def group_by_columns_mean_std(dataframe, by_column_list, column_list):
             # mad_intensity=("intensity", "mad"),  # NOT working
         )
         .dropna(
-            axis=0,
+            axis="index",
             how="any",
             # inplace=True,
         )
@@ -1563,14 +1563,14 @@ def calculate_mahalanobis_distance(
     return mahalanobis.diagonal()
 
 
-def calculate_mahalanobis_distance_alt(dataframe: pd.DataFrame) -> List[float]:
+def calculate_mahalanobis_distance_alt(dataframe: pd.DataFrame) -> list[float]:
     """Calculate Mahalanobis distance between each pair of rows in dataframe.
 
     Args:
         dataframe (pd.DataFrame): Input dataframe.
 
     Returns:
-        List[float]: List of Mahalanobis distances.
+        list[float]: List of Mahalanobis distances.
     """
     # Compute the covariance matrix of the data
     cov = np.cov(dataframe.select_dtypes(include=np.number).T)
@@ -1591,7 +1591,7 @@ def calculate_mahalanobis_distance_alt(dataframe: pd.DataFrame) -> List[float]:
 
 def apply_mahalanobis_test(
     dataframe: pd.DataFrame, alpha: float = 0.01
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Apply the Mahalanobis test to identify outliers in the dataframe.
 
     Args:
@@ -1599,7 +1599,7 @@ def apply_mahalanobis_test(
         alpha (float, optional): Significance level for test. Defaults to 0.01.
 
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame]: A tuple containing the Mahalanobis
+        tuple[pd.DataFrame, pd.DataFrame]: A tuple containing the Mahalanobis
         dataframe and the outlier dataframe.
     """
     # Create a copy to enable row dropping within the loop instead of
@@ -1661,7 +1661,7 @@ def remove_mahalanobis_outliers(
     # Drop the mahalanobis column as not needed any more
     no_outlier_dataframe.drop(
         labels=["mahalanobis_score", "mahalanobis_p_value"],
-        axis=1,
+        axis="columns",
         inplace=True,
     )
     print(f"\nData without outliers:\n{no_outlier_dataframe}\n")
@@ -1670,7 +1670,7 @@ def remove_mahalanobis_outliers(
 
 def concatenate_outliers_with_target_category_dataframe(
     dataframe: pd.DataFrame,
-    target_category_list: List[str],
+    target_category_list: list[str],
     data_outliers: pd.DataFrame,
     feature: str,
     outlier_method: str,
@@ -1682,7 +1682,7 @@ def concatenate_outliers_with_target_category_dataframe(
 
     Args:
         dataframe(pd.DataFrame): Target category dataframe.
-        target_category_list(List[str]): List of target categories.
+        target_category_list(list[str]): List of target categories.
         data_outliers(pd.DataFrame): Outliers dataframe.
         feature(str): Name of the feature.
         outlier_method(str): Name of the outlier detection method.
@@ -1831,7 +1831,7 @@ def get_mad_outliers(
 
 def detect_univariate_outliers(
     dataframe: pd.DataFrame,
-    target_category_list: List[str],
+    target_category_list: list[str],
     output_directory: Path,
 ) -> pd.DataFrame:
     """Detect outliers using several methods: IQR, Z-score and MAD.
@@ -1880,18 +1880,18 @@ def detect_univariate_outliers(
 
 def detect_multivariate_outliers(
     dataframe: pd.DataFrame,
-    target_category_list: List[str],
+    target_category_list: list[str],
     output_directory: Path,
-) -> Tuple[pd.DataFrame]:
+) -> tuple[pd.DataFrame]:
     """detect_multivariate_outliers _summary_.
 
     Args:
         dataframe (pd.DataFrame): _description_
-        target_category_list (List[str]): _description_
+        target_category_list (list[str]): _description_
         output_directory (Path): _description_
 
     Returns:
-        Tuple[pd.DataFrame]: _description_
+        tuple[pd.DataFrame]: _description_
     """
     # MAHALANOBIS TEST
     # Perform Mahalanobis test and get outlier list
@@ -1984,7 +1984,7 @@ def remove_low_variance_features(
 def identify_highly_correlated_features(
     dataframe: pd.DataFrame,
     correlation_threshold: float = 0.80,
-) -> List[str]:
+) -> list[str]:
     """Identify highly correlated features.
 
     Args:
@@ -1993,7 +1993,7 @@ def identify_highly_correlated_features(
         Defaults to 0.80.
 
     Returns:
-        List[str]: _description_
+        list[str]: _description_
     """
     # Compute correlation matrix with absolute values
     correlation_matrix = dataframe.corr(method="pearson").abs()
@@ -2021,16 +2021,18 @@ def identify_highly_correlated_features(
 
 # STATISTICAL ANALYSIS
 
+# -----------------------------------------------------------------------------
+
 
 # Calculate eigenvalues and eigenvectors from PCA
-def get_pca_eigen_values_vectors(pca_model: PCA) -> Tuple[np.ndarray]:
+def get_pca_eigen_values_vectors(pca_model: PCA) -> tuple[np.ndarray]:
     """Get eigenvalues and eigenvectors from a Principal Component Analysis.
 
     Args:
         pca_model (PCA): [description]
 
     Returns:
-        Tuple[np.ndarray]: [description]
+        tuple[np.ndarray]: [description]
     """
     pca_eigen_values = pca_model.explained_variance_
     pca_eigen_values = np.round(pca_eigen_values, decimals=2)
@@ -2044,7 +2046,7 @@ def get_pca_eigen_values_vectors(pca_model: PCA) -> Tuple[np.ndarray]:
 
 def apply_pca(
     n_components: int | float, features_scaled: pd.DataFrame | np.ndarray
-) -> Tuple[PCA, np.ndarray]:
+) -> tuple[PCA, np.ndarray]:
     """Run a Principal Component Analysis (PCA) on scaled data.
 
     Args:
@@ -2057,7 +2059,7 @@ def apply_pca(
         features_scaled (pd.DataFrame | np.ndarray): _description_
 
     Returns:
-        Tuple[PCA, np.ndarray]: _description_
+        tuple[PCA, np.ndarray]: _description_
     """
     pca_model = PCA(n_components=n_components, random_state=42)
     pca_array = pca_model.fit_transform(features_scaled)
@@ -2071,17 +2073,17 @@ def apply_pca(
 
 
 def explain_pca_variance(
-    pca_eigen_values: np.ndarray, pca_model: PCA, pca_components: List[str]
-) -> Tuple[pd.DataFrame]:
+    pca_eigen_values: np.ndarray, pca_model: PCA, pca_components: list[str]
+) -> tuple[pd.DataFrame]:
     """explain_pca_variance _summary_.
 
     Args:
         pca_eigen_values (np.ndarray): _description_
         pca_model (PCA): _description_
-        pca_components (List[str]): _description_
+        pca_components (list[str]): _description_
 
     Returns:
-        Tuple[pd.DataFrame]: _description_
+        tuple[pd.DataFrame]: _description_
     """
     variance_explained = pca_model.explained_variance_ratio_ * 100
     variance_explained_cumulated = np.cumsum(
@@ -2104,23 +2106,27 @@ def explain_pca_variance(
     return variance_explained_df
 
 
-def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
+def find_best_pc_axes(
+    variance_explained_df: pd.DataFrame,
+    confidence_interval: float,
+) -> tuple[list[str]]:
     """find_best_pc_axes _summary_.
 
     Args:
         variance_explained_df (pd.DataFrame): _description_
 
     Returns:
-        Tuple[List[str]]: _description_
+        tuple[list[str]]: _description_
     """
     # First, subset 'variance_explained_df' to keep cumulated values
     cumulative_values = variance_explained_df.loc["Cumulated Variance (%)", :]
 
-    # Then, find the index of the last element in the array that is < 0.95
-    index = np.searchsorted(cumulative_values, 95, side="right")
+    # Then, find the index of the last element in the array that is < 0.95 (i.e. 95%
+    # confidence interval)
+    index = np.searchsorted(cumulative_values, confidence_interval, side="right")
 
     # Include the first element that is >= 0.95
-    if cumulative_values[index - 1] < 95:
+    if cumulative_values[index - 1] < confidence_interval:
         # Add 1 to include the first element greater than or equal to 0.95
         index += 1
 
@@ -2135,7 +2141,7 @@ def find_best_pc_axes(variance_explained_df: pd.DataFrame) -> Tuple[List[str]]:
 
 def run_pc_analysis(
     features: pd.DataFrame, eda_report_name: str, output_directory: Path
-) -> Tuple[pd.DataFrame | np.ndarray, List[str]]:
+) -> tuple[pd.DataFrame | np.ndarray, list[str]]:
     """run_pc_analysis _summary_.
 
     Args:
@@ -2144,7 +2150,7 @@ def run_pc_analysis(
         output_directory (Path): _description_
 
     Returns:
-        Tuple[pd.DataFrame | np.ndarray], List[str]: _description_
+        tuple[pd.DataFrame | np.ndarray], list[str]: _description_
     """
     # Select only the numeric input variables, i.e. not mahalanobis variables
     numeric_feature_list = features.select_dtypes(
@@ -2265,7 +2271,7 @@ def run_pc_analysis(
 def get_outliers_from_pca(
     dataframe: pd.DataFrame,
     label: str,
-    target_class_list: List[str],
+    target_class_list: list[str],
     min_percent_variance_coverage: float = 0.95,
     hotellings_t2_alpha: float = 0.05,
     number_std_deviation: int = 2,
@@ -2375,7 +2381,7 @@ def run_anova_check_assumptions(
     dataframe: pd.DataFrame,
     dependent_variable: pd.Series,
     independent_variable: pd.Series | str,
-    group_variable: List[str],
+    group_variable: list[str],
     output_directory: Path,
     confidence_interval: float = 0.95,
 ) -> ols:
@@ -2385,7 +2391,7 @@ def run_anova_check_assumptions(
         dataframe (pd.DataFrame): [description]
         dependent_variable (pd.Series): [description]
         independent_variable (pd.Series): [description]
-        group_variable (List[str]): [description]
+        group_variable (list[str]): [description]
         output_directory (Path): [description]
         confidence_interval (float, optional): [description]. Defaults to 0.95.
 
@@ -2493,14 +2499,14 @@ def run_anova_test(
 
 def perform_multicomparison(
     dataframe: pd.DataFrame,
-    groups: List[str],
+    groups: list[str],
     confidence_interval: float = 0.95,
 ) -> pd.DataFrame:
     """perform_multicomparison _summary_.
 
     Args:
         dataframe (pd.DataFrame): _description_
-        groups (List[str]): _description_
+        groups (list[str]): _description_
         confidence_interval (float, optional): _description_. Defaults to 0.95.
 
     Returns:
@@ -2531,8 +2537,8 @@ def apply_manova(dataframe: pd.DataFrame, formula: str) -> pd.DataFrame:
 
 
 def calculate_jarque_bera_values(
-    data: pd.Series | List[float],
-) -> pd.Series | List[float]:
+    data: pd.Series | list[float],
+) -> pd.Series | list[float]:
     """Calculate Jarque-Bera values for kurtosis and skewness.
 
     NOTE: this is the manual implementation of the test.
@@ -2540,7 +2546,7 @@ def calculate_jarque_bera_values(
     # ? below)
 
     Args:
-        data (pd.Series | List[float]): Input data.
+        data (pd.Series | list[float]): Input data.
 
     Returns:
         pd.DataFrame: DataFrame with 'jarque_bera' and 'jb_p_value' columns.
@@ -2596,7 +2602,7 @@ def check_normality_assumption_residuals(
     # Concatenate the tests output
     normality_tests = pd.concat(
         objs=test_results.values(),
-        axis=0,
+        axis="index",
     )
     normality_tests.rename(
         columns={"W": "Statistic", "pval": "p-value"},
@@ -2640,7 +2646,7 @@ def check_equal_variance_assumption_residuals(
     # Prepare a dataframe of the ANOVA model residuals
     model_residuals_dataframe = pd.concat(
         objs=[dataframe[group_variable], model.resid],
-        axis=1
+        axis="columns"
     ).rename(columns={0: "Residuals"})
 
     # Set a dictionary of methods
@@ -2686,7 +2692,7 @@ def check_equal_variance_assumption_residuals(
     # Concatenate the tests output
     equal_variance_tests = pd.concat(
         objs=test_results.values(),
-        axis=0,
+        axis="index",
     )
     equal_variance_tests.rename(
         columns={"pval": "p-value", "equal_var": "Equal Variance"},
@@ -2757,6 +2763,8 @@ def perform_multicomparison_correction(
 
 # DATA VISUALISATION
 
+# -----------------------------------------------------------------------------
+
 
 def create_missing_data_matrix(
     dataframe: pd.DataFrame,
@@ -2785,7 +2793,7 @@ def create_missing_data_matrix(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
-    return None
+
 
 
 def draw_scree_plot(x_axis, y_axis):
@@ -2876,7 +2884,7 @@ def draw_scatterplot(
 def draw_all_pca_pairs_scatterplot(
     dataframe: pd.DataFrame,
     variance_explained_df: pd.DataFrame,
-    pca_components: List[str],
+    pca_components: list[str],
     target_category: str,
     sub_category: str,
     output_directory: Path,
@@ -2895,7 +2903,7 @@ def draw_all_pca_pairs_scatterplot(
     Args:
         dataframe (pd.DataFrame): _description_
         variance_explained_df (pd.DataFrame): _description_
-        pca_components (List[str]): _description_
+        pca_components (list[str]): _description_
         target_category (str): _description_
         sub_category (str): _description_
         output_directory (Path): _description_
@@ -2995,21 +3003,21 @@ def draw_heatmap(data, xticklabels, yticklabels):
 
 def draw_kdeplot(
     dataframe: pd.DataFrame,
-    x_axis: List[float],
+    x_axis: list[float],
     x_label: str,
     y_label: str,
-    hue: List[str] = None,
-    palette: str | List[str] | Dict[str, str] = None,
+    hue: list[str] | None = None,
+    palette: str | list[str] | dict[str, str] | None = None,
 ):
     """Draw a density curve of data distribution.
 
     Args:
         dataframe (pd.DataFrame): _description_
-        x_axis (List[float]): _description_
+        x_axis (list[float]): _description_
         x_label (str): _description_
         y_label (str): _description_
-        hue (List[str], optional): _description_. Defaults to None.
-        palette (str | List[str] | Dict[str, str], optional): _description_.
+        hue (list[str], optional): _description_. Defaults to None.
+        palette (str | list[str] | dict[str, str], optional): _description_.
         Defaults to None.
 
     Returns:
@@ -3031,10 +3039,10 @@ def draw_kdeplot(
 
 def draw_kdeplot_subplots(
     dataframe: pd.DataFrame,
-    feature_list: List[str],
+    feature_list: list[str],
     nb_columns: int,
-    hue: List[str] = None,
-    palette: str | List[str] | Dict[str, str] = None,
+    hue: list[str] | None = None,
+    palette: str | list[str] | dict[str, str] | None = None,
 ) -> None:
     """Draw several bar plots on the same image using an iterable.
 
@@ -3057,11 +3065,11 @@ def draw_kdeplot_subplots(
 
     Args:
         dataframe (pd.DataFrame): The input dataframe.
-        feature_list (List[str]): The list of features to plot.
+        feature_list (list[str]): The list of features to plot.
         nb_columns (int): The number of columns for subplots.
-        hue (List[str], optional): The variable to differentiate the KDE plots.
+        hue (list[str], optional): The variable to differentiate the KDE plots.
             Defaults to None.
-        palette (str | List[str] | Dict[str, str], optional): The color palette
+        palette (str | list[str] | dict[str, str], optional): The color palette
             for the KDE plots. Defaults to None.
 
     Returns:
@@ -3108,7 +3116,6 @@ def draw_kdeplot_subplots(
         # plt.legend(
         #     title=' '.join([word.title() for word in hue.split('_')])
         # )
-    return None
 
 
 # ! Compare function below with function above
@@ -3145,19 +3152,19 @@ def draw_kde_plots(dataframe, columns, label):
 
 def draw_boxplot(
     dataframe: pd.DataFrame,
-    x_axis: List[float],
-    y_axis: List[float],
-    hue: List[str] = None,
-    palette: str | List[str] | Dict[str, str] = None,
+    x_axis: list[float],
+    y_axis: list[float],
+    hue: list[str] | None = None,
+    palette: str | list[str] | dict[str, str] | None = None,
 ):
     """Draw a boxplot of data distribution.
 
     Args:
         dataframe (pd.DataFrame): _description_
-        x_axis (List[float]): _description_
-        y_axis (List[float]): _description_
-        hue (List[str], optional): _description_. Defaults to None.
-        palette (str | List[str] | Dict[str, str], optional): _description_.
+        x_axis (list[float]): _description_
+        y_axis (list[float]): _description_
+        hue (list[str], optional): _description_. Defaults to None.
+        palette (str | list[str] | dict[str, str], optional): _description_.
         Defaults to None.
 
     Returns:
@@ -3176,24 +3183,24 @@ def draw_boxplot(
 
 def draw_barplot(
     dataframe,
-    x_axis: List[float],
-    y_axis: List[float],
+    x_axis: list[float],
+    y_axis: list[float],
     errorbar: str = "ci",
     orient: str = "vertical",
-    hue: List[str] = None,
-    palette: str | List[str] | Dict[str, str] = None,
+    hue: list[str] | None = None,
+    palette: str | list[str] | dict[str, str] | None = None,
 ):
     """Draw a barplot which can include colour bars for treatment options.
 
     Args:
         dataframe (_type_): _description_
-        x_axis (List[float]): _description_
-        y_axis (List[float]): _description_
+        x_axis (list[float]): _description_
+        y_axis (list[float]): _description_
         errorbar (str, optional): _description_. Defaults to "ci".
         orient (str, optional): _description_. Defaults to "vertical".
-        hue (List[str], optional): _description_. Defaults to None.
-        palette (str | List[str] | Dict[str, str], optional): _description_.
-        Defaults to None.
+        hue (list[str], optional): _description_. Defaults to None.
+        palette (str | list[str] | dict[str, str], optional): _description_. Defaults
+            to None.
 
     Returns:
         _type_: _description_
@@ -3212,14 +3219,14 @@ def draw_barplot(
 
 def draw_barplot_subplots(
     dataframe: pd.DataFrame,
-    x_axis: List[float],
-    y_label: str | List[float],
-    feature_list: List[str],
+    x_axis: list[float],
+    y_label: str | list[float],
+    feature_list: list[str],
     nb_columns: int,
     errorbar: str = "ci",
     orient: str = "vertical",
-    hue: List[str] = None,
-    palette: str | List[str] | Dict[str, str] = None,
+    hue: list[str] | None = None,
+    palette: str | list[str] | dict[str, str] | None = None,
 ) -> None:
     """Draw several bar plots on the same image using an iterable.
 
@@ -3242,17 +3249,17 @@ def draw_barplot_subplots(
 
     Args:
         dataframe (pd.DataFrame): The input dataframe.
-        x_axis (List[float]): The x-axis values.
-        y_label (str | List[float]): The y-axis label.
-        feature_list (List[str]): The list of features to plot.
+        x_axis (list[float]): The x-axis values.
+        y_label (str | list[float]): The y-axis label.
+        feature_list (list[str]): The list of features to plot.
         nb_columns (int): The number of columns for subplots.
         errorbar (str, optional): The type of error bar to display.
             Defaults to "ci".
         orient(str, optional): The orientation of the bar plots.
             Defaults to 'vertical'.
-        hue (List[str], optional): The variable to differentiate the bar plots.
+        hue (list[str], optional): The variable to differentiate the bar plots.
             Defaults to None.
-        palette (str | List[str] | Dict[str, str], optional): The color palette
+        palette (str | list[str] | dict[str, str], optional): The color palette
             for the bar plots. Defaults to None.
 
     Returns:
@@ -3300,7 +3307,7 @@ def draw_barplot_subplots(
         ),
         axis.set_xlabel(""),
         axis.set_ylabel(ylabel=y_label, fontsize=18)
-    return None
+
 
 
 # ! Compare function below with function above
@@ -3334,7 +3341,7 @@ def draw_bar_plots(dataframe, columns, label):
 def draw_correlation_heatmap(
     dataframe: pd.DataFrame,
     method: str = "pearson",
-) -> Tuple[pd.DataFrame, sns.matrix.ClusterGrid]:
+) -> tuple[pd.DataFrame, sns.matrix.ClusterGrid]:
     """Draw a correlation matrix between numeric variables.
 
     Also, add a mask to be applied to the 'upper triangle'.
@@ -3345,7 +3352,7 @@ def draw_correlation_heatmap(
             Defaults to "pearson".
 
     Returns:
-        Tuple[pd.DataFrame, sns.matrix.ClusterGrid]: A tuple containing the
+        tuple[pd.DataFrame, sns.matrix.ClusterGrid]: A tuple containing the
             correlation matrix and the correlation heatmap.
     """
     correlation_matrix = dataframe.corr(method=method)
@@ -3401,11 +3408,11 @@ def draw_correlation_heatmap(
 def run_exploratory_data_visualisation(
     dataframe: pd.DataFrame,
     numeric_features: pd.DataFrame,
-    numeric_feature_list: List[str],
+    numeric_feature_list: list[str],
     group_variable: str,
     nb_columns: int,
     output_directory: Path,
-    palette: str | List[str] | Dict[str, str] = None,
+    palette: str | list[str] | dict[str, str] | None = None,
 ) -> None:
     """Produce data visualisation to observe target and features behaviour.
 
@@ -3417,11 +3424,11 @@ def run_exploratory_data_visualisation(
         dataframe (pd.DataFrame): The input dataframe.
         numeric_features (pd.DataFrame): The dataframe containing only numeric
             features.
-        numeric_feature_list (List[str]): The list of numeric feature names.
+        numeric_feature_list (list[str]): The list of numeric feature names.
         group_variable (str): The variable used for grouping in visualizations.
         nb_columns (int): The number of columns for subplots.
         output_directory (Path): The directory to save the output figures.
-        palette (str | List[str] | Dict[str, str], optional): The color palette
+        palette (str | list[str] | dict[str, str], optional): The color palette
             to use in the visualizations. Defaults to None.
     """
     # BAR PLOTS
@@ -3537,7 +3544,7 @@ def run_exploratory_data_visualisation(
     )
     # plt.show()
 
-    return None
+
 
 
 def draw_pair_plot(dataframe, hue=None):
@@ -3627,7 +3634,7 @@ def draw_anova_quality_checks(
         output_directory=output_directory,
     )
     # plt.show()
-    return None
+
 
 
 def draw_tukeys_hsd_plot(
@@ -3690,20 +3697,20 @@ def draw_tukeys_hsd_plot(
     # )
     # # Add output to 'tukey_post_hoc_test' dataframe
     # corrected_tukey_post_hoc_test = pd.concat(
-    #     objs=[tukey_post_hoc_test, corrected_tukey_dataframe], axis=1
+    #     objs=[tukey_post_hoc_test, corrected_tukey_dataframe], axis="columns"
     # )
     # print(
     #     f"\nTukey's Multicomparison Test Version 2:\n"
     #     f"{corrected_tukey_post_hoc_test}\n"
     # )
-    return None
+
 
 
 def draw_pca_outliers_biplot_3d(
     dataframe: pd.DataFrame,
     label: str,
     pca_outlier_model: pca,
-    target_class_list: List[str],
+    target_class_list: list[str],
     file_name: str,
     output_directory: Path,
     outlier_detection: bool = True,
@@ -3716,7 +3723,7 @@ def draw_pca_outliers_biplot_3d(
         dataframe (pd.DataFrame): _description_
         label (str): _description_
         pca_outlier_model (pca): _description_
-        target_class_list (List[str]): _description_
+        target_class_list (list[str]): _description_
         file_name (str): _description_
         output_directory (Path): _description_
         outlier_detection (bool, optional): _description_. Defaults to True.
@@ -3757,14 +3764,14 @@ def draw_pca_outliers_biplot_3d(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
-    return None
+
 
 
 def draw_pca_outliers_biplot(
     dataframe: pd.DataFrame,
     label: str,
     pca_outlier_model: pca,
-    target_class_list: List[str],
+    target_class_list: list[str],
     file_name: str,
     output_directory: Path,
     outlier_detection: bool = True,
@@ -3777,7 +3784,7 @@ def draw_pca_outliers_biplot(
         dataframe (pd.DataFrame): _description_
         label (str): _description_
         pca_outlier_model (pca): _description_
-        target_class_list (List[str]): _description_
+        target_class_list (list[str]): _description_
         file_name (str): _description_
         output_directory (Path): _description_
         outlier_detection (bool, optional): _description_. Defaults to True.
@@ -3817,13 +3824,13 @@ def draw_pca_outliers_biplot(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
-    return None
+
 
 
 def draw_pca_biplot_3d(
     features_scaled: pd.DataFrame,
     target_encoded: pd.Series,
-    target_class_list: List[str],
+    target_class_list: list[str],
     file_name: str,
     output_directory: Path,
 ) -> None:
@@ -3836,7 +3843,7 @@ def draw_pca_biplot_3d(
     Args:
         features_scaled (pd.DataFrame): _description_
         target_encoded (pd.Series): _description_
-        target_class_list (List[str]): _description_
+        target_class_list (list[str]): _description_
         output_directory (Path): _description_
 
     Returns:
@@ -3878,32 +3885,32 @@ def draw_pca_biplot_3d(
         y=scatter_data_data[1],
         z=scatter_data_data[2],
         mode="markers",
-        marker=dict(
-            size=5,
+        marker={
+            "size": 5,
             # color=scatter_data.get_facecolors(),
-            color=[
+            "color": [
                 target_class_colour_list[target_class]
                 for target_class in target_class_list
             ],
             # color=[colour_map[colour] for colour in pca_biplot_3d.y]  # BUG
-        ),
+        },
     )
 
     # Create the Plotly layout
     layout = go.Layout(
-        scene=dict(
-            xaxis=dict(title="PC1"),
-            yaxis=dict(title="PC2"),
-            zaxis=dict(title="PC3"),
-            aspectmode="data",
-        ),
-        title=dict(
-            text=(
+        scene={
+            "xaxis": {"title": "PC1"},
+            "yaxis": {"title": "PC2"},
+            "zaxis": {"title": "PC3"},
+            "aspectmode": "data",
+        },
+        title={
+            "text": (
                 "Representation of the parameter effects on defect detection "
                 "(PC1 vs. PC2 vs. PC3)"
             ),
-            font=dict(size=24),
-        ),
+            "font": {"size": 24},
+        },
     )
 
     # Create the Plotly figure
@@ -3911,17 +3918,17 @@ def draw_pca_biplot_3d(
     fig.show()
     # Save the Plotly figure as an HTML file
     fig.write_html(output_directory.joinpath(f"{file_name}.html"))
-    return None
+
 
 
 def draw_pca_scatterplot(
     dataframe: pd.DataFrame,
     x_axis: str,
     y_axis: str,
-    pca_variance_explained: List[float],
-    hue: str = None,
-    hue_order: List[str] = None,
-    palette: List[str] = None,
+    pca_variance_explained: list[float],
+    hue: str | None = None,
+    hue_order: list[str] | None = None,
+    palette: list[str] | None = None,
     style=None,
     size=None,
 ) -> None:
@@ -3934,13 +3941,12 @@ def draw_pca_scatterplot(
         dataframe (_type_): Input dataframe.
         x (_type_): X-axis variable, i.e. first Principal Component.
         y (_type_): Y-axis variable, i.e. second Principal Component.
-        pca_variance_explained (List[float]): List of PCA variance explained
-        values.
+        pca_variance_explained (list[float]): List of PCA variance explained values.
         hue (str, optional): Grouping variable. Defaults to None.
-        hue_order (List[str], optional): Order for the levels of the grouping
-        variable. Defaults to None.
-        palette (List[str], optional): List of colors to use for the different
-        levels of the hue variable. Defaults to None.
+        hue_order (list[str], optional): Order for the levels of the grouping variable.
+            Defaults to None.
+        palette (list[str], optional): List of colors to use for the different levels
+            of the hue variable. Defaults to None.
         style (str, optional): Styling variable. Defaults to None.
         size (str, optional): Sizing variable. Defaults to None.
 
@@ -3973,12 +3979,12 @@ def draw_pca_scatterplot(
         xlabel=f"PC1 ({pca_variance_explained[0]:.1f} %)",
         ylabel=f"PC2 ({pca_variance_explained[1]:.1f} %)",
     )
-    return None
+
 
 
 def add_confidence_interval_ellipses(
     pca_array: np.ndarray,
-    target_class_list: List[str],
+    target_class_list: list[str],
     confidence_interval: float = 0.95,
     alpha: float = 0.2,
 ) -> None:
@@ -3993,7 +3999,7 @@ def add_confidence_interval_ellipses(
 
     Args:
         pca_array (np.ndarray): _description_
-        target_class_list (List[str]): _description_
+        target_class_list (list[str]): _description_
         confidence_interval (float, optional): _description_. Defaults to 0.95.
         alpha (float, optional): _description_. Defaults to 0.2.
     """
@@ -4002,12 +4008,14 @@ def add_confidence_interval_ellipses(
 
     # Iterate over each class in the dataset
     for target_class, colour in zip(
-        range(len(target_class_list)), target_class_colour_list
+        range(len(target_class_list)),
+        target_class_colour_list,
+        strict=True,
     ):
         # Select the data for the current class
         pca_class = pca_array[target_class_list == target_class]
         # Calculate the mean and covariance matrix for the data
-        mean = np.mean(pca_class, axis=0)
+        mean = np.mean(pca_class, axis="index")
         cov = np.cov(pca_class.T)
         # Calculate the ellipse width and height based on the confidence
         # interval value and covariance matrix
@@ -4038,16 +4046,16 @@ def add_confidence_interval_ellipses(
         )
     plt.tight_layout()
     plt.show()
-    return None
+
 
 
 def draw_pca_scatterplot_with_ellipses(
     pca_array: np.ndarray,
     target_label_encoded: np.ndarray,
-    target_label_list: List[str],
-    target_class_colour_list: List[str],
+    target_label_list: list[str],
+    target_class_colour_list: list[str],
     pca_target_dataframe: pd.DataFrame,
-    pca_variance_explained: List[float],
+    pca_variance_explained: list[float],
     target_name: str,
     confidence_interval=0.90,
 ) -> None:
@@ -4058,12 +4066,12 @@ def draw_pca_scatterplot_with_ellipses(
     Args:
         pca_array (np.ndarray): Output array from PCA.
         target_label_encoded (np.ndarray): Encoded target labels.
-        target_label_list (List[str]): List of target labels/classes.
-        target_class_colour_list (List[str]): List of color codes for each
+        target_label_list (list[str]): List of target labels/classes.
+        target_class_colour_list (list[str]): List of color codes for each
             target class.
         pca_target_dataframe (pd.DataFrame): Concatenated dataframe of PCA
             and target.
-        pca_variance_explained (List[float]): List of variances explained by
+        pca_variance_explained (list[float]): List of variances explained by
             each principal component.
         target_name (str): Name of the target variable.
         confidence_interval (float): Value of the confidence interval. Defaults
@@ -4091,7 +4099,7 @@ def draw_pca_scatterplot_with_ellipses(
         hue_order=target_label_list,
         palette=target_class_colour_list,
     )
-    return None
+
 
 
 def display_boundary_decision(
@@ -4116,8 +4124,8 @@ def display_boundary_decision(
         plot_method="contour",
         response_method="predict",
         grid_resolution=200,
-        xlabel="PC1",
-        ylabel="PC2",
+        xlabel="Dimension 1",
+        ylabel="Dimension 2",
         alpha=0.5,
     )
     return display_bounds
@@ -4126,10 +4134,10 @@ def display_boundary_decision(
 def draw_pca_scatterplot_with_boundaries(
     pca_array: np.ndarray,
     model: BaseEstimator,
-    target_label_list: List[str],
-    target_class_colour_list: List[str],
+    target_label_list: list[str],
+    target_class_colour_list: list[str],
     pca_target_dataframe: pd.DataFrame,
-    pca_variance_explained: List[float],
+    pca_variance_explained: list[float],
     target_name: str,
 ) -> None:
     """Draws a scatterplot of PCA with target class boundaries.
@@ -4139,12 +4147,12 @@ def draw_pca_scatterplot_with_boundaries(
     Args:
         pca_array (np.ndarray): Output array from PCA.
         model (BaseEstimator): Model used to fit the data to the boundaries.
-        target_label_list (List[str]): List of target labels/classes.
-        target_class_colour_list (List[str]): List of color codes for each
+        target_label_list (list[str]): List of target labels/classes.
+        target_class_colour_list (list[str]): List of color codes for each
             target class.
         pca_target_dataframe (pd.DataFrame): Concatenated dataframe of PCA
             and target.
-        pca_variance_explained (List[float]): List of variances explained by
+        pca_variance_explained (list[float]): List of variances explained by
             each principal component.
         target_name (str): Name of the target variable.
 
@@ -4168,7 +4176,7 @@ def draw_pca_scatterplot_with_boundaries(
         hue_order=target_label_list,
         palette=target_class_colour_list,
     )
-    return None
+
 
 
 def draw_feature_rank(
@@ -4243,30 +4251,124 @@ def show_items_per_category(
         output_directory=output_directory
     )
     plt.show()
-    return None
 
 
-def generate_class_colour_list(class_list: List[str]) -> List[str]:
+
+def generate_class_colour_list(class_list: list[str]) -> list[str]:
     """AI is creating summary for generate_class_colour_list.
 
     Args:
-        class_list (List[str]): [description]
+        class_list (list[str]): [description]
 
     Returns:
-        List[str]: [description]
+        list[str]: [description]
     """
     colour_list = colourmap.generate(len(class_list), method="seaborn")
     return colour_list
+
+
+def select_random_files_based_on_unique_parameter_values(
+    dataframe: pd.DataFrame,
+    parameter_list: list[str],
+) -> pd.DataFrame:
+    """Select rows randomly from a DataFrame based on unique parameter values.
+
+    This allows for drawing samples corresponding to unique values for the various
+    conditions/parameters studied.
+
+    Results are saved to a CSV file.
+
+    Args:
+        dataframe (pd.DataFrame): The input DataFrame containing the data.
+        parameter_list (list[str]): The list of parameters to draw random samples for.
+
+    Returns:
+        pd.DataFrame: A dataFrame containing random samples from the different
+            parameters investigated.
+    """
+    # Use a dictionary comprehension to extract unique values for each specified
+    # parameter
+    unique_values = {
+        parameter: set(dataframe[parameter]) for parameter in parameter_list
+    }
+    print("Parameters and their unique values:")
+    pprint(unique_values)
+
+    # Create a list of randomly selected rows
+    random_samples = [
+        dataframe[dataframe[column] == value].sample()
+        for column, values in unique_values.items()
+        for value in values
+        if not dataframe[dataframe[column] == value].empty
+    ]
+
+    # Combine the selected rows into a final DataFrame
+    random_samples_dataframe = pd.concat(objs=random_samples).set_index(
+        keys="file_name",
+    )
+    print(f"\n{random_samples_dataframe.shape[0]} samples were randomly selected.")
+    return random_samples_dataframe
+
+
+def get_files_from_list(
+    file_name_list: list[str],
+    file_extension: str,
+    source_directory: Path,
+    destination_directory: Path,
+) -> None:  # sourcery skip: use-named-expression
+    """Get files based on a list of file names.
+
+    Copy matching `.npz` files from the source directory to the destination directory.
+
+    Parameters:
+        file_name_list (list[str]): A list of partial file names to search for.
+        file_extension (str): The file extension to be searched.
+        source_directory (Path): The source directory where `.npz` files are located.
+        destination_directory (Path): Destination directory to copy matching files to.
+
+    Returns:
+        None
+    """
+    # Use glob to find .npz files in the source directory
+    files_with_extension = list(source_directory.rglob(f"*{file_extension}"))
+
+    for file_name in file_name_list:
+        # Use a list comprehension to filter the files with the desired name
+        matching_files = [
+            file_path
+            for file_path in files_with_extension
+            if file_name in file_path.stem
+        ]
+        # Use a single loop to copy the matching files to the destination directory
+        for file_path in matching_files:
+            destination_path = destination_directory / file_path.name
+            shutil.copy2(src=file_path, dst=destination_path)
+
+        # Print a message for any files that matched the file name
+        if matching_files:
+            print(
+                f"\nFiles matching file name '{file_name}' "
+                f"and extension '{file_extension}' "
+                f"have been copied to the destination directory.",
+            )
+        else:
+            print(
+                f"\nNo files matching file name '{file_name}' "
+                f"and extension '{file_extension}' "
+                f"found in the source directory.",
+            )
 
 
 # -----------------------------------------------------------------------------
 
 # DATA MODELLING (MACHINE LEARNING)
 
+# -----------------------------------------------------------------------------
+
 
 def encode_target_labels(
     data: pd.DataFrame | pd.Series,
-) -> Tuple[np.ndarray, List[str], LabelEncoder]:
+) -> tuple[np.ndarray, list[str], LabelEncoder]:
     """Encode the target labels (usually strings) into integers.
 
     Args:
@@ -4274,7 +4376,7 @@ def encode_target_labels(
             to be encoded.
 
     Returns:
-        Tuple[np.ndarray, List[str], LabelEncoder]: A tuple containing the
+        tuple[np.ndarray, list[str], LabelEncoder]: A tuple containing the
             encoded target labels, the list of target classes and the label
             encoder object.
     """
@@ -4296,7 +4398,7 @@ def encode_target_labels(
 def get_model_target(
     dataframe: pd.DataFrame,
     target_name: str,
-) -> Tuple[np.ndarray, List[str], LabelEncoder, np.ndarray]:
+) -> tuple[np.ndarray, list[str], LabelEncoder, np.ndarray]:
     """Get the target for a machine learning model.
 
     NOTE: Unfortunately, the 'LabelEncoder()' class function for target
@@ -4308,7 +4410,7 @@ def get_model_target(
         target_name (str): The name of the target column.
 
     Returns:
-        Tuple[np.ndarray, List[str], LabelEncoder, np.ndarray]: A tuple
+        tuple[np.ndarray, list[str], LabelEncoder, np.ndarray]: A tuple
             containing the target_label_encoded, target_label_list,
             label_encoder and target.
     """
@@ -4346,7 +4448,7 @@ def get_model_features(
         pd.DataFrame: A dataframe containing the model features.
     """
     # Separate features from target, including the file names as not needed
-    features = dataframe.drop(labels=target_name, axis=1)
+    features = dataframe.drop(labels=target_name, axis="columns")
 
     # Create a list of features
     feature_list = features.columns.to_list()
@@ -4356,14 +4458,14 @@ def get_model_features(
 
 def train_test_split_pipeline(
     feature_selection: pd.DataFrame,
-    target_selection: List[str | int] | pd.Series,
+    target_selection: list[str | int] | pd.Series,
     train_size: float = 0.6,
 ) -> Pipeline:
     """Train_test_split_pipeline _summary_.
 
     Args:
         feature_selection (pd.DataFrame): _description_
-        target_selection (List[str  |  int]  |  pd.Series]): _description_
+        target_selection (list[str  |  int]  |  pd.Series]): _description_
         test_size (float, optional): _description_. Defaults to 0.6.
 
     Returns:
@@ -4500,22 +4602,22 @@ def remove_features_with_nans_transformer(
 
 def drop_feature_pipeline(
     features: pd.DataFrame,
-    features_to_keep: List[str],
+    features_to_keep: list[str],
     nan_threshold: float = 0.7,
     correlation_threshold: float = 0.8,
-    variables_with_nan_values: List[str] = None,
-    variance_threshold: float = None,
+    variables_with_nan_values: list[str] | None = None,
+    variance_threshold: float | None = None,
 ) -> Pipeline:
     """Create a pipeline to drop features from a DataFrame.
 
     Args:
         features (pd.DataFrame): The input DataFrame.
-        features_to_keep (List[str]): A list of feature names to keep.
+        features_to_keep (list[str]): A list of feature names to keep.
         nan_threshold (float, optional): The threshold for removing features
             with NaN values. Defaults to 0.7.
         correlation_threshold (float, optional): The threshold for removing
             correlated features. Defaults to 0.8.
-        variables_with_nan_values (List[str], optional): A list of variables
+        variables_with_nan_values (list[str], optional): A list of variables
             with NaN values. Defaults to None.
         variance_threshold (float, optional): The threshold for removing low
             variance features. Defaults to None.
@@ -4590,7 +4692,7 @@ def drop_feature_pipeline(
 
 def get_dropped_features_from_pipeline(
     pipeline: Pipeline, features: pd.DataFrame
-) -> List[str]:
+) -> list[str]:
     """Retrieve the list of features dropped by a Scikit-learn pipeline.
 
     NOTE: The 'named_steps[]' attributes allows accessing the various steps of
@@ -4603,7 +4705,7 @@ def get_dropped_features_from_pipeline(
         features (pd.DataFrame): The dataframe containing the features.
 
     Returns:
-        List[str]: The list of dropped features.
+        list[str]: The list of dropped features.
     """
     # Make a list of features dropped through the pipeline model
     drop_constant_features = list(
@@ -4719,10 +4821,10 @@ def preprocess_categorical_feature_pipeline(encoder: str) -> Pipeline:
 
 def run_machine_learning_pipeline(
     features: pd.DataFrame,
-    features_to_keep: List[str],
+    features_to_keep: list[str],
     label_encoder: LabelEncoder,
     model: namedtuple,
-    pca_n_components: int = None,
+    pca_n_components: int | None = None,
     resampling: bool = True,
     nan_threshold=0.70,
     correlation_threshold=0.80,
@@ -4738,7 +4840,7 @@ def run_machine_learning_pipeline(
 
     Args:
         features (pd.DataFrame): The dataframe containing the features.
-        features_to_keep (List[str]): A list of feature names to keep.
+        features_to_keep (list[str]): A list of feature names to keep.
         label_encoder (LabelEncoder): The instance of the label encoder.
     model (namedtuple): A named tuple containing the model name and its
         definition.
@@ -4956,7 +5058,7 @@ def predict_target(
     predictions_vs_test = pd.concat(
         objs=[pd.Series(target_test), pd.Series(target_pred)],
         keys=["test", "predictions"],
-        axis=1,
+        axis="columns",
     )
     predictions_vs_test.set_index(keys=features_test.index, inplace=True)
     print(f"\nTest vs. Predictions:\n{predictions_vs_test}\n")
@@ -4966,7 +5068,7 @@ def predict_target(
 def predict_defect_class(
     data: np.ndarray,
     model: Pipeline,
-    defect_class_dictionary: Dict[int, str],
+    defect_class_dictionary: dict[int, str],
 ) -> str:
     """Predict the defect class based on the input data using a trained model.
 
@@ -4980,7 +5082,7 @@ def predict_defect_class(
         data (np.ndarray): The input data for prediction
         model (Pipeline): The trained model used for prediction. The model
         could also be a whole process pipeline as with Scikit-learn.
-        defect_class_dictionary (Dict[int, str]): A dictionary mapping class
+        defect_class_dictionary (dict[int, str]): A dictionary mapping class
         numbers to defect names.
 
     Returns:
@@ -5028,7 +5130,7 @@ def calculate_cross_validation_scores(
     features_test: pd.DataFrame,
     target_test: pd.Series,
     target_pred: pd.Series,
-    target_label_list: List[str],
+    target_label_list: list[str],
     cv: int = 5,
 ) -> None:
     """Calculate cross-validation scores.
@@ -5042,7 +5144,7 @@ def calculate_cross_validation_scores(
         features_test (pd.DataFrame): The test features data.
         target_test (pd.Series): The true target values.
         target_pred (pd.Series): The predicted target values.
-        target_label_list (List[str]): A list of target labels for
+        target_label_list (list[str]): A list of target labels for
         classification report.
         cv (int): Number of cross-validation folds. Defaults to 5).
 
@@ -5081,7 +5183,7 @@ def calculate_cross_validation_scores(
         # output_dict=True,
     )
     print(f"\nClassification Report:\n{classification_report_}\n")
-    return None
+
 
 
 def calculate_multiple_cross_validation_scores(
@@ -5149,7 +5251,7 @@ def calculate_multiple_cross_validation_scores(
         'cross_val_predict' function from Scikit-learn library.
     """
     )
-    return None
+
 
 
 def calculate_recall_cross_validation_scores(
@@ -5157,7 +5259,7 @@ def calculate_recall_cross_validation_scores(
     features: pd.DataFrame,
     target: pd.Series,
     cv: int = 5,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Calculate the cross-validated recall scores for a given model.
 
     Args:
@@ -5167,7 +5269,7 @@ def calculate_recall_cross_validation_scores(
         cv (int, optional): Number of cross-validation folds. Defaults to 5.
 
     Returns:
-        Tuple[float, float]: A tuple containing the average recall score and
+        tuple[float, float]: A tuple containing the average recall score and
             its standard deviation.
     """
     # Define the scoring metric
@@ -5259,7 +5361,7 @@ def calculate_cross_validation_prediction_scores(
     score_mean_df = pd.DataFrame(data=mean_scores)
     score_stdev_df = pd.DataFrame(data=stdev_scores)
     prediction_scores_dataframe = pd.concat(
-        objs=[score_mean_df, score_stdev_df], axis=0
+        objs=[score_mean_df, score_stdev_df], axis="index"
     )
     prediction_scores_dataframe.index = ["Mean", "StDev"]
 
@@ -5311,7 +5413,7 @@ def train_tree_classifier(
         target_pred_tree_classifier_df,
     ]
     predictions_tree_classifier = pd.concat(
-        objs=prediction_list_tree_classifier, axis=1
+        objs=prediction_list_tree_classifier, axis="columns"
     ).set_index(keys=index_name)
     print("Test vs. Predictions for tree classifier:")
     print(predictions_tree_classifier)
@@ -5320,7 +5422,7 @@ def train_tree_classifier(
 
 def show_tree_classifier_feature_importances(
     tree_classifier,
-    feature_name_list: List[str],
+    feature_name_list: list[str],
     features_train: pd.DataFrame | np.ndarray,
     target_train: pd.Series | np.ndarray,
     features_test: pd.DataFrame | np.ndarray,
@@ -5330,7 +5432,7 @@ def show_tree_classifier_feature_importances(
 
     Args:
         tree_classifier (_type_): _description_
-        feature_name_list (List[str]): _description_
+        feature_name_list (list[str]): _description_
         features_train (pd.DataFrame): _description_
         target_train (pd.Series): _description_
         features_test (pd.DataFrame): _description_
@@ -5379,8 +5481,8 @@ def show_tree_classifier_feature_importances(
 
 def draw_decision_tree(
     tree_classifier,
-    feature_name_list: List[str],
-    target_label_list: List[str],
+    feature_name_list: list[str],
+    target_label_list: list[str],
     file_name: str,
     output_directory: Path,
 ) -> None:
@@ -5388,8 +5490,8 @@ def draw_decision_tree(
 
     Args:
         tree_classifier (_type_): _description_
-        feature_name_list (List[str]): _description_
-        target_label_list (List[str]): _description_
+        feature_name_list (list[str]): _description_
+        target_label_list (list[str]): _description_
         file_name (str): _description_
         output_directory (Path): _description_
     """
@@ -5461,21 +5563,21 @@ def draw_decision_tree(
 
 def draw_random_forest_tree(
     random_forest_classifier,
-    feature_name_list: List[str],
-    target_label_list: List[str],
+    feature_name_list: list[str],
+    target_label_list: list[str],
     file_name: str,
     output_directory: Path,
-    ranked_tree: int = None,
+    ranked_tree: int | None = None,
 ) -> None:
     """Draw a random forest tree for visualization.
 
     Args:
         random_forest_classifier (_type_): The random forest classifier model.
-        feature_name_list (List[str]): The list of feature names.
-        target_label_list (List[str]): The list of target label names.
+        feature_name_list (list[str]): The list of feature names.
+        target_label_list (list[str]): The list of target label names.
         file_name (str): The name of the output file.
         output_directory (Path): Directory where the output file will be saved.
-        ranked_tree (int, optional): The index of the tree to draw.
+        ranked_tree (int, optional): The index of the tree to draw. Defaults to None.
 
     Returns:
         None. Saves a figure of the decision tree.
@@ -5496,15 +5598,15 @@ def draw_random_forest_tree(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
-    return None
+
 
 
 def draw_confusion_matrix_heatmap(
     target_test: pd.Series,
     target_pred: pd.Series,
-    target_label_list: List[str],
+    target_label_list: list[str],
     accuracy_score_: float,
-    recall_cv_scores: Tuple[float],
+    recall_cv_scores: tuple[float],
     model_name: str,
     file_name: str,
     output_directory: Path,
@@ -5517,9 +5619,9 @@ def draw_confusion_matrix_heatmap(
     Args:
         target_test (pd.Series): The true target values.
         target_pred (pd.Series): The predicted target values.
-        target_label_list (List[str]): A list of target labels.
+        target_label_list (list[str]): A list of target labels.
         accuracy_score_ (float): The accuracy score of the model.
-        recall_cv_scores (Tuple[float]): A tuple containing the mean score and
+        recall_cv_scores (tuple[float]): A tuple containing the mean score and
             its standard deviation.
         model_name (str): The model name to be displayed in confusion matrix.
         file_name (str): The name of the output file.
@@ -5563,12 +5665,12 @@ def draw_confusion_matrix_heatmap(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
-    return None
+
 
 
 def get_feature_importance_scores(
     model: BaseEstimator,
-    feature_name_list: List[str],
+    feature_name_list: list[str],
     file_name: str,
     output_directory: Path,
 ) -> pd.Series:
@@ -5577,7 +5679,7 @@ def get_feature_importance_scores(
 
     Args:
         model (BaseEstimator): The trained model.
-        feature_name_list (List[str]): The list of feature names.
+        feature_name_list (list[str]): The list of feature names.
         file_name (str): The name of the output file.
         output_directory (Path): The directory to save the output file.
 
@@ -5597,7 +5699,7 @@ def get_feature_importance_scores(
     # # Calculate the standard deviation of all estimators
     # estimator_std = np.std(
     #     [tree.feature_importances_ for tree in model.estimators_],
-    #     axis=0
+    #     axis="index"
     # )
 
     # Create a Pandas Series to plot the data
@@ -5698,7 +5800,7 @@ def perform_roc_auc_analysis(
 
 def get_best_parameters_ensemble(
     pipeline: Pipeline,
-    model: Dict[str, object],
+    model: dict[str, object],
 ) -> pd.DataFrame:
     """Retrieve the best parameters and scores from a pipeline.
 
@@ -5715,7 +5817,7 @@ def get_best_parameters_ensemble(
 
     Args:
         pipeline (Pipeline): The pipeline object.
-        model (Dict[str, object]): A dictionary containing the model name.
+        model (dict[str, object]): A dictionary containing the model name.
 
     Returns:
         pd.DataFrame: A DataFrame containing the best parameters and scores.
@@ -5792,7 +5894,7 @@ def get_best_parameters_ensemble(
 
 
 def random_search_cv_optimisation_ensemble(
-    pipeline: Pipeline, model: Dict[str, object], cv: int = 5
+    pipeline: Pipeline, model: dict[str, object], cv: int = 5
 ) -> RandomizedSearchCV:
     """Perform random search cross-validation.
 
@@ -5815,7 +5917,7 @@ def random_search_cv_optimisation_ensemble(
 
     Args:
         pipeline (Pipeline): The pipeline object.
-        model (Dict[str, object]): A dictionary containing the model name.
+        model (dict[str, object]): A dictionary containing the model name.
         cv (int, optional): The number of cross-validation folds. Defaults to 5
 
     Returns:
@@ -5963,7 +6065,7 @@ def random_search_cv_optimisation_ensemble(
 
 
 def bayes_search_cv_optimisation(
-    pipeline: Pipeline, model: Dict[str, object], cv: int = 5
+    pipeline: Pipeline, model: dict[str, object], cv: int = 5
 ) -> BayesSearchCV:
     """Perform random search cross-validation.
 
@@ -5986,7 +6088,7 @@ def bayes_search_cv_optimisation(
 
     Args:
         pipeline (Pipeline): The pipeline object.
-        model (Dict[str, object]): A dictionary containing the model name.
+        model (dict[str, object]): A dictionary containing the model name.
         cv (int, optional): The number of cross-validation folds. Defaults to 5
 
     Returns:
