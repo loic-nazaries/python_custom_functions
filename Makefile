@@ -64,7 +64,7 @@ $(VENV)/Scripts/activate: requirements.txt
 	pyhon -m venv $(VENV)
 	./$(VENV)/Scripts/pip install -r requirements.txt
 	@echo "Updating pip package..."
-	pip install --upgrade pip
+	python -m pip install --upgrade pip
 # 'venv' is a shortcut target
 venv: $(VENV)/Scripts/activate
 
@@ -76,7 +76,7 @@ install_precommit:
 
 install_packages:
 	@echo "Installing Default Packages..."
-	poetry add black flake8 ruff pylint pyupgrade add-trailing-comma dead interrogate refurb sourcery mypy
+	poetry add black flake8 ruff pre-commit pylint pyupgrade dead interrogate refurb sourcery mypy
 
 setup_environment: create_directories create_files initialise_git create_gitignore install_poetry initialise_poetry activate_venv install_precommit install_packages create_directories create_files
 
@@ -84,7 +84,7 @@ setup_environment: create_directories create_files initialise_git create_gitigno
 
 update_pip:
 	@echo "Updating pip packages..."
-	pip install --upgrade pip
+	python -m pip install --upgrade pip
 
 # Install dependencies from a 'pyproject.toml' file
 install_dependencies:

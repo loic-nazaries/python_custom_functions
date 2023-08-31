@@ -17,10 +17,12 @@ Content Sections:
 
 # Call the libraries required
 import itertools  # noqa: I001
+import os
 import re
 import shutil
 import sys
 import time
+import warnings
 from collections import defaultdict, namedtuple
 from datetime import datetime
 from pathlib import Path
@@ -45,14 +47,23 @@ import sidetable as stb  # noqa: F401
 import statsmodels.api as sm
 import sweetviz as sv
 import treeplot as tree
+from dotenv import load_dotenv
 from fast_ml.model_development import train_valid_test_split
-from feature_engine.selection import (DropConstantFeatures,
-                                      DropCorrelatedFeatures,
-                                      DropDuplicateFeatures, DropFeatures,
-                                      DropMissingData)
+from feature_engine.selection import (
+    DropConstantFeatures,
+    DropCorrelatedFeatures,
+    DropDuplicateFeatures,
+    DropFeatures,
+    DropMissingData,
+)
 from imblearn.combine import SMOTEENN
-from imblearn.over_sampling import (SMOTE, SVMSMOTE, BorderlineSMOTE,
-                                    KMeansSMOTE, RandomOverSampler)
+from imblearn.over_sampling import (
+    SMOTE,
+    SVMSMOTE,
+    BorderlineSMOTE,
+    KMeansSMOTE,
+    RandomOverSampler,
+)
 from imblearn.under_sampling import RandomUnderSampler
 from matplotlib.colors import ListedColormap  # noqa: F401
 from matplotlib.patches import Ellipse
@@ -69,25 +80,44 @@ from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector as selector
 from sklearn.decomposition import PCA
-from sklearn.ensemble import RandomForestClassifier, VotingClassifier  # noqa: F401
+from sklearn.ensemble import RandomForestClassifier  # noqa: F401
+from sklearn.ensemble import VotingClassifier  # noqa: F401
 from sklearn.feature_selection import VarianceThreshold  # RFECV,
 from sklearn.impute import SimpleImputer
 from sklearn.inspection import DecisionBoundaryDisplay
 from sklearn.linear_model import LogisticRegression  # noqa: F401
-from sklearn.metrics import (accuracy_score, balanced_accuracy_score,  # noqa: F401
-                             classification_report, confusion_matrix, f1_score,
-                             make_scorer, precision_score, recall_score,
-                             roc_auc_score, roc_curve)
-from sklearn.model_selection import (GridSearchCV, RandomizedSearchCV,  # noqa: F401
-                                     RepeatedStratifiedKFold, StratifiedKFold,
-                                     StratifiedShuffleSplit, cross_val_predict,
-                                     cross_val_score, cross_validate,
-                                     train_test_split)
+from sklearn.metrics import accuracy_score  # noqa: F401
+from sklearn.metrics import (
+    balanced_accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    make_scorer,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+)
+from sklearn.model_selection import GridSearchCV  # noqa: F401
+from sklearn.model_selection import (
+    RandomizedSearchCV,
+    StratifiedKFold,
+    cross_val_predict,
+    cross_val_score,
+    cross_validate,
+    train_test_split,
+)
 from sklearn.pipeline import FeatureUnion, Pipeline
-from sklearn.preprocessing import (FunctionTransformer, LabelEncoder,
-                                   MinMaxScaler, OneHotEncoder, OrdinalEncoder,
-                                   PowerTransform, RobustScaler,
-                                   StandardScaler)
+from sklearn.preprocessing import (
+    FunctionTransformer,
+    LabelEncoder,
+    MinMaxScaler,
+    OneHotEncoder,
+    OrdinalEncoder,
+    PowerTransform,
+    RobustScaler,
+    StandardScaler,
+)
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from skopt import BayesSearchCV, space
 from statsmodels.formula.api import ols
@@ -97,13 +127,25 @@ from xgboost import XGBClassifier  # noqa: F401
 from yellowbrick.features import PCA as yb_pca  # noqa: N811
 from yellowbrick.features import Rank1D
 
+# Load the environment file
+load_dotenv(".env")
+
+# Set up Pandas options
+pd.set_option("display.precision", 2)  # two decimal places
+pd.set_option("display.max_columns", None)  # 'None' means unlimited
+pd.set_option("display.max_colwidth", None)  # 'None' means unlimited
+
 set_config(transform_output="pandas")
 
-# Default directories
-INPUT_DIRECTORY = Path("./sources")
-OUTPUT_DIRECTORY = Path("./output")
-OUTPUT_DIR_IMAGES = Path("./images")
-OUTPUT_DIR_FIGURES = Path("./figures")
+# Ignore common warnings
+warnings.filterwarnings("ignore")
+
+
+# Define input and output directories
+INPUT_DIRECTORY = Path(os.getenv("INPUT_DIRECTORY"))
+OUTPUT_DIRECTORY = Path(os.getenv("OUTPUT_DIRECTORY"))
+OUTPUT_DIRECTORY_IMAGES = Path(os.getenv("OUTPUT_DIRECTORY_IMAGES"))
+OUTPUT_DIRECTORY_FIGURES = Path(os.getenv("OUTPUT_DIRECTORY_FIGURES"))
 
 
 # -----------------------------------------------------------------------------
@@ -149,7 +191,7 @@ def timing(func):
         end_time = time.time()
         print(
             f"\n\nFunction '{func.__name__}' took {end_time - start_time:.2} "
-            f"seconds to run.\n"
+            f"seconds to run.\n",
         )
         return result
 
@@ -164,7 +206,8 @@ def timing(func):
 
 
 def ask_user_outlier_removal(
-    dataframe_with_outliers: pd.DataFrame, dataframe_no_outliers: pd.DataFrame
+    dataframe_with_outliers: pd.DataFrame,
+    dataframe_no_outliers: pd.DataFrame,
 ) -> pd.DataFrame:
     """Let the user choose whether to bypass outlier removal.
 
@@ -217,7 +260,8 @@ def get_folder_name_list_from_directory(directory_name: Path) -> list[str]:
 
 
 def get_file_name_list_from_extension(
-    directory_name: Path, extension: str
+    directory_name: Path,
+    extension: str,
 ) -> list[str]:
     """Get the list of file (name) from a directory.
 
@@ -263,7 +307,7 @@ def load_pickle_file(file_name: str, input_directory: Path) -> pd.DataFrame:
         pd.DataFrame: A dataframe containing the pickled data.
     """
     dataframe = pd.read_pickle(
-        filepath_or_buffer=input_directory.joinpath(f"{file_name}.pkl")
+        filepath_or_buffer=input_directory.joinpath(f"{file_name}.pkl"),
     )
     print("\nDataset details:\n")
     print(dataframe.info())
@@ -271,8 +315,8 @@ def load_pickle_file(file_name: str, input_directory: Path) -> pd.DataFrame:
 
 
 def load_mat_file(
-        mat_file_name: str,
-        input_directory: Path,
+    mat_file_name: str,
+    input_directory: Path,
 ) -> dict[str, np.ndarray]:
     """Load data from '.mat' file as a dictionary and print it.
 
@@ -283,7 +327,7 @@ def load_mat_file(
     Returns:
         dict[str, np.ndarray]: The loaded dictionary data from the '.mat' file.
     """
-    dictionary = loadmat(file_name=input_directory/mat_file_name)
+    dictionary = loadmat(file_name=input_directory / mat_file_name)
     print("The '.mat' file was successfully converted.")
     return dictionary
 
@@ -305,7 +349,7 @@ def load_mat_file_73(
         dict[str, np.ndarray]: The loaded dictionary data from the '.mat' file.
     """
     dictionary = mat73.loadmat(
-        filename=input_directory/mat_file_name,
+        filename=input_directory / mat_file_name,
         use_attrdict=True,
     )
     print("The '.mat' file was successfully converted.")
@@ -456,9 +500,11 @@ def save_figure(file_name: str, output_directory: Path) -> None:
     )
 
 
-
 def save_image_show(
-    image: np.ndarray, image_title: str, file_name: str, output_directory: Path
+    image: np.ndarray,
+    image_title: str,
+    file_name: str,
+    output_directory: Path,
 ):
     """save_image_show _summary_.
 
@@ -523,9 +569,7 @@ def save_pickle_file(
     Returns:
         None. Saves the dataframe as a pickle file.
     """
-    dataframe.to_pickle(path=output_directory.joinpath(
-        f"{file_name}.pkl"), protocol=-1)
-
+    dataframe.to_pickle(path=output_directory.joinpath(f"{file_name}.pkl"), protocol=-1)
 
 
 def save_console_output(file_name: str) -> None:
@@ -555,7 +599,6 @@ def save_console_output(file_name: str) -> None:
         # Reset stdout back to the original
         sys.stdout = original_stdout
     print("The console output was saved.")
-
 
 
 def convert_text_file_to_docx(file_name: str, output_directory: Path) -> None:
@@ -600,7 +643,7 @@ def convert_text_file_to_pdf(file_name: str, output_directory: Path) -> None:
     # Create a new PDF file
     pdf_file = canvas.Canvas(filename=f"{file_name}.pdf")
     pdf_file = canvas.Canvas(
-        filename=f"{output_directory}/{file_name}.pdf"
+        filename=f"{output_directory}/{file_name}.pdf",
         # filename=output_directory.joinpath(file_name + ".pdf")  # BUG
     )
 
@@ -653,7 +696,8 @@ def convert_npz_to_mat(input_directory: Path) -> None:
 
 
 def remove_key_from_dictionary(
-    dictionary: dict, key_name: str  # check dict content type
+    dictionary: dict,
+    key_name: str,  # check dict content type
 ) -> dict:  # check dict content type
     """Delete a key and its content from a dictionary.
 
@@ -723,9 +767,7 @@ def extract_pattern_from_file_name_2(file_name):
 # -----------------------------------------------------------------------------
 
 
-def convert_dataframe_to_array(
-    dataframe: pd.DataFrame, column_name: str
-) -> np.ndarray:
+def convert_dataframe_to_array(dataframe: pd.DataFrame, column_name: str) -> np.ndarray:
     """Convert dataframe to array.
 
     Note: the use of the present function could be avoided if the dataframe is
@@ -791,13 +833,15 @@ def convert_dictionary_to_dataframe(dictionary_file: dict) -> pd.DataFrame:
         pd.DataFrame: Dataframe representing the data in the input dictionary.
     """
     dataframe = pd.DataFrame(
-        data=dictionary_file, index=[list(range(len(dictionary_file)))]
+        data=dictionary_file,
+        index=[list(range(len(dictionary_file)))],
     )
     return dataframe
 
 
 def convert_to_datetime_type(
-    dataframe: pd.DataFrame, datetime_variable_list: list[str | datetime]
+    dataframe: pd.DataFrame,
+    datetime_variable_list: list[str | datetime],
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to datetime type.
 
@@ -810,14 +854,15 @@ def convert_to_datetime_type(
         pd.DataFrame: The DataFrame with specified columns converted to
             datetime type.
     """
-    dataframe[datetime_variable_list] = (
-        dataframe[datetime_variable_list].astype(dtype="datetime64[ns]")
+    dataframe[datetime_variable_list] = dataframe[datetime_variable_list].astype(
+        dtype="datetime64[ns]",
     )
     return dataframe
 
 
 def convert_to_category_type(
-    dataframe: pd.DataFrame, category_variable_list: list[str]
+    dataframe: pd.DataFrame,
+    category_variable_list: list[str],
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to category type.
 
@@ -830,14 +875,15 @@ def convert_to_category_type(
         pd.DataFrame: The DataFrame with specified columns converted to
             category type.
     """
-    dataframe[category_variable_list] = (
-        dataframe[category_variable_list].astype(dtype="category")
+    dataframe[category_variable_list] = dataframe[category_variable_list].astype(
+        dtype="category",
     )
     return dataframe
 
 
 def convert_to_number_type(
-    dataframe: pd.DataFrame, numeric_variable_list: list[str]
+    dataframe: pd.DataFrame,
+    numeric_variable_list: list[str],
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to numeric type.
 
@@ -851,13 +897,14 @@ def convert_to_number_type(
             number type.
     """
     dataframe[numeric_variable_list] = dataframe[numeric_variable_list].astype(
-        dtype="number"
+        dtype="number",
     )
     return dataframe
 
 
 def convert_to_integer_type(
-    dataframe: pd.DataFrame, integer_variable_list: list[str]
+    dataframe: pd.DataFrame,
+    integer_variable_list: list[str],
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to integer type.
 
@@ -871,13 +918,14 @@ def convert_to_integer_type(
             integer type.
     """
     dataframe[integer_variable_list] = dataframe[integer_variable_list].astype(
-        dtype="int"
+        dtype="int",
     )
     return dataframe
 
 
 def convert_to_float_type(
-    dataframe: pd.DataFrame, float_variable_list: list[str]
+    dataframe: pd.DataFrame,
+    float_variable_list: list[str],
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to float type.
 
@@ -891,13 +939,14 @@ def convert_to_float_type(
             float type.
     """
     dataframe[float_variable_list] = dataframe[float_variable_list].astype(
-        dtype="float"
+        dtype="float",
     )
     return dataframe
 
 
 def convert_to_string_type(
-    dataframe: pd.DataFrame, string_variable_list: list[str]
+    dataframe: pd.DataFrame,
+    string_variable_list: list[str],
 ) -> pd.DataFrame:
     """Convert specified columns in a DataFrame to string type.
 
@@ -911,7 +960,7 @@ def convert_to_string_type(
             string type.
     """
     dataframe[string_variable_list] = dataframe[string_variable_list].astype(
-        dtype="string"
+        dtype="string",
     )
     return dataframe
 
@@ -1065,9 +1114,7 @@ def remove_duplicated_rows(dataframe: pd.DataFrame) -> pd.DataFrame:
     return dataframe
 
 
-def drop_column(
-    dataframe: pd.DataFrame, column_list: list[str]
-) -> pd.DataFrame:
+def drop_column(dataframe: pd.DataFrame, column_list: list[str]) -> pd.DataFrame:
     """Drop columns from the dataframe.
 
     Args:
@@ -1126,7 +1173,8 @@ def filter_dataframe(
 
 
 def get_list_of_unique_values(
-    dataframe: pd.DataFrame, column_name: str
+    dataframe: pd.DataFrame,
+    column_name: str,
 ) -> list[str | int | float]:  # to be checked
     """Get a list of unique values from a dataframe.
 
@@ -1145,9 +1193,7 @@ def get_list_of_unique_values(
     return unique_names
 
 
-def get_numeric_features(
-    dataframe: pd.DataFrame
-) -> tuple[pd.DataFrame, list[str]]:
+def get_numeric_features(dataframe: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     """Extract numeric features from a Pandas DataFrame.
 
     Args:
@@ -1189,9 +1235,7 @@ def get_categorical_features(dataframe):
     return categorical_features, categorical_feature_list, summary_stats
 
 
-def get_dictionary_key(
-    dictionary: dict[int, str], target_key_string: str
-) -> int:
+def get_dictionary_key(dictionary: dict[int, str], target_key_string: str) -> int:
     """Get the key (as an integer) from the dictionary based on its values.
 
     Args:
@@ -1224,7 +1268,8 @@ def get_missing_columns(dataframe: pd.DataFrame) -> pd.DataFrame | pd.Series:
 
 
 def prepare_scaled_features_encoded_target(
-    dataframe: pd.DataFrame, target_name: str
+    dataframe: pd.DataFrame,
+    target_name: str,
 ) -> tuple[pd.DataFrame, np.ndarray, list[str]]:
     """Define feature and target dataframes for modelling.
 
@@ -1239,7 +1284,8 @@ def prepare_scaled_features_encoded_target(
     features_scaled = standardise_features(features=features)
     target = dataframe[target_name]
     target_encoded, target_class_list = encode_target_labels(
-        dataframe=dataframe, target_name=target
+        dataframe=dataframe,
+        target_name=target,
     )
     return (
         features,
@@ -1304,18 +1350,17 @@ def run_exploratory_data_analysis(
     (
         numeric_features,
         numeric_feature_list,
-        numeric_summary_stats
+        numeric_summary_stats,
     ) = get_numeric_features(dataframe)
 
     # Percent of variation of standard deviation compared to mean value
-    pct_variation = (
-        numeric_features.std() / numeric_features.mean() * 100
-    ).rename("pct_var")
+    pct_variation = (numeric_features.std() / numeric_features.mean() * 100).rename(
+        "pct_var",
+    )
 
     # Calculate mean absolute deviation (MAD) and other statistics
     # Apply 'mean_absolute_deviation()' function to each column using 'apply()'
-    mad = numeric_features.apply(
-        calculate_mean_absolute_deviation).rename("mad")
+    mad = numeric_features.apply(calculate_mean_absolute_deviation).rename("mad")
     kurtosis = numeric_features.kurt().rename("kurt")
     skewness = numeric_features.skew().rename("skew")
 
@@ -1330,8 +1375,7 @@ def run_exploratory_data_analysis(
     summary_stats_table = pd.concat(objs=metrics_list, sort=False, axis="columns")
 
     # Format the dataframe index column
-    summary_stats_table = format_dataframe_index(
-        dataframe=summary_stats_table)
+    summary_stats_table = format_dataframe_index(dataframe=summary_stats_table)
     print("\nSummary Statistics for Numeric Features:")
     print(summary_stats_table)
 
@@ -1339,11 +1383,12 @@ def run_exploratory_data_analysis(
     (
         categorical_features,
         categorical_feature_list,
-        categorical_summary_stats
+        categorical_summary_stats,
     ) = get_categorical_features(dataframe)
     # Format the dataframe index column
     categorical_summary_stats = format_dataframe_index(
-        dataframe=categorical_summary_stats)
+        dataframe=categorical_summary_stats,
+    )
     print("\nSummary Statistics for Categorical Features:")
     print(categorical_summary_stats)
 
@@ -1357,7 +1402,7 @@ def run_exploratory_data_analysis(
         numeric_features,
         numeric_feature_list,
         categorical_features,
-        categorical_feature_list
+        categorical_feature_list,
     )
 
 
@@ -1379,7 +1424,9 @@ def calculate_mean_absolute_deviation(
 
 
 def produce_sweetviz_eda_report(
-    dataframe: pd.DataFrame, eda_report_name: str, output_directory: Path
+    dataframe: pd.DataFrame,
+    eda_report_name: str,
+    output_directory: Path,
 ) -> None:
     """Generate an exploratory data analysis (EDA) report.
 
@@ -1395,8 +1442,7 @@ def produce_sweetviz_eda_report(
         None. Produces an '.html' file of the main steps of the EDA.
     """
     print("\nPreparing SweetViz Report:\n")
-    sweetviz_eda_report = sv.analyze(
-        source=dataframe, pairwise_analysis="auto")
+    sweetviz_eda_report = sv.analyze(source=dataframe, pairwise_analysis="auto")
     sweetviz_eda_report.show_html(
         filepath=output_directory.joinpath(f"{eda_report_name}.html"),
         open_browser=True,
@@ -1428,7 +1474,8 @@ def compare_sweetviz_eda_report(
     """
     print("\nPreparing SweetViz Report:\n")
     sweetviz_eda_report = sv.compare(
-        [train_set, "Training Data"], [test_set, "Test Data"]
+        [train_set, "Training Data"],
+        [test_set, "Test Data"],
     )
     sweetviz_eda_report.show_html(
         filepath=output_directory.joinpath(f"{eda_report_name}.html"),
@@ -1476,7 +1523,8 @@ def get_missing_values_table(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 
 def pivot_to_aggregate(
-    dataframe, values=None,
+    dataframe,
+    values=None,
     index_list=None,
     column_list=None,
     aggfunc_list=None,
@@ -1590,7 +1638,8 @@ def calculate_mahalanobis_distance_alt(dataframe: pd.DataFrame) -> list[float]:
 
 
 def apply_mahalanobis_test(
-    dataframe: pd.DataFrame, alpha: float = 0.01
+    dataframe: pd.DataFrame,
+    alpha: float = 0.01,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Apply the Mahalanobis test to identify outliers in the dataframe.
 
@@ -1605,20 +1654,19 @@ def apply_mahalanobis_test(
     # Create a copy to enable row dropping within the loop instead of
     # overwriting the 'original' (here, reduced) dataframe
     mahalanobis_dataframe = dataframe.copy()
-    mahalanobis_dataframe["mahalanobis_score"] = (
-        calculate_mahalanobis_distance(
-            var=mahalanobis_dataframe,
-            data=mahalanobis_dataframe,
-        )
+    mahalanobis_dataframe["mahalanobis_score"] = calculate_mahalanobis_distance(
+        var=mahalanobis_dataframe,
+        data=mahalanobis_dataframe,
     )
 
     # Get the critical value for the test
     mahalanobis_test_critical_value = chi2.ppf(
-        (1 - alpha), df=len(mahalanobis_dataframe.columns) - 1
+        (1 - alpha),
+        df=len(mahalanobis_dataframe.columns) - 1,
     )
     print(
         f"\n\nMahalanobis Test Critical Value for alpha < {alpha}:"
-        f"{mahalanobis_test_critical_value:.2f}"
+        f"{mahalanobis_test_critical_value:.2f}",
     )
 
     # Get p-values from chi2 distribution
@@ -1697,8 +1745,7 @@ def concatenate_outliers_with_target_category_dataframe(
         on="file_name",
         how="right",
     )
-    print(
-        f"\nTable of outliers for {feature} based on {outlier_method} values:")
+    print(f"\nTable of outliers for {feature} based on {outlier_method} values:")
     print(outlier_dataframe)
 
     # Save output as a '.csv()' file
@@ -1738,15 +1785,14 @@ def get_iqr_outliers(
 
     # Find outliers based on upper and lower limit values
     iqr_outlier_dataframe = dataframe[
-        (dataframe[column_name] > upper_limit) | (
-            dataframe[column_name] < lower_limit)
+        (dataframe[column_name] > upper_limit) | (dataframe[column_name] < lower_limit)
     ][column_name]
 
     # Calculate the ratio of outliers
     iqr_outlier_ratio = len(iqr_outlier_dataframe) / len(dataframe)
     print(
         f"There are {len(iqr_outlier_dataframe)} "
-        f"({iqr_outlier_ratio:.1%}) IQR outliers.\n"
+        f"({iqr_outlier_ratio:.1%}) IQR outliers.\n",
     )
     # print(f"Table of outliers for {column_name} based on IQR value:")
     # print(iqr_outlier_dataframe)
@@ -1754,7 +1800,9 @@ def get_iqr_outliers(
 
 
 def get_zscore_outliers(
-    dataframe: pd.DataFrame, column_name: str, zscore_threshold: int = 3
+    dataframe: pd.DataFrame,
+    column_name: str,
+    zscore_threshold: int = 3,
 ):
     """Get Z-score outliers for a specific column in the dataframe.
 
@@ -1774,15 +1822,13 @@ def get_zscore_outliers(
     z_score = np.abs(zscore(a=dataframe[column_name]))
 
     # Find outliers based on Z-score threshold value
-    zscore_outlier_dataframe = (
-        dataframe[z_score > zscore_threshold][column_name]
-    )
+    zscore_outlier_dataframe = dataframe[z_score > zscore_threshold][column_name]
 
     # Calculate the ratio of outliers
     zscore_outlier_ratio = len(zscore_outlier_dataframe) / len(dataframe)
     print(
         f"There are {len(zscore_outlier_dataframe)} "
-        f"({zscore_outlier_ratio:.1%}) Z-score outliers.\n"
+        f"({zscore_outlier_ratio:.1%}) Z-score outliers.\n",
     )
     # print(f"Table of outliers for {column_name} based on Z-score value:")
     # print(zscore_outlier_dataframe)
@@ -1822,7 +1868,7 @@ def get_mad_outliers(
     mad_outlier_ratio = len(mad_outlier_dataframe) / len(dataframe)
     print(
         f"There are {len(mad_outlier_dataframe)} "
-        f"({mad_outlier_ratio:.1%}) MAD outliers.\n"
+        f"({mad_outlier_ratio:.1%}) MAD outliers.\n",
     )
     # print(f"Table of outliers for {column_name} based on MAD value:")
     # print(mad_outlier_dataframe)
@@ -1857,7 +1903,7 @@ def detect_univariate_outliers(
 
     # Get list of numeric features
     selected_numeric_feature_list = dataframe.select_dtypes(
-        include=np.number
+        include=np.number,
     ).columns.to_list()
 
     # Run 'concatenate_outliers_with_target_category_dataframe' function on all
@@ -1896,7 +1942,8 @@ def detect_multivariate_outliers(
     # MAHALANOBIS TEST
     # Perform Mahalanobis test and get outlier list
     mahalanobis_dataframe, mahalanobis_outliers = apply_mahalanobis_test(
-        dataframe.select_dtypes(include=np.number), alpha=0.01
+        dataframe.select_dtypes(include=np.number),
+        alpha=0.01,
     )
 
     # Concatenate the outliers with their corresponding target categories
@@ -1952,8 +1999,7 @@ def standardise_features(features: pd.DataFrame) -> pd.DataFrame:
     features_scaled = scaler.fit_transform(features)
 
     # Convert the Numpy array to a Pandas dataframe
-    features_scaled = pd.DataFrame(
-        data=features_scaled, columns=features.columns)
+    features_scaled = pd.DataFrame(data=features_scaled, columns=features.columns)
     return features_scaled
 
 
@@ -2012,7 +2058,7 @@ def identify_highly_correlated_features(
     ]
     print(
         f"\nThere are {len(features_to_drop)} features to drop due to high "
-        f"correlation:\n{features_to_drop}\n"
+        f"correlation:\n{features_to_drop}\n",
     )
     return features_to_drop
 
@@ -2045,7 +2091,8 @@ def get_pca_eigen_values_vectors(pca_model: PCA) -> tuple[np.ndarray]:
 
 
 def apply_pca(
-    n_components: int | float, features_scaled: pd.DataFrame | np.ndarray
+    n_components: int | float,
+    features_scaled: pd.DataFrame | np.ndarray,
 ) -> tuple[PCA, np.ndarray]:
     """Run a Principal Component Analysis (PCA) on scaled data.
 
@@ -2073,7 +2120,9 @@ def apply_pca(
 
 
 def explain_pca_variance(
-    pca_eigen_values: np.ndarray, pca_model: PCA, pca_components: list[str]
+    pca_eigen_values: np.ndarray,
+    pca_model: PCA,
+    pca_components: list[str],
 ) -> tuple[pd.DataFrame]:
     """explain_pca_variance _summary_.
 
@@ -2086,8 +2135,7 @@ def explain_pca_variance(
         tuple[pd.DataFrame]: _description_
     """
     variance_explained = pca_model.explained_variance_ratio_ * 100
-    variance_explained_cumulated = np.cumsum(
-        pca_model.explained_variance_ratio_) * 100
+    variance_explained_cumulated = np.cumsum(pca_model.explained_variance_ratio_) * 100
     variance_explained_df = pd.DataFrame(
         data=[
             pca_eigen_values,
@@ -2100,7 +2148,7 @@ def explain_pca_variance(
             0: "Eigenvalues",
             1: "Variance Explained (%)",
             2: "Cumulated Variance (%)",
-        }
+        },
     )
     print(f"\nVariance Explained by the PCA:\n{variance_explained_df}")
     return variance_explained_df
@@ -2140,7 +2188,9 @@ def find_best_pc_axes(
 
 
 def run_pc_analysis(
-    features: pd.DataFrame, eda_report_name: str, output_directory: Path
+    features: pd.DataFrame,
+    eda_report_name: str,
+    output_directory: Path,
 ) -> tuple[pd.DataFrame | np.ndarray, list[str]]:
     """run_pc_analysis _summary_.
 
@@ -2153,8 +2203,7 @@ def run_pc_analysis(
         tuple[pd.DataFrame | np.ndarray], list[str]: _description_
     """
     # Select only the numeric input variables, i.e. not mahalanobis variables
-    numeric_feature_list = features.select_dtypes(
-        include="number").columns.to_list()
+    numeric_feature_list = features.select_dtypes(include="number").columns.to_list()
     print(f"\nSelected (Numeric) Features for PCA:\n{numeric_feature_list}\n")
 
     # Scale features data
@@ -2172,7 +2221,7 @@ def run_pc_analysis(
         # n_components=len(features_scaled.columns),
         # n_components=0.95,  # set to keep PCs with cumulated variance of 95%
         # features_scaled=features_scaled,
-        pca_model=pca_model
+        pca_model=pca_model,
     )
 
     # Convert PCA array to a dataframe
@@ -2256,8 +2305,7 @@ def run_pc_analysis(
         fontsize=16,
         loc="center",
     )
-    save_figure(file_name="pca_loading_table",
-                output_directory=output_directory)
+    save_figure(file_name="pca_loading_table", output_directory=output_directory)
 
     return (
         pca_model,
@@ -2302,7 +2350,7 @@ def get_outliers_from_pca(
     # NOTE MUST be NUMERIC variables
     # NOTE Alternatively, apply one-shot encoding to use CATEGORICAL variables
     pca_results = pca_outlier_model.fit_transform(
-        dataframe.select_dtypes(include="number")
+        dataframe.select_dtypes(include="number"),
     )
     print(f"\nPCA Data Dictionary Content:\n{pca_results.keys()}\n")
 
@@ -2347,8 +2395,7 @@ def get_outliers_from_pca(
         dataframe=pca_results["outliers"],
         filter_content="y_bool == True",
     )
-    print(
-        f"\nList of Outliers using Hotellings T2:\n{outliers_ht2_filtered}\n")
+    print(f"\nList of Outliers using Hotellings T2:\n{outliers_ht2_filtered}\n")
 
     # outlier_ht2_category_count = outliers_ht2.value_counts()
     # print(
@@ -2476,8 +2523,7 @@ def run_anova_test(
 
     # Build confidence interval
     ci_table_target_categories = rp.summary_cont(
-        group1=dataframe[dependent_variable].groupby(
-            dataframe[group_variable]),
+        group1=dataframe[dependent_variable].groupby(dataframe[group_variable]),
         conf=confidence_interval,
     )
     print("One-way ANOVA and confidence intervals:")
@@ -2555,7 +2601,9 @@ def calculate_jarque_bera_values(
     jarque_bera, jb_p_value = stats.jarque_bera(x=data, nan_policy="propagate")
     jarque_bera_values = {"jarque_bera": jarque_bera, "jb_p_value": jb_p_value}
     jarque_bera_df = pd.DataFrame.from_dict(
-        data=jarque_bera_values, orient="index", columns=["Value"]
+        data=jarque_bera_values,
+        orient="index",
+        columns=["Value"],
     ).T
     print("\nJarque-Bera Test Results:")
     print(jarque_bera_df)
@@ -2594,7 +2642,9 @@ def check_normality_assumption_residuals(
     test_results = {}
     for test_name, test_method in test_methods.items():
         test_result = pg.normality(
-            data=dataframe, method=test_method, alpha=(1 - confidence_interval)
+            data=dataframe,
+            method=test_method,
+            alpha=(1 - confidence_interval),
         )
         test_result.rename(index={0: test_name}, inplace=True)
         test_results[test_name] = test_result
@@ -2604,10 +2654,7 @@ def check_normality_assumption_residuals(
         objs=test_results.values(),
         axis="index",
     )
-    normality_tests.rename(
-        columns={"W": "Statistic", "pval": "p-value"},
-        inplace=True
-    )
+    normality_tests.rename(columns={"W": "Statistic", "pval": "p-value"}, inplace=True)
     print(f"\nNormality Tests Results:\n{normality_tests}\n")
 
     # Print a message depending on the value ('True' or 'False') of the
@@ -2646,14 +2693,11 @@ def check_equal_variance_assumption_residuals(
     # Prepare a dataframe of the ANOVA model residuals
     model_residuals_dataframe = pd.concat(
         objs=[dataframe[group_variable], model.resid],
-        axis="columns"
+        axis="columns",
     ).rename(columns={0: "Residuals"})
 
     # Set a dictionary of methods
-    test_methods = {
-        "Bartlett": "bartlett",
-        "Levene": "levene"
-    }
+    test_methods = {"Bartlett": "bartlett", "Levene": "levene"}
     # Initialise the dictionary of results
     test_results = {}
     for test_name, test_method in test_methods.items():
@@ -2662,7 +2706,7 @@ def check_equal_variance_assumption_residuals(
             dv="Residuals",
             group=group_variable,
             method=test_method,
-            alpha=(1 - confidence_interval)
+            alpha=(1 - confidence_interval),
         )
         # The name of the statistic metric for Bartlett' and Levene's test is
         # different so each is renamed to 'Statistic' for consistency
@@ -2670,9 +2714,10 @@ def check_equal_variance_assumption_residuals(
             index={0: test_name},
             columns=(
                 lambda statistic_name: "Statistic"
-                if statistic_name in ("W", "T") else statistic_name
+                if statistic_name in ("W", "T")
+                else statistic_name
             ),
-            inplace=True
+            inplace=True,
         )
         test_results[test_name] = test_result
 
@@ -2681,12 +2726,12 @@ def check_equal_variance_assumption_residuals(
         dv="residuals",
         group=group_variable,
         method="levene",
-        alpha=(1 - confidence_interval)
+        alpha=(1 - confidence_interval),
     )
     levene.rename(
         index={"mean_intensities": "Levene's Test"},
         columns={"W": "Statistic", "pval": "p-value", "normal": "Normal"},
-        inplace=True
+        inplace=True,
     )
 
     # Concatenate the tests output
@@ -2696,21 +2741,19 @@ def check_equal_variance_assumption_residuals(
     )
     equal_variance_tests.rename(
         columns={"pval": "p-value", "equal_var": "Equal Variance"},
-        inplace=True
+        inplace=True,
     )
 
     print(
         f"\nEquality of Variance Tests Results - '{group_variable}' as group"
-        f"\n{equal_variance_tests}\n"
+        f"\n{equal_variance_tests}\n",
     )
     # Print a message depending on the equal_var column of Levene's test
     print("Equal Variance of Data Between Groups ?")
     if equal_variance_tests.loc["levene", "Equal Variance"]:
         print(f"Data have equal variance between {group_variable} groups.\n")
     else:
-        print(
-            f"Data do NOT have equal variance between {group_variable} groups."
-        )
+        print(f"Data do NOT have equal variance between {group_variable} groups.")
     return equal_variance_tests
 
 
@@ -2727,13 +2770,13 @@ def run_tukey_post_hoc_test(dataframe, dependent_variable, group_list):
     Returns:
         _type_: _description_
     """
-    tukey = pg.pairwise_tukey(
-        data=dataframe, dv=dependent_variable, between=group_list)
+    tukey = pg.pairwise_tukey(data=dataframe, dv=dependent_variable, between=group_list)
     return tukey
 
 
 def perform_multicomparison_correction(
-    p_values, method: str = "bonferroni"
+    p_values,
+    method: str = "bonferroni",
 ) -> pd.DataFrame:
     """Apply the Bonferroni correction method to the p-values.
 
@@ -2754,7 +2797,8 @@ def perform_multicomparison_correction(
 
     correction_dataframe = pd.DataFrame(concatenate_arrays)
     correction_dataframe.rename(
-        columns={0: "Reject Hypothesis", 1: "Corrected p-values"}, inplace=True
+        columns={0: "Reject Hypothesis", 1: "Corrected p-values"},
+        inplace=True,
     )
     return correction_dataframe
 
@@ -2793,7 +2837,6 @@ def create_missing_data_matrix(
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
-
 
 
 def draw_scree_plot(x_axis, y_axis):
@@ -2931,9 +2974,7 @@ def draw_all_pca_pairs_scatterplot(
         # Select the PC axes from the main explained variance dataframe
         variance_dataframe = variance_dataframe.loc[pair_list]
         # Extract the variance values
-        variance_list = [
-            variance for pc, variance in variance_dataframe.iteritems()
-        ]
+        variance_list = [variance for pc, variance in variance_dataframe.iteritems()]
 
         plt.figure(figsize=(15, 10))
         pca_scatter_plot = draw_scatterplot(
@@ -2996,8 +3037,7 @@ def draw_heatmap(data, xticklabels, yticklabels):
         cbar_kws={"orientation": "vertical", "shrink": 0.8},
         cmap="YlGnBu",
     )
-    heatmap.set_xticklabels(
-        labels=heatmap.get_xticklabels(), rotation=45, ha="right")
+    heatmap.set_xticklabels(labels=heatmap.get_xticklabels(), rotation=45, ha="right")
     return heatmap
 
 
@@ -3309,7 +3349,6 @@ def draw_barplot_subplots(
         axis.set_ylabel(ylabel=y_label, fontsize=18)
 
 
-
 # ! Compare function below with function above
 def draw_bar_plots(dataframe, columns, label):
     """draw_bar_plots _summary_.
@@ -3396,8 +3435,7 @@ def draw_correlation_heatmap(
         size=12,
     )
 
-    correlation_heatmap.set_yticklabels(
-        labels=y_labels, rotation="horizontal", size=12)
+    correlation_heatmap.set_yticklabels(labels=y_labels, rotation="horizontal", size=12)
     correlation_heatmap.tick_params(left=True, bottom=True)
     plt.title("Correlation Matrix Heatmap", fontsize=20)
     plt.tight_layout()
@@ -3499,7 +3537,8 @@ def run_exploratory_data_visualisation(
     # Display output as a table AND a figure
     plt.figure(figsize=(25, 20))
     features_correlation_matrix = draw_correlation_heatmap(
-        dataframe=numeric_features, method="pearson"
+        dataframe=numeric_features,
+        method="pearson",
     )
     print("\nFeatures Correlation Matrix:")
     print(features_correlation_matrix)
@@ -3545,8 +3584,6 @@ def run_exploratory_data_visualisation(
     # plt.show()
 
 
-
-
 def draw_pair_plot(dataframe, hue=None):
     """draw_pair_plot _summary_.
 
@@ -3568,7 +3605,7 @@ def draw_pair_plot(dataframe, hue=None):
     # CANNOT change position of the legend
     graph.legend(
         #         title="Season",
-        loc="center right"
+        loc="center right",
     )  # or loc="upper right"
     plt.tight_layout()
     plt.suptitle("Features Relationships", y=1.05, fontsize=20)
@@ -3636,7 +3673,6 @@ def draw_anova_quality_checks(
     # plt.show()
 
 
-
 def draw_tukeys_hsd_plot(
     dataframe: pd.DataFrame,
     dependent_variable: str,
@@ -3666,10 +3702,10 @@ def draw_tukeys_hsd_plot(
 
     # Plot graphic output from Tukey's test
     tukey_result.plot_simultaneous(
-        ylabel="Target Categories", xlabel="Score Difference"
+        ylabel="Target Categories",
+        xlabel="Score Difference",
     )
-    plt.suptitle(
-        t=f"Tukey's HSD Post-hoc Test on {dependent_variable}", fontsize=14)
+    plt.suptitle(t=f"Tukey's HSD Post-hoc Test on {dependent_variable}", fontsize=14)
     plt.grid(visible=False)
     # plt.axis("off")
     plt.tight_layout()
@@ -3703,7 +3739,6 @@ def draw_tukeys_hsd_plot(
     #     f"\nTukey's Multicomparison Test Version 2:\n"
     #     f"{corrected_tukey_post_hoc_test}\n"
     # )
-
 
 
 def draw_pca_outliers_biplot_3d(
@@ -3766,7 +3801,6 @@ def draw_pca_outliers_biplot_3d(
     # plt.show()
 
 
-
 def draw_pca_outliers_biplot(
     dataframe: pd.DataFrame,
     label: str,
@@ -3826,7 +3860,6 @@ def draw_pca_outliers_biplot(
     # plt.show()
 
 
-
 def draw_pca_biplot_3d(
     features_scaled: pd.DataFrame,
     target_encoded: pd.Series,
@@ -3852,7 +3885,8 @@ def draw_pca_biplot_3d(
     # Define the colour scheme for identifying the target classes ?
     # target_class_colour_list, _ = colourmap.fromlist(target_class_list)
     target_class_colour_list = colourmap.generate(
-        len(target_class_list), method="seaborn"
+        len(target_class_list),
+        method="seaborn",
     )
 
     plt.figure(figsize=(15, 10))
@@ -3920,7 +3954,6 @@ def draw_pca_biplot_3d(
     fig.write_html(output_directory.joinpath(f"{file_name}.html"))
 
 
-
 def draw_pca_scatterplot(
     dataframe: pd.DataFrame,
     x_axis: str,
@@ -3981,7 +4014,6 @@ def draw_pca_scatterplot(
     )
 
 
-
 def add_confidence_interval_ellipses(
     pca_array: np.ndarray,
     target_class_list: list[str],
@@ -4021,14 +4053,12 @@ def add_confidence_interval_ellipses(
         # interval value and covariance matrix
         ellipse = Ellipse(
             xy=mean,
-            width=2 * np.sqrt(cov[0, 0]) * stats.t.ppf(
-                q=(1 + confidence_interval) / 2,
-                df=pca_class.shape[0] - 1
-            ),
-            height=2 * np.sqrt(cov[1, 1]) * stats.t.ppf(
-                q=(1 + confidence_interval) / 2,
-                df=pca_class.shape[0] - 1
-            )
+            width=2
+            * np.sqrt(cov[0, 0])
+            * stats.t.ppf(q=(1 + confidence_interval) / 2, df=pca_class.shape[0] - 1),
+            height=2
+            * np.sqrt(cov[1, 1])
+            * stats.t.ppf(q=(1 + confidence_interval) / 2, df=pca_class.shape[0] - 1),
         )
         width, height = ellipse.get_width(), ellipse.get_height()
         # print(width, height)
@@ -4042,11 +4072,10 @@ def add_confidence_interval_ellipses(
                 edgecolor=colour,
                 facecolor=colour,
                 alpha=alpha,
-            )
+            ),
         )
     plt.tight_layout()
     plt.show()
-
 
 
 def draw_pca_scatterplot_with_ellipses(
@@ -4099,7 +4128,6 @@ def draw_pca_scatterplot_with_ellipses(
         hue_order=target_label_list,
         palette=target_class_colour_list,
     )
-
 
 
 def display_boundary_decision(
@@ -4178,7 +4206,6 @@ def draw_pca_scatterplot_with_boundaries(
     )
 
 
-
 def draw_feature_rank(
     features: pd.DataFrame,
     target_encoded: pd.Series,
@@ -4229,7 +4256,7 @@ def show_items_per_category(
     data_class_count = data.value_counts()
     print(
         f"\nNumber of items within each '{category_name}' class:\n"
-        f"{data_class_count}\n"
+        f"{data_class_count}\n",
     )
 
     # Plot the figure as (horizontal) bars
@@ -4246,12 +4273,8 @@ def show_items_per_category(
     )
     # plt.axis("off")
     plt.tight_layout()
-    save_figure(
-        file_name="item_count_barchart",
-        output_directory=output_directory
-    )
+    save_figure(file_name="item_count_barchart", output_directory=output_directory)
     plt.show()
-
 
 
 def generate_class_colour_list(class_list: list[str]) -> list[str]:
@@ -4544,7 +4567,8 @@ def train_test_valid_split(
 
 
 def remove_features_with_nans(
-    dataframe: pd.DataFrame, nan_threshold: float = 0.7
+    dataframe: pd.DataFrame,
+    nan_threshold: float = 0.7,
 ) -> pd.DataFrame:
     """Remove features if there is a high proportion of NaN values.
 
@@ -4580,9 +4604,7 @@ def remove_features_with_nans(
     return reduced_dataframe
 
 
-def remove_features_with_nans_transformer(
-    nan_threshold: float
-) -> FunctionTransformer:
+def remove_features_with_nans_transformer(nan_threshold: float) -> FunctionTransformer:
     """Create a transformer to remove features with a high proportion of NaNs.
 
     Args:
@@ -4657,9 +4679,8 @@ def drop_feature_pipeline(
             "Drop Columns",
             DropFeatures(
                 features_to_drop=[
-                    feature for feature in features
-                    if feature not in features_to_keep
-                ]
+                    feature for feature in features if feature not in features_to_keep
+                ],
             ),
         ),
         (
@@ -4679,10 +4700,7 @@ def drop_feature_pipeline(
 
     if variance_threshold is not None:
         steps.append(
-            (
-                "drop_low_variance",
-                VarianceThreshold(threshold=variance_threshold)
-            )
+            ("drop_low_variance", VarianceThreshold(threshold=variance_threshold)),
         )
 
     drop_feature_pipe = Pipeline(steps=steps, verbose=True)
@@ -4691,7 +4709,8 @@ def drop_feature_pipeline(
 
 
 def get_dropped_features_from_pipeline(
-    pipeline: Pipeline, features: pd.DataFrame
+    pipeline: Pipeline,
+    features: pd.DataFrame,
 ) -> list[str]:
     """Retrieve the list of features dropped by a Scikit-learn pipeline.
 
@@ -4709,23 +4728,22 @@ def get_dropped_features_from_pipeline(
     """
     # Make a list of features dropped through the pipeline model
     drop_constant_features = list(
-        pipeline.named_steps["Drop Constant Values"].features_to_drop_
+        pipeline.named_steps["Drop Constant Values"].features_to_drop_,
     )
     print(f"\nFeatures with Constant Values:\n{drop_constant_features}\n")
 
     drop_duplicate_features = list(
-        pipeline.named_steps["Drop Duplicates"].features_to_drop_
+        pipeline.named_steps["Drop Duplicates"].features_to_drop_,
     )
     print(f"\nFeatures Duplicated:\n{drop_duplicate_features}\n")
 
     drop_correlated_features = list(
-        pipeline.named_steps["Drop Correlated Features"].features_to_drop_
+        pipeline.named_steps["Drop Correlated Features"].features_to_drop_,
     )
 
     # Get a list of correlated features
     correlated_features = list(
-        pipeline.named_steps["Drop Correlated Features"]
-        .correlated_feature_sets_
+        pipeline.named_steps["Drop Correlated Features"].correlated_feature_sets_,
     )
     print(f"\nFeatures Correlated:\n{correlated_features}\n", sep="\n")
 
@@ -4871,7 +4889,7 @@ def run_machine_learning_pipeline(
 
     # Impute and encode categorical features  # TODO Test the 'one2hot' library
     categorical_feature_pipeline = preprocess_categorical_feature_pipeline(
-        encoder="one_hot_encoder"
+        encoder="one_hot_encoder",
     )
 
     # Impute and scale numeric features
@@ -4991,9 +5009,7 @@ def get_transformed_feature_pipeline(
     feature_names_from_pipe = pipeline[:-1].get_feature_names_out().tolist()
 
     # Similarly, we can extract the preprocessed (transformed) array data
-    transformed_features_from_pipeline = (
-        pipeline[:-1].fit_transform(features_data)
-    )
+    transformed_features_from_pipeline = pipeline[:-1].fit_transform(features_data)
     # Convert the array into a dataframe
     preprocessed_df = pd.DataFrame(
         data=transformed_features_from_pipeline,
@@ -5171,7 +5187,7 @@ def calculate_cross_validation_scores(
     cv_accuracy_score_stdev = cv_accuracy_score.std()
     print(
         f"Cross-Validation Accuracy Score = {cv_accuracy_score_mean:.2%}"
-        f" +/- {cv_accuracy_score_stdev.std():.2%}"
+        f" +/- {cv_accuracy_score_stdev.std():.2%}",
     )
 
     # Produce a classification report
@@ -5183,7 +5199,6 @@ def calculate_cross_validation_scores(
         # output_dict=True,
     )
     print(f"\nClassification Report:\n{classification_report_}\n")
-
 
 
 def calculate_multiple_cross_validation_scores(
@@ -5239,7 +5254,7 @@ def calculate_multiple_cross_validation_scores(
     valid_scores_cv_means["CV StDev"] = valid_scores_cv_dataframe.std()
     # Format scores as percentages (delete 'fit_time' and 'score_time' columns)
     valid_scores_cv_means = valid_scores_cv_means.iloc[2:].applymap(
-        lambda float_: f"{float_:.2%}"
+        lambda float_: f"{float_:.2%}",
     )
     print(f"\nModel Score Output*:\n{valid_scores_cv_means}\n")
     print(
@@ -5249,9 +5264,8 @@ def calculate_multiple_cross_validation_scores(
         should be very close to the ones calculated with the function
         'calculate_cross_validation_prediction_scores', which uses the
         'cross_val_predict' function from Scikit-learn library.
-    """
+    """,
     )
-
 
 
 def calculate_recall_cross_validation_scores(
@@ -5345,8 +5359,7 @@ def calculate_cross_validation_prediction_scores(
 
     # Apply each scoring method 'score' to a loop & append output to dictionary
     for score in score_list:
-        score_name = score.__name__.replace(
-            "_", " ").replace("score", "").title()
+        score_name = score.__name__.replace("_", " ").replace("score", "").title()
         score_aggregation = score(
             y_true=target,
             y_pred=target_pred_cv,
@@ -5361,13 +5374,14 @@ def calculate_cross_validation_prediction_scores(
     score_mean_df = pd.DataFrame(data=mean_scores)
     score_stdev_df = pd.DataFrame(data=stdev_scores)
     prediction_scores_dataframe = pd.concat(
-        objs=[score_mean_df, score_stdev_df], axis="index"
+        objs=[score_mean_df, score_stdev_df],
+        axis="index",
     )
     prediction_scores_dataframe.index = ["Mean", "StDev"]
 
     # Format scores as percentages
     prediction_scores_dataframe = prediction_scores_dataframe.applymap(
-        lambda float_: f"{float_:.2%}"
+        lambda float_: f"{float_:.2%}",
     )
     print(f"\nModel Prediction Scores:\n{prediction_scores_dataframe}\n")
 
@@ -5404,7 +5418,8 @@ def train_tree_classifier(
 
     # Build a dataframe of true/test values vs prediction values
     target_pred_tree_classifier_df = pd.DataFrame(
-        data=target_pred, columns=["predictions"]
+        data=target_pred,
+        columns=["predictions"],
     )
 
     # Compare the predictions against the target
@@ -5413,7 +5428,8 @@ def train_tree_classifier(
         target_pred_tree_classifier_df,
     ]
     predictions_tree_classifier = pd.concat(
-        objs=prediction_list_tree_classifier, axis="columns"
+        objs=prediction_list_tree_classifier,
+        axis="columns",
     ).set_index(keys=index_name)
     print("Test vs. Predictions for tree classifier:")
     print(predictions_tree_classifier)
@@ -5443,8 +5459,7 @@ def show_tree_classifier_feature_importances(
     # in the source dataset
     tree_classification_feat_importance = tree_classifier.feature_importances_
     # Sort the INDEX of classification feature importance scores in desc. order
-    tree_classification_indices = np.argsort(
-        tree_classification_feat_importance)[::-1]
+    tree_classification_indices = np.argsort(tree_classification_feat_importance)[::-1]
     # Reorder classification importance scores according to the previous step
     reordered_feat_importance = [
         tree_classification_feat_importance[index]
@@ -5465,17 +5480,15 @@ def show_tree_classifier_feature_importances(
     print("\nImportance of Features in Tree Classification:")
     print(tree_classification_importances)
 
-    tree_classifiers_train_score = tree_classifier.score(
-        features_train, target_train)
+    tree_classifiers_train_score = tree_classifier.score(features_train, target_train)
     print(
         f"\nDecision Tree Mean Accuracy Score for Train Set = "
-        f"{tree_classifiers_train_score:.1%}\n"
+        f"{tree_classifiers_train_score:.1%}\n",
     )
-    tree_classifiers_test_score = tree_classifier.score(
-        features_test, target_test)
+    tree_classifiers_test_score = tree_classifier.score(features_test, target_test)
     print(
         f"\nDecision Tree Mean Accuracy Score for Test Set = "
-        f"{tree_classifiers_test_score:.1%}\n"
+        f"{tree_classifiers_test_score:.1%}\n",
     )
 
 
@@ -5527,7 +5540,7 @@ def draw_decision_tree(
 
     print(
         f"\nThe decision tree has {n_nodes} nodes "
-        f"and has the following structure:\n"
+        f"and has the following structure:\n",
     )
     print("Feature order in the decision tree as described below:")
     print(feature_name_list)
@@ -5541,7 +5554,7 @@ def draw_decision_tree(
                 f"\nNode={index} is a split node: "
                 f"go to node {children_left[index]} "
                 f"if feature {feature[index]} <= {threshold_value[index]:.3f},"
-                f" else go to node {children_right[index]}."
+                f" else go to node {children_right[index]}.",
             )
 
     # Display the tree structure
@@ -5590,15 +5603,12 @@ def draw_random_forest_tree(
         plottype="vertical",
     )
     plt.title(
-        label=(
-            "Random Forest Tree for the Identification of Target Categories"
-        ),
+        label=("Random Forest Tree for the Identification of Target Categories"),
         fontsize=16,
     )
     plt.tight_layout()
     save_figure(file_name=file_name, output_directory=output_directory)
     # plt.show()
-
 
 
 def draw_confusion_matrix_heatmap(
@@ -5667,7 +5677,6 @@ def draw_confusion_matrix_heatmap(
     # plt.show()
 
 
-
 def get_feature_importance_scores(
     model: BaseEstimator,
     feature_name_list: list[str],
@@ -5704,7 +5713,8 @@ def get_feature_importance_scores(
 
     # Create a Pandas Series to plot the data
     model_feature_importances = pd.Series(
-        data=feature_importances[feature_indices], index=feature_names
+        data=feature_importances[feature_indices],
+        index=feature_names,
     )
     print(f"\nModel Features Importance:\n{model_feature_importances}\n")
 
@@ -5834,7 +5844,8 @@ def get_best_parameters_ensemble(
     cv_results = pipeline.cv_results_
     cv_results_dataframe = pd.DataFrame(data=cv_results)
     cv_results_dataframe = cv_results_dataframe.sort_values(
-        by=["mean_test_score"], ascending=False
+        by=["mean_test_score"],
+        ascending=False,
     )
 
     # Get the optimised parameters of the Top 5 Ensemble Classifiers
@@ -5846,9 +5857,7 @@ def get_best_parameters_ensemble(
             "rank_test_score",
             "param_Transform Features__Numeric Features__scaler",
             "param_Resampler",
-
             f"param_{model['model_name']}__voting",
-
             # f"param_{model['model_name']}__Decision Tree "
             # f"Classifier__criterion",
             # f"param_{model['model_name']}__Decision Tree "
@@ -5859,19 +5868,15 @@ def get_best_parameters_ensemble(
             # f"Bayes__var_smoothing",
             # f"param_{model['model_name']}__Linear Discriminant "
             # f"Analysis__solver",
-
-            f"param_{model['model_name']}__Random Forest "
-            f"Classifier__max_depth",
+            f"param_{model['model_name']}__Random Forest " f"Classifier__max_depth",
             f"param_{model['model_name']}__Random Forest "
             f"Classifier__max_leaf_nodes",
             f"param_{model['model_name']}__Random Forest "
             f"Classifier__min_samples_leaf",
             f"param_{model['model_name']}__Random Forest "
             f"Classifier__min_samples_split",
-            f"param_{model['model_name']}__Random Forest "
-            f"Classifier__n_estimators",
-            f"param_{model['model_name']}__Support Vector Machine "
-            f"Classifier__C",
+            f"param_{model['model_name']}__Random Forest " f"Classifier__n_estimators",
+            f"param_{model['model_name']}__Support Vector Machine " f"Classifier__C",
             f"param_{model['model_name']}__Support Vector Machine "
             f"Classifier__gamma",
             f"param_{model['model_name']}__Support Vector Machine "
@@ -5883,10 +5888,8 @@ def get_best_parameters_ensemble(
     ].head(5)
 
     # Set the column 'mean_test_score' to a percentage with one decimal
-    cv_results_best_5["mean_test_score"] = (
-        cv_results_best_5["mean_test_score"].apply(
-            lambda percent: f"{percent:.1%}"
-        )
+    cv_results_best_5["mean_test_score"] = cv_results_best_5["mean_test_score"].apply(
+        lambda percent: f"{percent:.1%}",
     )
     print("\nTable of Top 5 Best Models:")
     print(cv_results_best_5)
@@ -5894,7 +5897,9 @@ def get_best_parameters_ensemble(
 
 
 def random_search_cv_optimisation_ensemble(
-    pipeline: Pipeline, model: dict[str, object], cv: int = 5
+    pipeline: Pipeline,
+    model: dict[str, object],
+    cv: int = 5,
 ) -> RandomizedSearchCV:
     """Perform random search cross-validation.
 
@@ -5941,7 +5946,6 @@ def random_search_cv_optimisation_ensemble(
             SVMSMOTE(random_state=42),
         ],
         f"{model['model_name']}__voting": ["soft", "hard"],
-
         # f"{model['model_name']}__Gaussian Naive Bayes__var_smoothing": [
         #     0,
         #     1e-9,
@@ -5956,7 +5960,6 @@ def random_search_cv_optimisation_ensemble(
         #     "lsqr",
         #     "eigen",
         # ],
-
         f"{model['model_name']}__Random Forest Classifier__max_depth": [
             2,
             3,
@@ -6065,7 +6068,9 @@ def random_search_cv_optimisation_ensemble(
 
 
 def bayes_search_cv_optimisation(
-    pipeline: Pipeline, model: dict[str, object], cv: int = 5
+    pipeline: Pipeline,
+    model: dict[str, object],
+    cv: int = 5,
 ) -> BayesSearchCV:
     """Perform random search cross-validation.
 
@@ -6114,7 +6119,9 @@ def bayes_search_cv_optimisation(
         f"{model['model_name']}__min_data_in_leaf": space.Integer(20, 50),
         # f"{model['model_name']}__boosting_type": ["gbdt",  "dart",  "rf"],
         f"{model['model_name']}__learning_rate": space.Real(
-            0.005, 1, prior="log-uniform"
+            0.005,
+            1,
+            prior="log-uniform",
         ),
         f"{model['model_name']}__n_estimators": space.Integer(100, 500),
         f"{model['model_name']}__max_depth": space.Integer(4, 10),
